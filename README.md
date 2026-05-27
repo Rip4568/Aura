@@ -83,69 +83,183 @@ meu_projeto/
     └── test_users.py            # 7 testes de integração
 ```
 
-### API REST (JSON)
+### API REST com ORM assíncrono
+
+> Django tem ORM mas é síncrono — precisa de `sync_to_async()` em todo lugar.  
+> FastAPI não tem ORM — você conecta SQLAlchemy na mão com `Depends(get_db)`.  
+> Aura tem `AuraModel` + `Repository[T]` + `db.session()` — async nativo, sem gambiarras.
 
 ```python
-# modules/posts/schemas.py
+# modules/posts/models.py
+from aura.orm import AuraModel
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import String, Text, Boolean
+
+class Post(AuraModel):
+    __tablename__ = "posts"
+
+    title:     Mapped[str]  = mapped_column(String(200))
+    body:      Mapped[str]  = mapped_column(Text)
+    published: Mapped[bool] = mapped_column(Boolean, default=False)
+    # id, created_at, updated_at → herdados de AuraModel automaticamente
+```
+
+```python
+# modules/posts/schemas.py  ← a Spec (SDD): fonte da verdade para validação e OpenAPI
 from aura import Schema
 
 class CreatePostDTO(Schema):
     title: str
     body: str
 
-class PostResponse(Schema):
-    id: int
-    title: str
-    body: str
+class UpdatePostDTO(Schema):
+    title: str | None = None
+    body:  str | None = None
 
+class PostResponse(Schema):
+    model_config = {"from_attributes": True}  # aceita ORM objects diretamente
+
+    id:        int
+    title:     str
+    body:      str
+    published: bool
+```
+
+```python
+# modules/posts/repository.py
+from aura.orm import Repository
+from sqlalchemy import select
+from .models import Post
+
+class PostRepository(Repository[Post]):
+    model = Post
+
+    # Repository[T] já inclui: get, get_or_raise, list, create, update,
+    # delete, exists, count, first, bulk_create — sem escrever SQL.
+    # Adicione métodos customizados para consultas específicas:
+
+    async def list_published(self, *, limit: int = 20) -> list[Post]:
+        stmt = (
+            select(Post)
+            .where(Post.published == True)
+            .order_by(Post.created_at.desc())
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+```
+
+```python
 # modules/posts/service.py
 from aura import injectable, NotFoundException
-from .schemas import CreatePostDTO, PostResponse
+from aura.orm import db          # singleton DatabaseManager — inicializado no main.py
+from .models import Post
+from .repository import PostRepository
+from .schemas import CreatePostDTO, UpdatePostDTO, PostResponse
 
 @injectable
 class PostService:
-    def __init__(self) -> None:
-        self._store: dict[int, PostResponse] = {}
-        self._next_id = 1
+    """Business logic — não sabe nada de HTTP, só de Posts."""
 
     async def list_posts(self) -> list[PostResponse]:
-        return list(self._store.values())
+        async with db.session() as session:           # ← abre transação async
+            posts = await PostRepository(session).list()
+            return [PostResponse.model_validate(p) for p in posts]
+
+    async def get_post(self, post_id: int) -> PostResponse:
+        async with db.session() as session:
+            post = await PostRepository(session).get_or_raise(post_id)
+            return PostResponse.model_validate(post)  # 404 automático se não existir
 
     async def create_post(self, data: CreatePostDTO) -> PostResponse:
-        post = PostResponse(id=self._next_id, **data.model_dump())
-        self._store[self._next_id] = post
-        self._next_id += 1
-        return post
+        async with db.session() as session:           # ← commit automático ao sair
+            post = await PostRepository(session).create(**data.model_dump())
+            return PostResponse.model_validate(post)
 
-# modules/posts/controller.py
+    async def update_post(self, post_id: int, data: UpdatePostDTO) -> PostResponse:
+        async with db.session() as session:
+            updates = {k: v for k, v in data.model_dump().items() if v is not None}
+            post = await PostRepository(session).update(post_id, **updates)
+            return PostResponse.model_validate(post)  # rollback automático em exceção
+
+    async def delete_post(self, post_id: int) -> None:
+        async with db.session() as session:
+            deleted = await PostRepository(session).delete(post_id)
+            if not deleted:
+                raise NotFoundException(f"Post {post_id} not found")
+```
+
+```python
+# modules/posts/controller.py  ← handlers finos: recebem input, chamam service, retornam
 from typing import Annotated
-from aura import get, post, Body, Param
-from .schemas import CreatePostDTO, PostResponse
+from aura import get, post, put, delete, Body, Param
+from .schemas import CreatePostDTO, UpdatePostDTO, PostResponse
 from .service import PostService
 
 class PostsController:
     def __init__(self, service: PostService) -> None:
-        self.service = service  # injetado automaticamente
+        self.service = service          # injetado pelo DI container
 
     @get("/")
     async def list_posts(self) -> list[PostResponse]:
         return await self.service.list_posts()
 
+    @get("/{post_id}")
+    async def get_post(self, post_id: Annotated[int, Param()]) -> PostResponse:
+        return await self.service.get_post(post_id)
+
     @post("/", status=201)
-    async def create_post(
-        self,
-        body: Annotated[CreatePostDTO, Body()],
-    ) -> PostResponse:
+    async def create_post(self, body: Annotated[CreatePostDTO, Body()]) -> PostResponse:
         return await self.service.create_post(body)
 
+    @put("/{post_id}")
+    async def update_post(
+        self,
+        post_id: Annotated[int, Param()],
+        body:    Annotated[UpdatePostDTO, Body()],
+    ) -> PostResponse:
+        return await self.service.update_post(post_id, body)
+
+    @delete("/{post_id}", status=204)
+    async def delete_post(self, post_id: Annotated[int, Param()]) -> None:
+        await self.service.delete_post(post_id)
+```
+
+```python
 # modules/posts/module.py
 from aura import Module
 from .controller import PostsController
 from .service import PostService
 
-@Module(providers=[PostService], controllers=[PostsController], prefix="/posts")
+@Module(providers=[PostService], controllers=[PostsController], prefix="/posts", tags=["Posts"])
 class PostsModule:
     pass
+```
+
+```python
+# main.py
+from aura import Aura
+from aura.orm import db
+from modules.posts.models import Post
+from modules.posts.module import PostsModule
+
+# Inicializa o pool de conexões async (SQLite em dev, PostgreSQL em produção)
+db.init("sqlite+aiosqlite:///./app.db")
+
+app = Aura(modules=[PostsModule], title="Blog API", version="1.0.0")
+
+# Para criar as tabelas em dev (use `aura migrate up` em produção):
+# import asyncio; asyncio.run(db.create_all(Post))
+```
+
+```bash
+aura run --reload
+# POST /posts/    → cria post (persiste no banco)
+# GET  /posts/    → lista todos
+# GET  /posts/1   → busca por ID (404 automático se não existir)
+# PUT  /posts/1   → atualiza
+# DELETE /posts/1 → remove
+# GET  /docs      → Swagger UI auto-gerado
 ```
 
 ### Full-stack com HTML (Jinja2 + htmx)
