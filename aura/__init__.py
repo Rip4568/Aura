@@ -51,6 +51,24 @@ from aura.config.base import AuraConfig
 from aura.core.response import AuraResponse, ok, created, no_content, redirect
 from aura.core.request import AuraRequest
 
+# Templates (optional — requires aura-web[templates])
+try:
+    from aura.templates import (
+        TemplateContext,
+        HtmlResponse,
+        AuraTemplateEngine,
+        Component,
+        HtmxInfo,
+        render,
+        render_string,
+        render_to_string,
+        html,
+        sse,
+        AuraTemplateModule,
+    )
+except ImportError:
+    pass  # Jinja2 not installed — templates disabled
+
 __version__ = "0.1.0"
 
 __all__ = [

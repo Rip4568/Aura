@@ -16,10 +16,38 @@ class AuraRequest(Request):
     - ``state`` attribute access helpers.
     - ``user`` property for the authenticated user (set by auth middleware).
     - ``container`` property for the per-request DI scope.
+    - ``htmx`` property — parsed htmx request headers.
 
     This class is a thin extension — the standard Starlette ``Request`` API
     is fully available.
     """
+
+    @property
+    def htmx(self) -> Any:
+        """Return parsed htmx request headers as an :class:`~aura.templates.htmx.HtmxInfo`.
+
+        Use this to detect htmx requests and return partial HTML fragments::
+
+            @get("/users")
+            async def list_users(self, request: AuraRequest) -> HtmlResponse:
+                ctx = UserListContext(users=await self.service.list())
+                if request.htmx.is_htmx:
+                    return await render("partials/user_rows.html", ctx)
+                return await render("users/list.html", ctx)
+
+        Returns:
+            :class:`~aura.templates.htmx.HtmxInfo` with parsed headers.
+        """
+        if not hasattr(self.state, "_htmx"):
+            try:
+                from aura.templates.htmx import HtmxInfo
+                self.state._htmx = HtmxInfo.from_headers(self.headers)
+            except ImportError:
+                # Templates not installed — return a falsy stub
+                class _NoHtmx:
+                    is_htmx = False
+                self.state._htmx = _NoHtmx()
+        return self.state._htmx
 
     @property
     def user(self) -> Any:
