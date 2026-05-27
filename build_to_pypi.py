@@ -70,7 +70,7 @@ def build() -> None:
 
 def check() -> None:
     step("🔍  Validating packages (twine check)")
-    run([sys.executable, "-m", "twine", "check"] + list(DIST.glob("*")), cwd=ROOT)
+    run([sys.executable, "-m", "twine", "check"] + [str(p) for p in DIST.glob("*")], cwd=ROOT)
     print("\n   ✅  All packages passed validation")
 
 
@@ -84,7 +84,7 @@ def upload(token: str, repo_url: str, test: bool = False) -> None:
         "--username", "__token__",
         "--password", token,
         "--non-interactive",
-    ] + list(DIST.glob("*")), cwd=ROOT)
+    ] + [str(p) for p in DIST.glob("*")], cwd=ROOT)
 
     pkg_name = _get_package_name()
     if test:
