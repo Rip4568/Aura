@@ -1,0 +1,104 @@
+"""
+Aura Framework — Modern, async-first, type-safe Python web framework.
+
+Design principles:
+- Schema-Driven Development (SDD): schemas as source of truth
+- Async-first: ASGI core with sync support via anyio
+- Type-safe: Pydantic v2 throughout
+- Modular: NestJS-inspired module system
+- AI-friendly: designed for AI-guided development
+
+Quick start::
+
+    from aura import Aura, Module, get, Body, Schema
+
+    class UserSchema(Schema):
+        name: str
+        email: str
+
+    class UserController:
+        @get("/users", response=UserSchema)
+        async def list_users(self) -> list[UserSchema]:
+            return []
+
+    @Module(controllers=[UserController])
+    class UserModule:
+        pass
+
+    app = Aura(modules=[UserModule], title="My API")
+"""
+
+from aura.core.app import Aura
+from aura.modules.base import Module
+from aura.routing.router import Router
+from aura.routing.decorators import get, post, put, delete, patch, ws
+from aura.routing.params import Body, Param, Query, Header, Cookie
+from aura.schema.base import Schema, ResponseSchema
+from aura.di.decorators import injectable, inject
+from aura.di.container import DIContainer, Lifetime
+from aura.guards.base import Guard
+from aura.exceptions.http import (
+    HTTPException,
+    BadRequestException,
+    UnauthorizedException,
+    ForbiddenException,
+    NotFoundException,
+    ConflictException,
+    UnprocessableEntityException,
+    InternalServerException,
+)
+from aura.config.base import AuraConfig
+from aura.core.response import AuraResponse, ok, created, no_content, redirect
+from aura.core.request import AuraRequest
+
+__version__ = "0.1.0"
+
+__all__ = [
+    # Application
+    "Aura",
+    # Modules
+    "Module",
+    # Routing
+    "Router",
+    "get",
+    "post",
+    "put",
+    "delete",
+    "patch",
+    "ws",
+    # Parameter extractors
+    "Body",
+    "Param",
+    "Query",
+    "Header",
+    "Cookie",
+    # Schemas
+    "Schema",
+    "ResponseSchema",
+    # DI
+    "injectable",
+    "inject",
+    "DIContainer",
+    "Lifetime",
+    # Guards
+    "Guard",
+    # Exceptions
+    "HTTPException",
+    "BadRequestException",
+    "UnauthorizedException",
+    "ForbiddenException",
+    "NotFoundException",
+    "ConflictException",
+    "UnprocessableEntityException",
+    "InternalServerException",
+    # Config
+    "AuraConfig",
+    # Response helpers
+    "AuraResponse",
+    "ok",
+    "created",
+    "no_content",
+    "redirect",
+    # Request
+    "AuraRequest",
+]

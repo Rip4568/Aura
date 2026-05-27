@@ -1,0 +1,81 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aura-framework"
+version = "0.1.0"
+description = "A modern, async-first, type-safe Python web framework with SDD support"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+keywords = ["web", "framework", "async", "type-safe", "sdd", "api"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Typing :: Typed",
+]
+dependencies = [
+    "anyio>=4.0",
+    "pydantic>=2.5",
+    "pydantic-settings>=2.1",
+    "starlette>=0.36",
+    "httpx>=0.26",
+    "tomli>=2.0; python_version < '3.11'",
+    "typing-extensions>=4.0; python_version < '3.11'",
+    "rich>=13.0",
+    "typer>=0.9",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+granian = ["granian>=1.0"]
+uvicorn = ["uvicorn[standard]>=0.27"]
+sqlalchemy = ["sqlalchemy[asyncio]>=2.0", "alembic>=1.13"]
+saq = ["saq>=0.12"]
+taskiq = ["taskiq>=0.11", "taskiq-redis>=0.5"]
+redis = ["redis[asyncio]>=5.0"]
+jwt = ["python-jose[cryptography]>=3.3"]
+all = [
+    "aura-framework[granian,uvicorn,sqlalchemy,saq,redis,jwt]"
+]
+dev = [
+    "pytest>=7.4",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.1",
+    "httpx>=0.26",
+    "mypy>=1.8",
+    "ruff>=0.2",
+]
+
+[project.scripts]
+aura = "aura.cli.main:app"
+
+[project.entry-points."aura.plugins"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["aura"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "ANN", "ASYNC"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
