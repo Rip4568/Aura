@@ -71,8 +71,6 @@ def html(
                 return await render("partials/user_detail.html", ctx)
             return await render("users/detail.html", ctx)
     """
-    from aura.routing.decorators import _route_decorator  # type: ignore[attr-defined]
-
     def decorator(func: F) -> F:
         meta = {
             "method": "GET",

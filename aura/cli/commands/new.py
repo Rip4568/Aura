@@ -1,4 +1,4 @@
-"""``aura new`` command — scaffold a new Aura project."""
+"""``aura new`` command — scaffold a new Aura project with a working boilerplate."""
 
 from __future__ import annotations
 
@@ -10,29 +10,68 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-app = typer.Typer(help="Create a new Aura project.")
+app = typer.Typer(help="Scaffold a new Aura project.")
 console = Console()
 
+
 # ---------------------------------------------------------------------------
-# Project template
+# Helpers
 # ---------------------------------------------------------------------------
 
-_MAIN_PY = '''\
-"""Entry point for {project_name}."""
+def _snake(name: str) -> str:
+    name = re.sub(r"[-\s]+", "_", name)
+    name = re.sub(r"[^a-zA-Z0-9_]", "", name)
+    return name.lower()
+
+def _pascal(name: str) -> str:
+    return "".join(w.capitalize() for w in re.split(r"[-_\s]+", name))
+
+
+# ---------------------------------------------------------------------------
+# File templates — every file is READY TO RUN, nothing commented out
+# ---------------------------------------------------------------------------
+
+def _main_py(project_name: str, snake: str) -> str:
+    return f'''\
+"""
+{project_name} — Aura Framework application.
+
+Run:
+    aura run                 # development
+    aura run --reload        # with hot-reload
+    aura run --workers 4     # production-like
+"""
 from aura import Aura
+from modules.users.module import UsersModule
 
-app = Aura()
-
-# Import your modules here
-# from {snake_name}.modules.users.module import UsersModule
-# app.register(UsersModule)
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+app = Aura(
+    modules=[UsersModule],
+    title="{project_name}",
+    version="0.1.0",
+    description="Built with Aura Framework",
+)
 '''
 
-_AURA_TOML = '''\
+def _env_example() -> str:
+    return """\
+# Copy this file to .env and fill in the values.
+# Aura reads nested config with __ as separator.
+
+# Server
+AURA__SERVER__HOST=127.0.0.1
+AURA__SERVER__PORT=8000
+AURA__SERVER__RELOAD=true
+
+# Database (SQLite by default — change to PostgreSQL in production)
+AURA__DATABASE__URL=sqlite+aiosqlite:///./dev.db
+# AURA__DATABASE__URL=postgresql+asyncpg://user:pass@localhost/mydb
+
+# Jobs (comment out to use in-memory queue)
+# AURA__JOBS__BROKER_URL=redis://localhost:6379/0
+"""
+
+def _aura_toml(project_name: str, snake: str) -> str:
+    return f"""\
 [app]
 name = "{project_name}"
 debug = true
@@ -40,64 +79,14 @@ debug = true
 [server]
 host = "127.0.0.1"
 port = 8000
+reload = false
 
 [database]
-url = "sqlite+aiosqlite:///./{snake_name}.db"
-'''
+url = "sqlite+aiosqlite:///./{snake}.db"
+"""
 
-_EXAMPLE_MODULE_INIT = '''\
-"""Example module — remove or replace as needed."""
-'''
-
-_EXAMPLE_MODULE_PY = '''\
-"""Example Aura module."""
-# from aura.modules import AuraModule
-# from .router import router
-#
-# class ExampleModule(AuraModule):
-#     routers = [router]
-'''
-
-_GITIGNORE = '''\
-__pycache__/
-*.py[cod]
-*.pyo
-.env
-.venv
-venv/
-env/
-*.egg-info/
-dist/
-build/
-.mypy_cache/
-.ruff_cache/
-.pytest_cache/
-*.db
-*.sqlite3
-migrations/versions/*.py
-!migrations/versions/.gitkeep
-'''
-
-_TESTS_INIT = '''\
-"""Test suite for {project_name}."""
-'''
-
-_CONFTEST = '''\
-"""Pytest configuration for {project_name}."""
-import pytest
-from aura.testing import AuraTestClient
-
-# Import your app
-# from main import app as aura_app
-
-
-# @pytest.fixture
-# async def client():
-#     async with AuraTestClient(aura_app) as c:
-#         yield c
-'''
-
-_PYPROJECT_TOML = '''\
+def _pyproject_toml(project_name: str) -> str:
+    return f"""\
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -106,10 +95,9 @@ build-backend = "hatchling.build"
 name = "{project_name}"
 version = "0.1.0"
 description = "An Aura Framework application"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
-    "aura-framework>=0.1.0",
-    "uvicorn[standard]>=0.27",
+    "aura-web[uvicorn]>=0.1.0",
     "aiosqlite>=0.20",
 ]
 
@@ -123,48 +111,430 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+"""
+
+def _readme(project_name: str) -> str:
+    return f"""\
+# {project_name}
+
+Built with [Aura Framework](https://pypi.org/project/aura-web/).
+
+## Quick start
+
+```bash
+# Install dependencies
+pip install -e ".[dev]"
+
+# Copy env file and configure
+cp .env.example .env
+
+# Run development server
+aura run --reload
+
+# Open in browser
+# API docs:  http://localhost:8000/docs
+# Health:    http://localhost:8000/health
+```
+
+## Project structure
+
+```
+{_snake(project_name)}/
+├── main.py                  # Entry point
+├── aura.toml                # App config
+├── .env                     # Secrets (not committed)
+├── modules/
+│   └── users/               # Example module — duplicate for new features
+│       ├── module.py        # @Module declaration
+│       ├── controller.py    # Route handlers
+│       ├── service.py       # Business logic (@injectable)
+│       └── schemas.py       # Pydantic DTOs (the Spec)
+└── tests/
+    └── test_users.py        # Integration tests
+```
+
+## Adding a new module
+
+```bash
+aura generate module posts
+```
+
+Then import the new module in `main.py`:
+
+```python
+from modules.posts.module import PostsModule
+
+app = Aura(modules=[UsersModule, PostsModule], ...)
+```
+
+## Running tests
+
+```bash
+pytest
+```
+"""
+
+def _gitignore() -> str:
+    return """\
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.db
+*.sqlite3
+"""
+
+# ---- modules/users/ --------------------------------------------------------
+
+def _users_schemas() -> str:
+    return '''\
+"""
+Schemas for the Users module.
+
+In Aura, schemas are the Spec — they define the contract of the API.
+The framework derives validation, serialisation and OpenAPI docs from them.
+"""
+from __future__ import annotations
+
+from aura import Schema
+
+
+class CreateUserDTO(Schema):
+    """Data required to create a new user."""
+    name:  str
+    email: str
+
+
+class UpdateUserDTO(Schema):
+    """Partial update — all fields optional."""
+    name:  str | None = None
+    email: str | None = None
+
+
+class UserResponse(Schema):
+    """What the API returns for a user."""
+    id:    int
+    name:  str
+    email: str
 '''
 
+def _users_service() -> str:
+    return '''\
+"""
+UserService — business logic layer.
+
+Uses an in-memory store so the app works immediately without a database.
+When you\'re ready for persistence, replace self._store with a Repository[User].
+"""
+from __future__ import annotations
+
+from aura import injectable, NotFoundException, ConflictException
+from .schemas import CreateUserDTO, UpdateUserDTO, UserResponse
+
+
+@injectable
+class UserService:
+    """Handles all business logic for the Users feature."""
+
+    def __init__(self) -> None:
+        # In-memory store — swap for Repository[User] when adding SQLAlchemy
+        self._store: dict[int, UserResponse] = {
+            1: UserResponse(id=1, name="Alice", email="alice@example.com"),
+            2: UserResponse(id=2, name="Bob",   email="bob@example.com"),
+        }
+        self._next_id = 3
+
+    async def list_users(self) -> list[UserResponse]:
+        """Return all users."""
+        return list(self._store.values())
+
+    async def get_user(self, user_id: int) -> UserResponse:
+        """Return a single user or raise 404."""
+        user = self._store.get(user_id)
+        if user is None:
+            raise NotFoundException(f"User {user_id} not found")
+        return user
+
+    async def create_user(self, data: CreateUserDTO) -> UserResponse:
+        """Create a new user, raising 409 if the email is taken."""
+        for existing in self._store.values():
+            if existing.email == data.email:
+                raise ConflictException(f"Email \'{data.email}\' already in use")
+
+        user = UserResponse(id=self._next_id, **data.model_dump())
+        self._store[self._next_id] = user
+        self._next_id += 1
+        return user
+
+    async def update_user(self, user_id: int, data: UpdateUserDTO) -> UserResponse:
+        """Partially update a user."""
+        user = await self.get_user(user_id)
+        updated = user.model_copy(update={k: v for k, v in data.model_dump().items() if v is not None})
+        self._store[user_id] = updated
+        return updated
+
+    async def delete_user(self, user_id: int) -> None:
+        """Delete a user or raise 404."""
+        await self.get_user(user_id)  # raises 404 if not found
+        del self._store[user_id]
+'''
+
+def _users_controller() -> str:
+    return '''\
+"""
+UsersController — HTTP handlers for the Users module.
+
+Route handlers are thin: they receive validated input, call the service,
+and return the result. Business logic lives in UserService.
+"""
+from __future__ import annotations
+
+from typing import Annotated
+
+from aura import get, post, put, delete, Body, Param
+from .schemas import CreateUserDTO, UpdateUserDTO, UserResponse
+from .service import UserService
+
+
+class UsersController:
+    """Handles HTTP requests for /users routes."""
+
+    def __init__(self, service: UserService) -> None:
+        # UserService is injected automatically by the DI container
+        self.service = service
+
+    @get("/")
+    async def list_users(self) -> list[UserResponse]:
+        """List all users."""
+        return await self.service.list_users()
+
+    @get("/{user_id}")
+    async def get_user(
+        self,
+        user_id: Annotated[int, Param()],
+    ) -> UserResponse:
+        """Get a user by ID. Returns 404 if not found."""
+        return await self.service.get_user(user_id)
+
+    @post("/", status=201)
+    async def create_user(
+        self,
+        body: Annotated[CreateUserDTO, Body()],
+    ) -> UserResponse:
+        """Create a new user. Returns 409 if email is already taken."""
+        return await self.service.create_user(body)
+
+    @put("/{user_id}")
+    async def update_user(
+        self,
+        user_id: Annotated[int, Param()],
+        body:    Annotated[UpdateUserDTO, Body()],
+    ) -> UserResponse:
+        """Partially update a user."""
+        return await self.service.update_user(user_id, body)
+
+    @delete("/{user_id}", status=204)
+    async def delete_user(
+        self,
+        user_id: Annotated[int, Param()],
+    ) -> None:
+        """Delete a user. Returns 404 if not found."""
+        await self.service.delete_user(user_id)
+'''
+
+def _users_module() -> str:
+    return '''\
+"""
+UsersModule — encapsulates the entire Users feature.
+
+@Module declares:
+  providers   — classes the DI container can inject (services, repos, etc.)
+  controllers — classes with route handlers
+  prefix      — URL prefix for all routes in this module
+  tags        — OpenAPI tag group
+"""
+from aura import Module
+from .controller import UsersController
+from .service import UserService
+
+
+@Module(
+    providers=[UserService],
+    controllers=[UsersController],
+    prefix="/users",
+    tags=["Users"],
+)
+class UsersModule:
+    pass
+'''
+
+def _users_init() -> str:
+    return '"""Users module."""\n'
+
+# ---- tests/ ----------------------------------------------------------------
+
+def _conftest(project_name: str) -> str:
+    return f'''\
+"""Pytest fixtures for {project_name}."""
+from __future__ import annotations
+
+import pytest
+from httpx import AsyncClient, ASGITransport
+
+from main import app
+
+
+@pytest.fixture
+async def client():
+    """HTTP test client wired directly to the ASGI app — no server needed."""
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as c:
+        yield c
+'''
+
+def _test_users() -> str:
+    return '''\
+"""
+Integration tests for the Users module.
+
+These tests hit the real ASGI app (no mocking) and validate
+the full request → controller → service → response pipeline.
+"""
+from __future__ import annotations
+
+import pytest
+
+
+async def test_list_users(client):
+    """Seed data has 2 users — listing returns them."""
+    r = await client.get("/users/")
+    assert r.status_code == 200
+    users = r.json()
+    assert len(users) == 2
+    assert users[0]["name"] == "Alice"
+
+
+async def test_get_user(client):
+    r = await client.get("/users/1")
+    assert r.status_code == 200
+    assert r.json()["email"] == "alice@example.com"
+
+
+async def test_get_user_not_found(client):
+    r = await client.get("/users/999")
+    assert r.status_code == 404
+
+
+async def test_create_user(client):
+    r = await client.post("/users/", json={"name": "Carol", "email": "carol@example.com"})
+    assert r.status_code == 201
+    data = r.json()
+    assert data["id"] == 3
+    assert data["name"] == "Carol"
+
+
+async def test_create_user_duplicate_email(client):
+    await client.post("/users/", json={"name": "X", "email": "dup@example.com"})
+    r = await client.post("/users/", json={"name": "Y", "email": "dup@example.com"})
+    assert r.status_code == 409
+
+
+async def test_update_user(client):
+    r = await client.put("/users/1", json={"name": "Alice Updated"})
+    assert r.status_code == 200
+    assert r.json()["name"] == "Alice Updated"
+    assert r.json()["email"] == "alice@example.com"  # unchanged
+
+
+async def test_delete_user(client):
+    r = await client.delete("/users/1")
+    assert r.status_code == 204
+
+    r = await client.get("/users/1")
+    assert r.status_code == 404
+
+
+async def test_health(client):
+    r = await client.get("/health")
+    assert r.status_code == 200
+    assert r.json()["status"] == "ok"
+'''
+
+def _tests_init() -> str:
+    return '"""Test suite."""\n'
+
 
 # ---------------------------------------------------------------------------
-# Helper
+# Build the file map
 # ---------------------------------------------------------------------------
 
-def _to_snake(name: str) -> str:
-    """Convert a project name to snake_case."""
-    name = re.sub(r"[-\s]+", "_", name)
-    name = re.sub(r"[^a-zA-Z0-9_]", "", name)
-    return name.lower()
+def _build_files(project_name: str) -> dict[str, str]:
+    snake = _snake(project_name)
+    return {
+        "main.py":                        _main_py(project_name, snake),
+        "aura.toml":                      _aura_toml(project_name, snake),
+        "pyproject.toml":                 _pyproject_toml(project_name),
+        ".env.example":                   _env_example(),
+        "README.md":                      _readme(project_name),
+        ".gitignore":                     _gitignore(),
+        "modules/__init__.py":            '"""Application modules."""\n',
+        "modules/users/__init__.py":      _users_init(),
+        "modules/users/schemas.py":       _users_schemas(),
+        "modules/users/service.py":       _users_service(),
+        "modules/users/controller.py":    _users_controller(),
+        "modules/users/module.py":        _users_module(),
+        "tests/__init__.py":              _tests_init(),
+        "tests/conftest.py":              _conftest(project_name),
+        "tests/test_users.py":            _test_users(),
+    }
 
 
 # ---------------------------------------------------------------------------
-# Command
+# Command — accepts name directly: aura new my-project
 # ---------------------------------------------------------------------------
 
-@app.command("project")
+@app.callback(invoke_without_command=True)
 def new_project(
-    project_name: str = typer.Argument(..., help="Name of the new project"),
-    directory: str = typer.Option(".", "--dir", "-d", help="Parent directory for the project"),
+    ctx: typer.Context,
+    project_name: str = typer.Argument(None, help="Name of the new project"),
+    directory: str = typer.Option(".", "--dir", "-d", help="Parent directory"),
 ) -> None:
-    """Scaffold a brand-new Aura project with a complete starter structure."""
-    snake = _to_snake(project_name)
-    target = Path(directory) / snake
+    """Scaffold a new Aura project with a working boilerplate.
+
+    Creates a complete project structure with a working Users module,
+    integration tests, and everything needed to run immediately.
+
+    Examples::
+
+        aura new my-api
+        aura new blog --dir ~/projects
+    """
+    if ctx.invoked_subcommand is not None:
+        return
+
+    if not project_name:
+        console.print(ctx.get_help())
+        return
+
+    snake = _snake(project_name)
+    target = Path(directory).resolve() / snake
 
     if target.exists():
-        console.print(f"[red]Error:[/] Directory '{target}' already exists.")
+        console.print(f"[red]✗[/] Directory '[bold]{target}[/]' already exists.")
         raise typer.Exit(1)
 
-    files: dict[Path, str] = {
-        target / "main.py": _MAIN_PY.format(project_name=project_name, snake_name=snake),
-        target / "aura.toml": _AURA_TOML.format(project_name=project_name, snake_name=snake),
-        target / "pyproject.toml": _PYPROJECT_TOML.format(project_name=project_name, snake_name=snake),
-        target / ".gitignore": _GITIGNORE,
-        target / f"{snake}/__init__.py": f'"""Application package for {project_name}."""\n',
-        target / f"{snake}/modules/__init__.py": _EXAMPLE_MODULE_INIT,
-        target / f"{snake}/modules/example.py": _EXAMPLE_MODULE_PY,
-        target / "tests/__init__.py": _TESTS_INIT.format(project_name=project_name),
-        target / "tests/conftest.py": _CONFTEST.format(project_name=project_name),
-    }
+    files = _build_files(project_name)
 
     with Progress(
         SpinnerColumn(),
@@ -172,32 +542,27 @@ def new_project(
         console=console,
         transient=True,
     ) as progress:
-        task = progress.add_task(f"Creating project [bold cyan]{project_name}[/]...", total=len(files))
-
-        for file_path, content in files.items():
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            file_path.write_text(content, encoding="utf-8")
+        task = progress.add_task(
+            f"Scaffolding [bold cyan]{project_name}[/]...",
+            total=len(files),
+        )
+        for rel_path, content in files.items():
+            abs_path = target / rel_path
+            abs_path.parent.mkdir(parents=True, exist_ok=True)
+            abs_path.write_text(content, encoding="utf-8")
             progress.advance(task)
 
     console.print()
     console.print(
         Panel(
-            f"[bold green]Project created successfully![/]\n\n"
+            f"[bold green]✓ Project created![/]\n\n"
             f"[bold]Next steps:[/]\n\n"
             f"  [cyan]cd {snake}[/]\n"
             f"  [cyan]pip install -e '.[dev]'[/]\n"
-            f"  [cyan]aura run[/]",
-            title=f"[bold cyan] {project_name}[/]",
+            f"  [cyan]aura run --reload[/]\n\n"
+            f"[dim]API docs →  http://localhost:8000/docs[/]\n"
+            f"[dim]Health   →  http://localhost:8000/health[/]",
+            title=f"[bold cyan]🌌 {project_name}[/]",
             expand=False,
         )
     )
-
-
-@app.callback(invoke_without_command=True)
-def new_callback(ctx: typer.Context) -> None:
-    """Create a new Aura project.
-
-    Usage: ``aura new project <project-name>``
-    """
-    if ctx.invoked_subcommand is None:
-        console.print(ctx.get_help())

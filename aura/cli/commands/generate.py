@@ -1,4 +1,4 @@
-"""``aura generate`` command — scaffold modules, schemas, guards, and more."""
+"""``aura generate`` — scaffold modules, controllers, services, schemas, guards."""
 
 from __future__ import annotations
 
@@ -9,222 +9,291 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-app = typer.Typer(help="Generate Aura modules, schemas, guards, and other resources.")
+app = typer.Typer(help="Generate Aura resources.")
 console = Console()
 
 
 # ---------------------------------------------------------------------------
-# Template helpers
+# Naming helpers
 # ---------------------------------------------------------------------------
 
-def _pascal(name: str) -> str:
-    """Convert a name to PascalCase."""
-    return "".join(word.capitalize() for word in re.split(r"[-_\s]+", name))
-
-
 def _snake(name: str) -> str:
-    """Convert a name to snake_case."""
     name = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
     name = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", name)
     return re.sub(r"[-\s]+", "_", name).lower()
 
+def _pascal(name: str) -> str:
+    return "".join(w.capitalize() for w in re.split(r"[-_\s]+", name))
 
 def _plural(name: str) -> str:
-    """Very simple pluralisation — append 's' if needed."""
-    if name.endswith("s"):
-        return name
-    return name + "s"
-
-
-def _singular(name: str) -> str:
-    """Very simple singularisation — strip trailing 's' if present."""
-    if name.endswith("s") and len(name) > 1:
-        return name[:-1]
-    return name
+    s = _snake(name)
+    return s if s.endswith("s") else s + "s"
 
 
 # ---------------------------------------------------------------------------
-# File templates
+# File content generators
 # ---------------------------------------------------------------------------
 
-def _schema_template(name: str) -> str:
-    # Use singular form for class names (Product, not Products)
-    singular_name = _singular(_snake(name))
-    pascal = _pascal(singular_name)
-    plural_label = _plural(_snake(name))
+def _schemas(name: str) -> str:
+    p, s, pl = _pascal(name), _snake(name), _plural(name)
     return f'''\
-"""Schemas for the {pascal} resource."""
+"""Schemas (Spec) for the {p} module.
+
+Schemas are the source of truth in Aura (SDD — Spec-Driven Development).
+The framework derives validation, serialisation and OpenAPI docs from them.
+"""
 from __future__ import annotations
 
-from aura.schema import Schema
+from aura import Schema
 
 
-class {pascal}Base(Schema):
-    """Shared fields for {pascal}."""
+class Create{p}DTO(Schema):
+    """Fields required to create a new {s}."""
     name: str
 
 
-class {pascal}Create({pascal}Base):
-    """Payload for creating a new {pascal}."""
-
-
-class {pascal}Update(Schema):
-    """Payload for updating a {pascal} (all fields optional)."""
+class Update{p}DTO(Schema):
+    """Partial update — all fields optional."""
     name: str | None = None
 
 
-class {pascal}Response({pascal}Base):
-    """Response schema for {pascal}."""
-    id: int
-
-    model_config = {{"from_attributes": True}}
+class {p}Response(Schema):
+    """What the API returns for a {s}."""
+    id:   int
+    name: str
 '''
 
 
-def _service_template(name: str) -> str:
-    pascal = _pascal(name)
-    snake = _snake(name)
+def _service(name: str) -> str:
+    p, s, pl = _pascal(name), _snake(name), _plural(name)
     return f'''\
-"""Service layer for the {pascal} resource."""
+"""Service layer for the {p} module."""
 from __future__ import annotations
 
-from typing import Any
+from aura import injectable, NotFoundException, ConflictException
+from .schemas import Create{p}DTO, Update{p}DTO, {p}Response
 
 
-class {pascal}Service:
-    """Business logic for {pascal} operations."""
+@injectable
+class {p}Service:
+    """Business logic for {p} operations.
 
-    async def get_all(self) -> list[Any]:
-        """Return all {_plural(snake)}."""
-        # TODO: inject and use repository
-        return []
+    Uses an in-memory store by default.
+    Replace self._store with Repository[{p}] when adding SQLAlchemy.
+    """
 
-    async def get_by_id(self, id: int) -> Any | None:
-        """Return a single {snake} by id, or None."""
-        # TODO: inject and use repository
-        return None
+    def __init__(self) -> None:
+        self._store: dict[int, {p}Response] = {{}}
+        self._next_id = 1
 
-    async def create(self, data: dict[str, Any]) -> Any:
-        """Create and return a new {snake}."""
-        # TODO: inject and use repository
-        return data
+    async def list_{pl}(self) -> list[{p}Response]:
+        return list(self._store.values())
 
-    async def update(self, id: int, data: dict[str, Any]) -> Any | None:
-        """Update a {snake} and return the updated record."""
-        # TODO: inject and use repository
-        return data
+    async def get_{s}(self, {s}_id: int) -> {p}Response:
+        obj = self._store.get({s}_id)
+        if obj is None:
+            raise NotFoundException(f"{p} {{{s}_id}} not found")
+        return obj
 
-    async def delete(self, id: int) -> bool:
-        """Delete a {snake}. Returns True if deleted."""
-        # TODO: inject and use repository
+    async def create_{s}(self, data: Create{p}DTO) -> {p}Response:
+        obj = {p}Response(id=self._next_id, **data.model_dump())
+        self._store[self._next_id] = obj
+        self._next_id += 1
+        return obj
+
+    async def update_{s}(self, {s}_id: int, data: Update{p}DTO) -> {p}Response:
+        obj = await self.get_{s}({s}_id)
+        updated = obj.model_copy(
+            update={{k: v for k, v in data.model_dump().items() if v is not None}}
+        )
+        self._store[{s}_id] = updated
+        return updated
+
+    async def delete_{s}(self, {s}_id: int) -> None:
+        await self.get_{s}({s}_id)
+        del self._store[{s}_id]
+'''
+
+
+def _controller(name: str) -> str:
+    p, s, pl = _pascal(name), _snake(name), _plural(name)
+    return f'''\
+"""Controller for the {p} module."""
+from __future__ import annotations
+
+from typing import Annotated
+
+from aura import get, post, put, delete, Body, Param
+from .schemas import Create{p}DTO, Update{p}DTO, {p}Response
+from .service import {p}Service
+
+
+class {p}Controller:
+    """HTTP handlers for /{pl} routes."""
+
+    def __init__(self, service: {p}Service) -> None:
+        self.service = service  # injected by DI container
+
+    @get("/")
+    async def list_{pl}(self) -> list[{p}Response]:
+        """List all {pl}."""
+        return await self.service.list_{pl}()
+
+    @get("/{{{s}_id}}")
+    async def get_{s}(
+        self,
+        {s}_id: Annotated[int, Param()],
+    ) -> {p}Response:
+        """Get a {s} by ID."""
+        return await self.service.get_{s}({s}_id)
+
+    @post("/", status=201)
+    async def create_{s}(
+        self,
+        body: Annotated[Create{p}DTO, Body()],
+    ) -> {p}Response:
+        """Create a new {s}."""
+        return await self.service.create_{s}(body)
+
+    @put("/{{{s}_id}}")
+    async def update_{s}(
+        self,
+        {s}_id: Annotated[int, Param()],
+        body:   Annotated[Update{p}DTO, Body()],
+    ) -> {p}Response:
+        """Update a {s}."""
+        return await self.service.update_{s}({s}_id, body)
+
+    @delete("/{{{s}_id}}", status=204)
+    async def delete_{s}(
+        self,
+        {s}_id: Annotated[int, Param()],
+    ) -> None:
+        """Delete a {s}."""
+        await self.service.delete_{s}({s}_id)
+'''
+
+
+def _module(name: str) -> str:
+    p, s, pl = _pascal(name), _snake(name), _plural(name)
+    return f'''\
+"""Module declaration for the {p} feature."""
+from aura import Module
+from .controller import {p}Controller
+from .service import {p}Service
+
+
+@Module(
+    providers=[{p}Service],
+    controllers=[{p}Controller],
+    prefix="/{pl}",
+    tags=["{p}"],
+)
+class {p}Module:
+    pass
+'''
+
+
+def _guard(name: str) -> str:
+    p = _pascal(name)
+    return f'''\
+"""Guard: {p}Guard."""
+from __future__ import annotations
+
+from aura import Guard
+from starlette.requests import Request
+
+
+class {p}Guard(Guard):
+    """Controls access to protected routes.
+
+    Return True to allow, False to deny (responds with 403).
+
+    Usage::
+
+        @get("/protected", guards=[{p}Guard()])
+        async def protected_route(self) -> ...:
+            ...
+
+        # Or module-wide:
+        @Module(guards=[{p}Guard()], ...)
+        class SecureModule: ...
+    """
+
+    async def can_activate(self, request: Request) -> bool:
+        # TODO: implement your authorization logic here
+        # Examples:
+        #   - Check JWT:  token = request.headers.get("Authorization")
+        #   - Check role: return request.state.user.role == "admin"
         return True
 '''
 
 
-def _router_template(name: str) -> str:
-    pascal = _pascal(name)
-    snake = _snake(name)
-    plural = _plural(snake)
+def _test_resource(name: str) -> str:
+    p, s, pl = _pascal(name), _snake(name), _plural(name)
     return f'''\
-"""Router for the {pascal} resource."""
+"""Integration tests for the {p} module."""
 from __future__ import annotations
 
-from typing import Any
-
-import typer
-from aura.routing import Router
-
-router = Router(prefix="/{plural}", tags=["{pascal}"])
+import pytest
 
 
-@router.get("/")
-async def list_{plural}() -> list[Any]:
-    """List all {plural}."""
-    return []
+async def test_list_{pl}(client):
+    r = await client.get("/{pl}/")
+    assert r.status_code == 200
+    assert isinstance(r.json(), list)
 
 
-@router.get("/{{id}}")
-async def get_{snake}(id: int) -> Any:
-    """Get a {snake} by id."""
-    return {{"id": id}}
+async def test_create_{s}(client):
+    r = await client.post("/{pl}/", json={{"name": "Test {p}"}})
+    assert r.status_code == 201
+    data = r.json()
+    assert data["name"] == "Test {p}"
+    assert "id" in data
 
 
-@router.post("/")
-async def create_{snake}(data: dict[str, Any]) -> Any:
-    """Create a new {snake}."""
-    return data
+async def test_get_{s}(client):
+    created = await client.post("/{pl}/", json={{"name": "Get Test"}})
+    {s}_id = created.json()["id"]
+
+    r = await client.get(f"/{pl}/{{{s}_id}}")
+    assert r.status_code == 200
+    assert r.json()["id"] == {s}_id
 
 
-@router.put("/{{id}}")
-async def update_{snake}(id: int, data: dict[str, Any]) -> Any:
-    """Update a {snake}."""
-    return data
+async def test_get_{s}_not_found(client):
+    r = await client.get("/{pl}/99999")
+    assert r.status_code == 404
 
 
-@router.delete("/{{id}}")
-async def delete_{snake}(id: int) -> dict[str, bool]:
-    """Delete a {snake}."""
-    return {{"deleted": True}}
-'''
+async def test_update_{s}(client):
+    created = await client.post("/{pl}/", json={{"name": "Before"}})
+    {s}_id = created.json()["id"]
+
+    r = await client.put(f"/{pl}/{{{s}_id}}", json={{"name": "After"}})
+    assert r.status_code == 200
+    assert r.json()["name"] == "After"
 
 
-def _module_template(name: str) -> str:
-    pascal = _pascal(name)
-    snake = _snake(name)
-    return f'''\
-"""Aura module for the {pascal} feature."""
-from __future__ import annotations
+async def test_delete_{s}(client):
+    created = await client.post("/{pl}/", json={{"name": "To Delete"}})
+    {s}_id = created.json()["id"]
 
-# from aura.modules import AuraModule
-# from .router import router
-# from .service import {pascal}Service
+    r = await client.delete(f"/{pl}/{{{s}_id}}")
+    assert r.status_code == 204
 
-
-# class {pascal}Module(AuraModule):
-#     """Module encapsulating {pascal} feature routes and services."""
-#
-#     routers = [router]
-#     providers = [{pascal}Service]
-'''
-
-
-def _guard_template(name: str) -> str:
-    pascal = _pascal(name)
-    return f'''\
-"""Guard: {pascal}Guard — controls access to protected routes."""
-from __future__ import annotations
-
-from typing import Any
-
-# from aura.guards import Guard, GuardContext
-
-
-# class {pascal}Guard(Guard):
-#     """
-#     {pascal} guard implementation.
-#
-#     Return True to allow the request through, False to block with 403.
-#
-#     Example::
-#
-#         @router.get("/admin", guards=[{pascal}Guard])
-#         async def admin_panel(): ...
-#     """
-#
-#     async def can_activate(self, ctx: GuardContext) -> bool:
-#         # Implement your guard logic here
-#         return True
+    r = await client.get(f"/{pl}/{{{s}_id}}")
+    assert r.status_code == 404
 '''
 
 
 # ---------------------------------------------------------------------------
-# Shared creation helper
+# Write helper
 # ---------------------------------------------------------------------------
 
-def _write_file(path: Path, content: str, force: bool = False) -> bool:
-    """Write *content* to *path*.  Returns True if written, False if skipped."""
+def _write(path: Path, content: str, force: bool) -> bool:
     if path.exists() and not force:
-        console.print(f"  [yellow]skip[/]  {path} (already exists)")
+        console.print(f"  [yellow]skip[/]   {path}")
         return False
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
@@ -238,54 +307,123 @@ def _write_file(path: Path, content: str, force: bool = False) -> bool:
 
 @app.command("module")
 def generate_module(
-    name: str = typer.Argument(..., help="Module name (e.g. 'users' or 'blog-posts')"),
-    output: str = typer.Option(".", "--out", "-o", help="Output base directory"),
-    force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing files"),
+    name:   str  = typer.Argument(..., help="Module name (e.g. 'posts', 'blog-posts')"),
+    output: str  = typer.Option("modules", "--out", "-o", help="Output base directory"),
+    force:  bool = typer.Option(False, "--force", "-f", help="Overwrite existing files"),
+    tests:  bool = typer.Option(True,  "--tests/--no-tests",    help="Also generate test file"),
 ) -> None:
-    """Generate a complete Aura module (schema, service, router, module)."""
-    snake = _snake(name)
-    base = Path(output) / snake
+    """Generate a complete module: schemas, service, controller, module.py."""
+    s = _snake(name)
+    base = Path(output) / s
+    p = _pascal(name)
+
+    console.print(f"\n[bold]Generating module [cyan]{p}[/]...[/]\n")
 
     files = {
-        base / "schema.py": _schema_template(name),
-        base / "service.py": _service_template(name),
-        base / "router.py": _router_template(name),
-        base / "module.py": _module_template(name),
-        base / "__init__.py": f'"""Aura module: {_pascal(name)}."""\n',
+        base / "__init__.py":    f'"""Module: {p}."""\n',
+        base / "schemas.py":     _schemas(name),
+        base / "service.py":     _service(name),
+        base / "controller.py":  _controller(name),
+        base / "module.py":      _module(name),
     }
-
-    console.print(f"\n[bold]Generating module [cyan]{_pascal(name)}[/]...[/]\n")
     for path, content in files.items():
-        _write_file(path, content, force)
+        _write(path, content, force)
 
-    console.print(f"\n[bold green]Module '{_pascal(name)}' generated at {base}[/]")
+    if tests:
+        test_path = Path("tests") / f"test_{s}.py"
+        _write(test_path, _test_resource(name), force)
+
+    console.print()
+    console.print(f"[bold green]✓ Module [cyan]{p}[/] created at {base}[/]")
+    console.print()
+    console.print("[bold]Register it in main.py:[/]")
+    console.print(f"  [cyan]from {base!s}.module import {p}Module[/]")
+    console.print(f"  [cyan]app = Aura(modules=[..., {p}Module], ...)[/]")
+
+
+@app.command("controller")
+def generate_controller(
+    name:   str  = typer.Argument(..., help="Controller name (e.g. 'users')"),
+    output: str  = typer.Option(".", "--out", "-o", help="Output directory"),
+    force:  bool = typer.Option(False, "--force", "-f", help="Overwrite if exists"),
+) -> None:
+    """Generate a Controller class with CRUD route handlers."""
+    s = _snake(name)
+    path = Path(output) / f"{s}_controller.py"
+    console.print(f"\n[bold]Generating controller [cyan]{_pascal(name)}Controller[/]...[/]\n")
+    _write(path, _controller(name), force)
+    console.print(f"\n[bold green]✓ Controller written to {path}[/]")
+
+
+@app.command("service")
+def generate_service(
+    name:   str  = typer.Argument(..., help="Service name (e.g. 'users')"),
+    output: str  = typer.Option(".", "--out", "-o", help="Output directory"),
+    force:  bool = typer.Option(False, "--force", "-f", help="Overwrite if exists"),
+) -> None:
+    """Generate an injectable Service class with CRUD methods."""
+    s = _snake(name)
+    path = Path(output) / f"{s}_service.py"
+    console.print(f"\n[bold]Generating service [cyan]{_pascal(name)}Service[/]...[/]\n")
+    _write(path, _service(name), force)
+    console.print(f"\n[bold green]✓ Service written to {path}[/]")
 
 
 @app.command("schema")
 def generate_schema(
-    name: str = typer.Argument(..., help="Schema name (e.g. 'user')"),
-    output: str = typer.Option(".", "--out", "-o", help="Output directory"),
-    force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing file"),
+    name:   str  = typer.Argument(..., help="Schema name (e.g. 'product')"),
+    output: str  = typer.Option(".", "--out", "-o", help="Output directory"),
+    force:  bool = typer.Option(False, "--force", "-f", help="Overwrite if exists"),
 ) -> None:
-    """Generate a Pydantic schema file for a resource."""
-    snake = _snake(name)
-    path = Path(output) / f"{snake}_schema.py"
-
-    console.print(f"\n[bold]Generating schema [cyan]{_pascal(name)}Schema[/]...[/]\n")
-    _write_file(path, _schema_template(name), force)
-    console.print(f"\n[bold green]Schema generated at {path}[/]")
+    """Generate Pydantic DTO schemas (Create, Update, Response)."""
+    s = _snake(name)
+    path = Path(output) / f"{s}_schemas.py"
+    console.print(f"\n[bold]Generating schemas for [cyan]{_pascal(name)}[/]...[/]\n")
+    _write(path, _schemas(name), force)
+    console.print(f"\n[bold green]✓ Schemas written to {path}[/]")
 
 
 @app.command("guard")
 def generate_guard(
-    name: str = typer.Argument(..., help="Guard name (e.g. 'auth' or 'admin')"),
-    output: str = typer.Option(".", "--out", "-o", help="Output directory"),
-    force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing file"),
+    name:   str  = typer.Argument(..., help="Guard name (e.g. 'auth', 'admin-only')"),
+    output: str  = typer.Option(".", "--out", "-o", help="Output directory"),
+    force:  bool = typer.Option(False, "--force", "-f", help="Overwrite if exists"),
 ) -> None:
-    """Generate a Guard class stub."""
-    snake = _snake(name)
-    path = Path(output) / f"{snake}_guard.py"
-
+    """Generate a Guard class stub for authorization."""
+    s = _snake(name)
+    path = Path(output) / f"{s}_guard.py"
     console.print(f"\n[bold]Generating guard [cyan]{_pascal(name)}Guard[/]...[/]\n")
-    _write_file(path, _guard_template(name), force)
-    console.print(f"\n[bold green]Guard generated at {path}[/]")
+    _write(path, _guard(name), force)
+    console.print(f"\n[bold green]✓ Guard written to {path}[/]")
+
+
+@app.command("resource")
+def generate_resource(
+    name:   str  = typer.Argument(..., help="Resource name (e.g. 'post', 'product')"),
+    output: str  = typer.Option("modules", "--out", "-o", help="Output base directory"),
+    force:  bool = typer.Option(False, "--force", "-f", help="Overwrite existing files"),
+    tests:  bool = typer.Option(True,  "--tests/--no-tests", help="Also generate test file"),
+) -> None:
+    """Generate a complete CRUD resource (same as 'module' with verbose output).
+
+    Shortcut for: schemas + service + controller + module + tests.
+    """
+    generate_module(name=name, output=output, force=force, tests=tests)
+
+
+@app.callback(invoke_without_command=True)
+def _list_commands(ctx: typer.Context) -> None:
+    """Generate Aura resources."""
+    if ctx.invoked_subcommand is None:
+        table = Table(title="Available generators", show_header=True)
+        table.add_column("Command",     style="cyan")
+        table.add_column("What it creates")
+        table.add_row("module <name>",     "schemas + service + controller + module.py + tests")
+        table.add_row("resource <name>",   "same as module (alias)")
+        table.add_row("controller <name>", "controller class with CRUD handlers")
+        table.add_row("service <name>",    "@injectable service class with CRUD methods")
+        table.add_row("schema <name>",     "Create/Update/Response Pydantic schemas")
+        table.add_row("guard <name>",      "Guard class stub for authorization")
+        console.print(table)
+        console.print()
+        console.print("[dim]Example: [cyan]aura generate module posts[/][/]")

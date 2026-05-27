@@ -122,10 +122,35 @@ class Router:
 
             all_guards = all_global_guards + meta.get("guards", [])
 
+            response_type = meta.get("response_type", "json")
+
             if method == "WS":
                 route = WebSocketRoute(
                     path,
                     endpoint=_wrap_ws_handler(handler, all_guards),
+                    name=getattr(handler, "__name__", None),
+                )
+                routes.append(route)
+            elif response_type == "html":
+                endpoint = _wrap_html_handler(
+                    handler,
+                    all_guards,
+                    template=meta.get("template"),
+                    status=meta.get("status", 200),
+                )
+                route = Route(
+                    path,
+                    endpoint=endpoint,
+                    methods=[method],
+                    name=getattr(handler, "__name__", None),
+                )
+                routes.append(route)
+            elif response_type == "sse":
+                endpoint = _wrap_sse_handler(handler, all_guards)
+                route = Route(
+                    path,
+                    endpoint=endpoint,
+                    methods=["GET"],
                     name=getattr(handler, "__name__", None),
                 )
                 routes.append(route)
@@ -198,6 +223,235 @@ def _wrap_http_handler(
             return _handle_exception(exc)
 
     return endpoint
+
+
+def _wrap_html_handler(
+    handler: Callable[..., Any],
+    guards: list[Any],
+    *,
+    template: str | None = None,
+    status: int = 200,
+) -> Callable[..., Any]:
+    """Wrap a route handler decorated with ``@html`` to render HTML templates.
+
+    The handler return value is converted as follows:
+
+    - Existing Starlette ``Response`` → returned as-is.
+    - :class:`~aura.templates.context.TemplateContext` → rendered via the
+      template engine using *template*.
+    - ``str`` → wrapped in :class:`~aura.templates.response.HtmlResponse`.
+    - ``dict`` with a *template* → rendered via the template engine.
+    - Anything else → falls back to JSON (edge-case safety).
+
+    Args:
+        handler: The original async route handler.
+        guards: Guards to evaluate before calling the handler.
+        template: Default template name (from ``@html(template=...)``).
+        status: HTTP status code.
+
+    Returns:
+        An async ASGI-compatible endpoint callable.
+    """
+    from starlette.requests import Request
+    from starlette.responses import Response
+
+    async def endpoint(request: Request) -> Response:
+        try:
+            for guard in guards:
+                allowed = await guard.can_activate(request)
+                if not allowed:
+                    await guard.on_denied(request)
+
+            kwargs = await _resolve_params(handler, request)
+
+            result = handler(**kwargs)
+            if inspect.iscoroutine(result):
+                result = await result
+
+            return await _to_html_response(result, template=template, status=status)
+
+        except Exception as exc:  # noqa: BLE001
+            return _handle_html_exception(exc)
+
+    return endpoint
+
+
+def _wrap_sse_handler(
+    handler: Callable[..., Any],
+    guards: list[Any],
+) -> Callable[..., Any]:
+    """Wrap an async-generator handler as a Server-Sent Events endpoint.
+
+    The handler must be an async generator that yields strings or dicts.
+    Dicts are serialised to JSON and sent as ``data:`` lines.
+
+    Args:
+        handler: The original async generator route handler.
+        guards: Guards to evaluate before streaming begins.
+
+    Returns:
+        An async ASGI-compatible endpoint callable.
+    """
+    from starlette.requests import Request
+    from starlette.responses import Response
+
+    async def endpoint(request: Request) -> Response:
+        try:
+            for guard in guards:
+                allowed = await guard.can_activate(request)
+                if not allowed:
+                    await guard.on_denied(request)
+
+            kwargs = await _resolve_params(handler, request)
+
+            async def event_stream():
+                import json as _json
+
+                gen = handler(**kwargs)
+                if inspect.isasyncgen(gen):
+                    async for item in gen:
+                        if isinstance(item, dict):
+                            data = _json.dumps(item, default=str)
+                            yield f"data: {data}\n\n".encode()
+                        elif isinstance(item, str):
+                            # Already-formatted SSE line (may include "event:", "id:", etc.)
+                            if item.startswith("data:") or item.startswith("event:"):
+                                yield f"{item}\n\n".encode()
+                            else:
+                                yield f"data: {item}\n\n".encode()
+                        elif hasattr(item, "model_dump"):
+                            data = _json.dumps(item.model_dump(mode="json"), default=str)
+                            yield f"data: {data}\n\n".encode()
+                        else:
+                            yield f"data: {item!s}\n\n".encode()
+                else:
+                    # Regular async function that returns an iterable
+                    result = gen
+                    if inspect.iscoroutine(result):
+                        result = await result
+                    if hasattr(result, "__aiter__"):
+                        async for item in result:
+                            data = _json.dumps(item, default=str) if isinstance(item, dict) else str(item)
+                            yield f"data: {data}\n\n".encode()
+
+            from starlette.responses import StreamingResponse
+            return StreamingResponse(
+                event_stream(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no",
+                },
+            )
+
+        except Exception as exc:  # noqa: BLE001
+            return _handle_exception(exc)
+
+    return endpoint
+
+
+async def _to_html_response(
+    result: Any,
+    *,
+    template: str | None,
+    status: int,
+) -> Any:
+    """Convert a handler return value to an HTML response.
+
+    Args:
+        result: Value returned by the route handler.
+        template: Template name to use when *result* is a context or dict.
+        status: HTTP status code.
+
+    Returns:
+        A Starlette response object with ``Content-Type: text/html``.
+    """
+    from starlette.responses import Response
+
+    # Already a fully-formed response — pass through
+    if isinstance(result, Response):
+        return result
+
+    # Plain string → wrap as HTML
+    if isinstance(result, str):
+        try:
+            from aura.templates.response import HtmlResponse
+            return HtmlResponse(result, status_code=status)
+        except ImportError:
+            from starlette.responses import HTMLResponse
+            return HTMLResponse(result, status_code=status)
+
+    # TemplateContext (has to_template_dict) — render via engine
+    if hasattr(result, "to_template_dict"):
+        if template is None:
+            raise ValueError(
+                "Handler returned a TemplateContext but no template was specified. "
+                "Use @html('/path', template='my_template.html') to set one."
+            )
+        try:
+            from aura.templates.shortcuts import render as aura_render
+            return await aura_render(template, result, status=status)
+        except ImportError:
+            raise RuntimeError(
+                "Template engine not installed. "
+                "Run: pip install 'aura-web[templates]'"
+            )
+
+    # dict with a template → render via engine
+    if isinstance(result, dict) and template:
+        try:
+            from aura.templates.shortcuts import render as aura_render
+            return await aura_render(template, result, status=status)
+        except ImportError:
+            pass  # fall through to JSON fallback
+
+    # Pydantic model / dict / list — fall back to JSON
+    # (edge case: @html handler returned data without a template)
+    from starlette.responses import JSONResponse
+    if hasattr(result, "model_dump"):
+        return JSONResponse(content=result.model_dump(mode="json"), status_code=status)
+    if isinstance(result, (dict, list)):
+        return JSONResponse(content=result, status_code=status)
+
+    from starlette.responses import HTMLResponse
+    return HTMLResponse(str(result), status_code=status)
+
+
+def _handle_html_exception(exc: Exception) -> Any:
+    """Convert an exception raised in an ``@html`` handler to an HTML error response.
+
+    HTTP exceptions render a minimal HTML error page.
+    Other exceptions fall back to the JSON error handler so error monitoring
+    still captures the stack trace.
+
+    Args:
+        exc: The exception to convert.
+
+    Returns:
+        A Starlette response object.
+    """
+    try:
+        from aura.exceptions.http import HTTPException as AuraHTTPException
+        if isinstance(exc, AuraHTTPException):
+            html_content = (
+                "<!DOCTYPE html><html><head>"
+                f"<title>Error {exc.status_code}</title></head><body>"
+                f"<h1>{exc.status_code}</h1>"
+                f"<p>{exc.message}</p>"
+                "</body></html>"
+            )
+            try:
+                from aura.templates.response import HtmlResponse
+                return HtmlResponse(html_content, status_code=exc.status_code)
+            except ImportError:
+                from starlette.responses import HTMLResponse
+                return HTMLResponse(html_content, status_code=exc.status_code)
+    except ImportError:
+        pass
+
+    # Non-HTTP exception → JSON 500 (preserves stack-trace logging)
+    return _handle_exception(exc)
 
 
 def _handle_exception(exc: Exception) -> Any:
@@ -320,6 +574,24 @@ async def _resolve_params(
         else:
             inner_type = hint
             markers = ()
+
+        # Inject AuraRequest / starlette Request by type — no marker required
+        if inspect.isclass(inner_type):
+            from starlette.requests import Request as _StarletteRequest
+            if issubclass(inner_type, _StarletteRequest):
+                # If the request is already the right type, reuse it directly.
+                # Otherwise wrap it (e.g. plain starlette Request → AuraRequest).
+                if isinstance(request, inner_type):
+                    kwargs[param_name] = request
+                else:
+                    try:
+                        _send = getattr(request, "_send", None)
+                        kwargs[param_name] = inner_type(
+                            request.scope, request.receive, _send
+                        )
+                    except Exception:
+                        kwargs[param_name] = request
+                continue
 
         marker = next(
             (m for m in markers if isinstance(m, (
