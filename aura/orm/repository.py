@@ -26,18 +26,32 @@ class Repository(Generic[ModelT]):
         class UserRepository(Repository[User]):
             model = User
 
-        async def get_user(session: AsyncSession, user_id: int) -> User | None:
-            repository = UserRepository(session)
-            return await repository.get(user_id)
+    The session is **not** injected by the DI container — you must
+    obtain one from :data:`~aura.orm.database.db` and pass it
+    explicitly.  The recommended pattern inside a service is::
 
-    Typical DI-based usage inside a service::
+        from aura.orm.database import db
 
+        @injectable
         class UserService:
-            def __init__(self, session: AsyncSession) -> None:
-                self.repository = UserRepository(session)
-
             async def find(self, user_id: int) -> User:
-                return await self.repository.get_or_raise(user_id)
+                async with db.session() as session:
+                    return await UserRepository(session).get_or_raise(user_id)
+
+            async def list_active(self) -> list[User]:
+                async with db.session() as session:
+                    return await UserRepository(session).list(active=True)
+
+    The ``async with db.session()`` block automatically commits on
+    success and rolls back on any exception.
+
+    .. note::
+
+        Constructor-based ``AsyncSession`` injection
+        (``def __init__(self, session: AsyncSession)``) requires a
+        request-scoped DI container that is not yet implemented.
+        Track progress at
+        https://github.com/jonathasdavidd/Aura/issues.
     """
 
     model: type[ModelT]
