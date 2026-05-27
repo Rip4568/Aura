@@ -2,7 +2,7 @@
   <h1 align="center">🌌 Aura Framework</h1>
   <p align="center">
     <strong>O framework Python moderno que você sempre quis.</strong><br/>
-    Async nativo · Type-safe · Schema-Driven · Módulos · Jobs integrados
+    Async nativo · Type-safe · Spec-Driven · Módulos · Jobs integrados
   </p>
   <p align="center">
     <img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square&logo=python" />

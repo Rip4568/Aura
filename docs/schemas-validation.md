@@ -13,7 +13,7 @@ Um **Schema** em Aura é uma classe Pydantic que define a estrutura de dados par
 - **Query params** — parâmetros de URL tipados
 - **Configuração** — módulos que recebem config type-safe
 
-> **SDD — Schema-Driven Development:** você escreve o schema antes do código. O framework deriva validação, serialização e documentação a partir dele.
+> **SDD — Spec-Driven Development:** você escreve a spec antes do código. A spec define o contrato da API — e a IA usa ela para guiar toda a implementação. O framework deriva validação, serialização e documentação a partir da spec.
 
 ---
 

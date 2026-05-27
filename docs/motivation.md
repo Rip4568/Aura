@@ -100,7 +100,7 @@ class UserSerializer(serializers.ModelSerializer):
 **Como Aura resolve (separação clara de responsabilidades):**
 
 ```python
-# Schema: só define a estrutura e validação (SDD)
+# Schema: define a estrutura e validação — a spec do contrato (SDD)
 class CreateUserSchema(Schema):
     name: str
     email: EmailStr
@@ -244,7 +244,7 @@ meu_projeto/
 ├── modules/
 │   ├── users/
 │   │   ├── module.py      ← @Module(controllers, providers, exports)
-│   │   ├── schema.py      ← DTOs (source of truth — SDD)
+│   │   ├── schema.py      ← specs/DTOs (source of truth — SDD)
 │   │   ├── service.py     ← lógica de negócio
 │   │   ├── repository.py  ← acesso a dados
 │   │   ├── tasks.py       ← background jobs
@@ -319,7 +319,7 @@ O Flower (monitor do Celery) não persiste dados — reiniciar o Flower apaga o 
 | CLI / Scaffold | ⚠️ manage.py | ❌ | ✅ aura generate |
 | N+1 query protection | ❌ | ❌ | ✅ Repository pattern |
 | WebSockets | ⚠️ django-channels | ✅ Parcial | ✅ Nativo |
-| SDD (Schema-Driven) | ❌ | ❌ | ✅ First-class |
+| SDD (Spec-Driven) | ❌ | ❌ | ✅ First-class |
 
 ---
 

@@ -2,7 +2,7 @@
 Aura Framework — Modern, async-first, type-safe Python web framework.
 
 Design principles:
-- Schema-Driven Development (SDD): schemas as source of truth
+- Spec-Driven Development (SDD): the spec is the source of truth
 - Async-first: ASGI core with sync support via anyio
 - Type-safe: Pydantic v2 throughout
 - Modular: NestJS-inspired module system

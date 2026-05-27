@@ -70,7 +70,7 @@ test(guards): add integration tests for JWTGuard
 - **Type-safe**: use Pydantic v2 for data validation
 - **Modular**: keep modules decoupled and independently testable
 - **No circular imports**: use `TYPE_CHECKING` guards when needed
-- **SDD**: schemas define the contract, implementation follows
+- **SDD**: the spec defines the contract, implementation follows
 
 ## Reporting Issues
 

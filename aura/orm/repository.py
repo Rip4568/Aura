@@ -27,17 +27,17 @@ class Repository(Generic[ModelT]):
             model = User
 
         async def get_user(session: AsyncSession, user_id: int) -> User | None:
-            repo = UserRepository(session)
-            return await repo.get(user_id)
+            repository = UserRepository(session)
+            return await repository.get(user_id)
 
     Typical DI-based usage inside a service::
 
         class UserService:
             def __init__(self, session: AsyncSession) -> None:
-                self.repo = UserRepository(session)
+                self.repository = UserRepository(session)
 
             async def find(self, user_id: int) -> User:
-                return await self.repo.get_or_raise(user_id)
+                return await self.repository.get_or_raise(user_id)
     """
 
     model: type[ModelT]

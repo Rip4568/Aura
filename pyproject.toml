@@ -3,12 +3,15 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "aura-framework"
+name = "aura-web"
 version = "0.1.0"
-description = "A modern, async-first, type-safe Python web framework with SDD support"
+description = "A modern, async-first, type-safe Python web framework with Spec-Driven Development (SDD)"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
+authors = [
+    {name = "Jonathas David", email = "jhone.test14@gmail.com"},
+]
 keywords = ["web", "framework", "async", "type-safe", "sdd", "api"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -36,6 +39,12 @@ dependencies = [
     "python-multipart>=0.0.9",
 ]
 
+[project.urls]
+Homepage = "https://github.com/jonathasdavidd/Aura"
+Repository = "https://github.com/jonathasdavidd/Aura"
+Documentation = "https://github.com/jonathasdavidd/Aura/tree/main/docs"
+"Bug Tracker" = "https://github.com/jonathasdavidd/Aura/issues"
+
 [project.optional-dependencies]
 granian = ["granian>=1.0"]
 uvicorn = ["uvicorn[standard]>=0.27"]
@@ -45,7 +54,7 @@ taskiq = ["taskiq>=0.11", "taskiq-redis>=0.5"]
 redis = ["redis[asyncio]>=5.0"]
 jwt = ["python-jose[cryptography]>=3.3"]
 all = [
-    "aura-framework[granian,uvicorn,sqlalchemy,saq,redis,jwt]"
+    "aura-web[granian,uvicorn,sqlalchemy,saq,redis,jwt]"
 ]
 dev = [
     "pytest>=7.4",
