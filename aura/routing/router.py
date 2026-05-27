@@ -176,24 +176,77 @@ def _wrap_http_handler(
     from starlette.responses import JSONResponse, Response
 
     async def endpoint(request: Request) -> Response:
-        # Evaluate guards
-        for guard in guards:
-            allowed = await guard.can_activate(request)
-            if not allowed:
-                await guard.on_denied(request)
+        try:
+            # Evaluate guards
+            for guard in guards:
+                allowed = await guard.can_activate(request)
+                if not allowed:
+                    await guard.on_denied(request)
 
-        # Resolve handler parameters
-        kwargs = await _resolve_params(handler, request)
+            # Resolve handler parameters
+            kwargs = await _resolve_params(handler, request)
 
-        # Call the handler
-        result = handler(**kwargs)
-        if inspect.iscoroutine(result):
-            result = await result
+            # Call the handler
+            result = handler(**kwargs)
+            if inspect.iscoroutine(result):
+                result = await result
 
-        # Convert result to response
-        return _to_response(result, handler.__aura_route__.get("status", 200))
+            # Convert result to response
+            return _to_response(result, handler.__aura_route__.get("status", 200))
+
+        except Exception as exc:  # noqa: BLE001
+            return _handle_exception(exc)
 
     return endpoint
+
+
+def _handle_exception(exc: Exception) -> Any:
+    """Convert an exception raised in a route handler to an HTTP response.
+
+    Handles:
+    - :class:`~aura.exceptions.http.HTTPException` subclasses → structured JSON.
+    - :class:`pydantic.ValidationError` → 422 with field details.
+    - All other exceptions → 500 (sanitised — no stack trace exposed).
+
+    Args:
+        exc: The exception to convert.
+
+    Returns:
+        A Starlette :class:`~starlette.responses.JSONResponse` response.
+    """
+    from starlette.responses import JSONResponse
+
+    # Aura HTTP exceptions (NotFoundException, BadRequestException, etc.)
+    try:
+        from aura.exceptions.http import HTTPException as AuraHTTPException
+        if isinstance(exc, AuraHTTPException):
+            return JSONResponse(
+                content=exc.to_dict(),
+                status_code=exc.status_code,
+                headers=exc.headers,
+            )
+    except ImportError:
+        pass
+
+    # Pydantic validation errors
+    try:
+        from pydantic import ValidationError
+        if isinstance(exc, ValidationError):
+            errors = [
+                {"loc": list(e["loc"]), "msg": e["msg"], "type": e["type"]}
+                for e in exc.errors()
+            ]
+            return JSONResponse(content={"detail": errors}, status_code=422)
+    except ImportError:
+        pass
+
+    # Fallback: 500
+    import logging
+    logging.getLogger("aura.routing").exception("Unhandled error in route handler")
+    return JSONResponse(
+        content={"error": {"status": 500, "message": "Internal server error"}},
+        status_code=500,
+    )
 
 
 def _wrap_ws_handler(
