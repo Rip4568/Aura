@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import builtins
+from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
 from sqlalchemy import func, select
@@ -11,6 +12,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aura.orm.base import AuraModel
 
 ModelT = TypeVar("ModelT", bound=AuraModel)
+T = TypeVar("T")
+
+
+@dataclass
+class Page(Generic[T]):
+    """Result of a paginated query."""
+
+    items: builtins.list[T]
+    total: int
+    page: int
+    per_page: int
+    has_next: bool
 
 
 class Repository(Generic[ModelT]):
@@ -229,3 +242,37 @@ class Repository(Generic[ModelT]):
         for obj in objects:
             await self.session.refresh(obj)
         return objects
+
+    async def paginate(
+        self,
+        *,
+        page: int = 1,
+        per_page: int = 20,
+        order_by: str | None = None,
+        **filters: Any,
+    ) -> Page[ModelT]:
+        # count query with filters applied
+        count_stmt = select(func.count()).select_from(self.model)
+        for key, value in filters.items():
+            count_stmt = count_stmt.where(getattr(self.model, key) == value)
+        count_result = await self.session.execute(count_stmt)
+        total = count_result.scalar() or 0
+
+        # data query with filters, ordering, and pagination
+        offset = (page - 1) * per_page
+        stmt = select(self.model)
+        for key, value in filters.items():
+            stmt = stmt.where(getattr(self.model, key) == value)
+        if order_by:
+            stmt = stmt.order_by(getattr(self.model, order_by))
+        stmt = stmt.limit(per_page).offset(offset)
+        result = await self.session.execute(stmt)
+        items = list(result.scalars().all())
+
+        return Page(
+            items=items,
+            total=total,
+            page=page,
+            per_page=per_page,
+            has_next=page * per_page < total,
+        )

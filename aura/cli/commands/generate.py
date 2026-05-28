@@ -110,6 +110,39 @@ from __future__ import annotations
 '''
 
 
+def _models_with_db(name: str) -> str:
+    p, _, pl = _pascal(name), _snake(name), _plural(name)
+    return f'''\
+"""ORM model for the {p} module."""
+from __future__ import annotations
+
+from sqlalchemy.orm import Mapped, mapped_column
+
+from aura.orm import AuraModel
+
+
+class {p}(AuraModel):
+    __tablename__ = "{pl}"
+
+    name: Mapped[str]
+'''
+
+
+def _repository_with_db(name: str) -> str:
+    p, _, _pl = _pascal(name), _snake(name), _plural(name)
+    return f'''\
+"""Repository for the {p} module."""
+from __future__ import annotations
+
+from aura.orm import Repository
+from .models import {p}
+
+
+class {p}Repository(Repository[{p}]):
+    model = {p}
+'''
+
+
 def _service(name: str) -> str:
     p, s, pl = _pascal(name), _snake(name), _plural(name)
     return f'''\
@@ -359,10 +392,11 @@ def _write(path: Path, content: str, force: bool) -> bool:
 
 @app.command("module")
 def generate_module(
-    name:   str  = typer.Argument(..., help="Module name (e.g. 'posts', 'blog-posts')"),
-    output: str  = typer.Option("modules", "--out", "-o", help="Output base directory"),
-    force:  bool = typer.Option(False, "--force", "-f", help="Overwrite existing files"),
-    tests:  bool = typer.Option(True,  "--tests/--no-tests",    help="Also generate test file"),
+    name:    str  = typer.Argument(..., help="Module name (e.g. 'posts', 'blog-posts')"),
+    output:  str  = typer.Option("modules", "--out", "-o", help="Output base directory"),
+    force:   bool = typer.Option(False, "--force", "-f", help="Overwrite existing files"),
+    tests:   bool = typer.Option(True,  "--tests/--no-tests", help="Also generate test file"),
+    with_db: bool = typer.Option(False, "--with-db", help="Uncomment ORM model and repository"),
 ) -> None:
     """Generate a complete module: schemas, service, controller, module.py."""
     s = _snake(name)
@@ -371,11 +405,14 @@ def generate_module(
 
     console.print(f"\n[bold]Generating module [cyan]{p}[/]...[/]\n")
 
+    models_content = _models_with_db(name) if with_db else _models(name)
+    repo_content = _repository_with_db(name) if with_db else _repository(name)
+
     files = {
         base / "__init__.py":      f'"""Module: {p}."""\n',
-        base / "models.py":        _models(name),
+        base / "models.py":        models_content,
         base / "schemas.py":       _schemas(name),
-        base / "repositories.py":  _repository(name),
+        base / "repositories.py":  repo_content,
         base / "service.py":       _service(name),
         base / "controller.py":    _controller(name),
         base / "module.py":        _module(name),
@@ -388,7 +425,13 @@ def generate_module(
         _write(test_path, _test_resource(name), force)
 
     console.print()
-    console.print(f"[bold green]✓ Module [cyan]{p}[/] created at {base}[/]")
+    if with_db:
+        console.print(
+            f"[bold green]✓ Module [cyan]{p}[/] created at {base}"
+            " (--with-db: ORM model and repository activated)[/]"
+        )
+    else:
+        console.print(f"[bold green]✓ Module [cyan]{p}[/] created at {base}[/]")
     console.print()
     console.print("[bold]Register it in main.py:[/]")
     console.print(f"  [cyan]from {base!s}.module import {p}Module[/]")
@@ -453,16 +496,17 @@ def generate_guard(
 
 @app.command("resource")
 def generate_resource(
-    name:   str  = typer.Argument(..., help="Resource name (e.g. 'post', 'product')"),
-    output: str  = typer.Option("modules", "--out", "-o", help="Output base directory"),
-    force:  bool = typer.Option(False, "--force", "-f", help="Overwrite existing files"),
-    tests:  bool = typer.Option(True,  "--tests/--no-tests", help="Also generate test file"),
+    name:    str  = typer.Argument(..., help="Resource name (e.g. 'post', 'product')"),
+    output:  str  = typer.Option("modules", "--out", "-o", help="Output base directory"),
+    force:   bool = typer.Option(False, "--force", "-f", help="Overwrite existing files"),
+    tests:   bool = typer.Option(True,  "--tests/--no-tests", help="Also generate test file"),
+    with_db: bool = typer.Option(False, "--with-db", help="Uncomment ORM model and repository"),
 ) -> None:
     """Generate a complete CRUD resource (same as 'module' with verbose output).
 
     Shortcut for: schemas + service + controller + module + tests.
     """
-    generate_module(name=name, output=output, force=force, tests=tests)
+    generate_module(name=name, output=output, force=force, tests=tests, with_db=with_db)
 
 
 @app.callback(invoke_without_command=True)

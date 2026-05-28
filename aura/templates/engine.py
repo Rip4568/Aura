@@ -13,6 +13,7 @@ AuraTemplateEngine solves all three:
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -205,6 +206,61 @@ class AuraTemplateEngine:
         """
         prefix = "/static"
         return f"{prefix}/{path.lstrip('/')}"
+
+    # ------------------------------------------------------------------
+    # URL resolution
+    # ------------------------------------------------------------------
+
+    def set_url_for(self, url_for_fn: Any) -> None:
+        """Register a ``url_for`` callable as a Jinja2 global.
+
+        The callable should accept a route name and keyword path parameters
+        and return a URL string.
+
+        Args:
+            url_for_fn: A callable with signature ``(name, **params) -> str``.
+        """
+        self._env.globals["url_for"] = url_for_fn
+
+    def register_routes(self, routes: Any) -> None:
+        """Build a name-to-path map from *routes* and register ``url_for``.
+
+        Accepts any sequence of Starlette :class:`~starlette.routing.Route`
+        objects (or any objects with ``.name`` and ``.path`` attributes).
+
+        Args:
+            routes: Iterable of route objects.
+        """
+        route_map: dict[str, str] = {}
+        for route in routes:
+            name = getattr(route, "name", None)
+            path = getattr(route, "path", None)
+            if name and path:
+                route_map[name] = path
+
+        def _url_for(name: str, **params: Any) -> str:
+            path = route_map.get(name)
+            if path is None:
+                raise RuntimeError(
+                    f"url_for: no route named {name!r}. "
+                    f"Available names: {sorted(route_map)}"
+                )
+            # Substitute {param} placeholders
+            def _replace(m: re.Match[str]) -> str:
+                key = m.group(1)
+                if key in params:
+                    return str(params.pop(key))
+                raise RuntimeError(
+                    f"url_for({name!r}): missing path parameter {key!r}"
+                )
+            url = re.sub(r"\{(\w+)\}", _replace, path)
+            return url
+
+        self.set_url_for(_url_for)
+
+    # ------------------------------------------------------------------
+    # Globals / filters
+    # ------------------------------------------------------------------
 
     def add_global(self, name: str, value: Any) -> None:
         """Add a global variable available in every template.

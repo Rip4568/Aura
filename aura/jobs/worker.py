@@ -19,13 +19,20 @@ class AuraWorker:
 
     Graceful shutdown is handled automatically on SIGTERM and SIGINT.
 
+    When ``AURA__JOBS__BROKER_URL`` is set (or ``broker_url`` is passed), the
+    worker delegates to SAQ's native worker loop.  Otherwise, the in-process
+    :class:`~aura.jobs.backends.memory.MemoryBackend` is used.
+
     Args:
         backend: The :class:`~aura.jobs.backends.base.TaskBackend` to use.
-                 Defaults to the global MemoryBackend if not specified.
+                 Defaults to the auto-detected backend (SAQ or Memory).
         queues: List of queue names to consume from (default: ``["default"]``).
         concurrency: Maximum number of tasks executed in parallel.
         burst: If ``True``, the worker exits once the queue is drained rather
                than waiting for new tasks.
+        broker_url: Redis URL that overrides ``AURA__JOBS__BROKER_URL``.
+                    When provided, forces ``SAQBackend`` regardless of the env
+                    var.
 
     Usage (programmatic)::
 
@@ -35,6 +42,7 @@ class AuraWorker:
     Usage (CLI)::
 
         aura worker --queue default --concurrency 4
+        aura worker --broker-url redis://localhost:6379 -q emails
     """
 
     def __init__(
@@ -44,13 +52,22 @@ class AuraWorker:
         queues: list[str] | None = None,
         concurrency: int = 4,
         burst: bool = False,
+        broker_url: str | None = None,
     ) -> None:
         if backend is None:
-            from aura.jobs.backends.memory import MemoryBackend
-            backend = MemoryBackend(concurrency=concurrency)
+            if broker_url:
+                # Explicit broker URL always selects SAQBackend
+                from aura.jobs.backends.saq_backend import SAQBackend
+
+                backend = SAQBackend(redis_url=broker_url)
+            else:
+                # Auto-detect from env or fall back to MemoryBackend
+                from aura.jobs.decorators import _get_default_backend
+
+                backend = _get_default_backend()
         self._backend = backend
         self.queues = queues or ["default"]
-        self.concurrency = concurrency
+        self._concurrency = concurrency
         self.burst = burst
         self._running = False
         self._tasks: list[asyncio.Task[Any]] = []
@@ -59,7 +76,7 @@ class AuraWorker:
         """Start the worker and block until shutdown."""
         console.print("[bold green]Aura Worker[/] starting...")
         console.print(f"  Queues: [cyan]{', '.join(self.queues)}[/]")
-        console.print(f"  Concurrency: [cyan]{self.concurrency}[/]")
+        console.print(f"  Concurrency: [cyan]{self._concurrency}[/]")
         if self.burst:
             console.print("  Mode: [yellow]burst (exit when queue empty)[/]")
 
@@ -69,16 +86,64 @@ class AuraWorker:
         await self._backend.startup()
 
         try:
-            await self._process_loop()
+            if self._is_saq_backend():
+                await self._run_saq_worker()
+            else:
+                await self._process_loop()
         finally:
             await self._shutdown()
 
-    async def _process_loop(self) -> None:
-        """Main processing loop.
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
 
-        For MemoryBackend the backend workers already handle tasks via their
-        own asyncio loop.  For external backends a polling loop would be
-        implemented here.  This loop primarily keeps the worker alive.
+    def _is_saq_backend(self) -> bool:
+        """Return True when the active backend is SAQBackend."""
+        try:
+            from aura.jobs.backends.saq_backend import SAQBackend
+
+            return isinstance(self._backend, SAQBackend)
+        except ImportError:
+            return False
+
+    async def _run_saq_worker(self) -> None:
+        """Delegate task processing to SAQ's native worker loop.
+
+        Collects all functions registered in the :class:`~aura.jobs.base.TaskRegistry`
+        and hands them to SAQ's ``Worker``.  SAQ handles polling, retries,
+        and concurrency internally.
+        """
+        try:
+            from saq import Worker as SAQWorker
+        except ImportError as exc:
+            raise RuntimeError(
+                "SAQ is required to run the SAQ worker. "
+                "Install with: pip install aura-framework[saq,redis]"
+            ) from exc
+
+        from aura.jobs.base import TaskRegistry
+
+        functions = [task_def.func for task_def in TaskRegistry.all().values()]
+        if not functions:
+            console.print("[yellow]Warning:[/] No tasks registered in TaskRegistry.")
+
+        saq_worker = SAQWorker(
+            queue=self._backend._queue,
+            functions=functions,
+            concurrency=self._concurrency,
+        )
+        console.print(
+            f"[bold green]SAQ Worker[/] started — "
+            f"[cyan]{len(functions)}[/] function(s) registered."
+        )
+        await saq_worker.start()
+
+    async def _process_loop(self) -> None:
+        """Main processing loop for MemoryBackend.
+
+        MemoryBackend workers already handle tasks via their own asyncio loop.
+        This loop keeps the worker process alive until a shutdown signal is
+        received.
         """
         try:
             while self._running:  # noqa: ASYNC110

@@ -239,15 +239,15 @@ class PostsModule:
 ```python
 # main.py
 from aura import Aura
-from aura.orm import db
-from modules.posts.models import Post
 from modules.posts.module import PostsModule
 
-# Inicializa o pool de conexões async (SQLite em dev, PostgreSQL em produção)
-db.init("sqlite+aiosqlite:///./app.db")
-
+# Opção 1: deixar o Aura inicializar automaticamente via env var
+# export AURA__DATABASE__URL=sqlite+aiosqlite:///./app.db
 app = Aura(modules=[PostsModule], title="Blog API", version="1.0.0")
 
+# Opção 2: inicializar manualmente (legado / mais controle)
+# from aura.orm import db
+# db.init("sqlite+aiosqlite:///./app.db")
 # Para criar as tabelas em dev (use `aura migrate up` em produção):
 # import asyncio; asyncio.run(db.create_all(Post))
 ```

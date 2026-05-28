@@ -232,6 +232,34 @@ class TestGenerateCommand:
         assert result.exit_code == 0
         assert "module" in result.output.lower()
 
+    def test_generate_module_without_with_db_has_commented_models(self, tmp_path: Path) -> None:
+        runner.invoke(
+            app, ["generate", "module", "foo", "--out", str(tmp_path), "--no-tests"]
+        )
+        models = (tmp_path / "foo" / "models.py").read_text()
+        assert "# from aura.orm import AuraModel" in models
+
+    def test_generate_module_with_db_has_uncommented_models(self, tmp_path: Path) -> None:
+        result = runner.invoke(
+            app,
+            ["generate", "module", "foo", "--out", str(tmp_path), "--no-tests", "--with-db"],
+        )
+        assert result.exit_code == 0, result.output
+        models = (tmp_path / "foo" / "models.py").read_text()
+        assert "from aura.orm import AuraModel" in models
+        assert "# from aura.orm import AuraModel" not in models
+        repo = (tmp_path / "foo" / "repositories.py").read_text()
+        assert "from aura.orm import Repository" in repo
+        assert "# from aura.orm import Repository" not in repo
+
+    def test_generate_module_with_db_creates_working_repository(self, tmp_path: Path) -> None:
+        runner.invoke(
+            app,
+            ["generate", "module", "foo", "--out", str(tmp_path), "--no-tests", "--with-db"],
+        )
+        repo = (tmp_path / "foo" / "repositories.py").read_text()
+        assert "FooRepository" in repo
+
 
 # ---------------------------------------------------------------------------
 # run command (import check only)

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
 from aura.orm.base import AuraModel
-from aura.orm.repository import Repository
+from aura.orm.repository import Page, Repository
 from aura.orm.session import DatabaseManager
 
 # ---------------------------------------------------------------------------
@@ -224,3 +224,81 @@ class TestRepository:
         assert all(i.id is not None for i in items)
         titles = {i.title for i in items}
         assert titles == {"Bulk1", "Bulk2", "Bulk3"}
+
+
+# ---------------------------------------------------------------------------
+# Repository.paginate()
+# ---------------------------------------------------------------------------
+
+class TestPaginate:
+    """Tests for Repository.paginate() and the Page dataclass."""
+
+    async def test_paginate_returns_page_object(self, repo: ItemRepository) -> None:
+        for i in range(5):
+            await repo.create(title=f"Item {i}", price=float(i))
+        result = await repo.paginate(page=1, per_page=2)
+        assert isinstance(result, Page)
+        assert len(result.items) == 2
+        assert result.total == 5
+        assert result.page == 1
+        assert result.per_page == 2
+        assert result.has_next is True
+
+    async def test_paginate_last_page(self, repo: ItemRepository) -> None:
+        for i in range(5):
+            await repo.create(title=f"Item {i}", price=float(i))
+        # page=3, per_page=2 → offset=4, so only 1 item remains
+        result = await repo.paginate(page=3, per_page=2)
+        assert len(result.items) == 1
+        assert result.total == 5
+        assert result.has_next is False
+
+    async def test_paginate_with_filter(self, repo: ItemRepository) -> None:
+        for i in range(3):
+            await repo.create(title=f"Active {i}", price=float(i), active=True)
+        for i in range(2):
+            await repo.create(title=f"Inactive {i}", price=float(i), active=False)
+        result = await repo.paginate(active=True)
+        assert result.total == 3
+        assert all(item.active for item in result.items)
+
+    async def test_paginate_empty(self, repo: ItemRepository) -> None:
+        result = await repo.paginate()
+        assert result.total == 0
+        assert result.items == []
+        assert result.has_next is False
+
+
+# ---------------------------------------------------------------------------
+# DatabaseManager.transaction()
+# ---------------------------------------------------------------------------
+
+class TestTransaction:
+    """Tests for the DatabaseManager.transaction() context manager."""
+
+    async def test_transaction_commits_on_success(self, db_manager: DatabaseManager) -> None:
+        async with db_manager.transaction() as session:
+            repo = ItemRepository(session)
+            await repo.create(title="Tx Item 1", price=1.0)
+            await repo.create(title="Tx Item 2", price=2.0)
+
+        # verify in a separate session
+        async with db_manager.session() as session:
+            repo = ItemRepository(session)
+            items = await repo.list()
+        assert len(items) == 2
+        titles = {i.title for i in items}
+        assert titles == {"Tx Item 1", "Tx Item 2"}
+
+    async def test_transaction_rollback_on_exception(self, db_manager: DatabaseManager) -> None:
+        with pytest.raises(ValueError, match="intentional"):
+            async with db_manager.transaction() as session:
+                repo = ItemRepository(session)
+                await repo.create(title="Should Not Exist", price=9.0)
+                raise ValueError("intentional rollback")
+
+        # verify nothing was persisted
+        async with db_manager.session() as session:
+            repo = ItemRepository(session)
+            items = await repo.list()
+        assert len(items) == 0

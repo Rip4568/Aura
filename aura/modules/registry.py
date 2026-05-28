@@ -93,6 +93,36 @@ class ModuleRegistry:
         )
 
     # ------------------------------------------------------------------
+    # Module lifecycle
+    # ------------------------------------------------------------------
+
+    async def run_module_startups(self, container: Any, debug: bool = False) -> None:
+        """Call ``on_startup(container, debug)`` on every module that defines it.
+
+        Modules may define either a regular or an ``async`` classmethod /
+        staticmethod named ``on_startup``.  Both are supported.
+
+        Args:
+            container: The application DI container.
+            debug: Whether the application is running in debug mode.
+        """
+        import asyncio
+        import inspect
+
+        for module_class in self._modules:
+            startup_fn = getattr(module_class, "on_startup", None)
+            if startup_fn is None:
+                continue
+            try:
+                result = startup_fn(container, debug)
+                if asyncio.iscoroutine(result) or inspect.isawaitable(result):
+                    await result
+            except Exception:
+                logger.exception(
+                    "Error in on_startup for module %s", module_class.__name__
+                )
+
+    # ------------------------------------------------------------------
     # Route collection
     # ------------------------------------------------------------------
 

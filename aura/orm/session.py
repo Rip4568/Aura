@@ -90,6 +90,23 @@ class DatabaseManager:
                 await session.rollback()
                 raise
 
+    @asynccontextmanager
+    async def transaction(self) -> AsyncIterator[AsyncSession]:
+        """Async context manager for a unit-of-work spanning multiple repositories.
+
+        Commits on clean exit; rolls back on any exception.
+        Semantically equivalent to :meth:`session` — use this name when the
+        intent is coordinating writes across more than one repository.
+
+        Raises:
+            RuntimeError: If :meth:`init` has not been called.
+
+        Yields:
+            A shared :class:`~sqlalchemy.ext.asyncio.AsyncSession`.
+        """
+        async with self.session() as s:
+            yield s
+
     async def create_all(self, base: Any) -> None:
         """Create all tables defined in *base*.metadata.
 

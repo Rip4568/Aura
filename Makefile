@@ -1,7 +1,7 @@
 .PHONY: test typecheck lint check install
 
 install:
-	pip install -e ".[dev]"
+	pip install -e ".[dev,sqlalchemy,jwt,session,templates]" aiosqlite
 
 test:
 	python3 -m pytest tests/ -x -q

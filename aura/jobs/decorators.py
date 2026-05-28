@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, TypeVar
@@ -11,17 +12,35 @@ from aura.jobs.base import AuraTask, TaskDefinition, TaskRegistry
 
 F = TypeVar("F", bound=Callable[..., Any])
 
-# Global default backend (lazily initialised to MemoryBackend)
+# Global default backend (lazily initialised on first use)
 _default_backend: Any = None
 
 
-def _get_backend() -> Any:
-    """Return the global backend, initialising MemoryBackend if needed."""
+def _get_default_backend() -> Any:
+    """Instantiate the correct backend based on environment configuration.
+
+    If the ``AURA__JOBS__BROKER_URL`` environment variable is set, a
+    :class:`~aura.jobs.backends.saq_backend.SAQBackend` is returned.
+    Otherwise the in-process :class:`~aura.jobs.backends.memory.MemoryBackend`
+    is used.
+
+    SAQ/redis packages are imported lazily to avoid hard dependencies.
+    """
+    broker_url = os.environ.get("AURA__JOBS__BROKER_URL")
+    if broker_url:
+        from aura.jobs.backends.saq_backend import SAQBackend
+
+        return SAQBackend(redis_url=broker_url)
     from aura.jobs.backends.memory import MemoryBackend
 
+    return MemoryBackend()
+
+
+def _get_backend() -> Any:
+    """Return the global backend, initialising it on first call if needed."""
     global _default_backend
     if _default_backend is None:
-        _default_backend = MemoryBackend()
+        _default_backend = _get_default_backend()
     return _default_backend
 
 

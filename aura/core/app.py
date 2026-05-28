@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import os
 from collections.abc import AsyncIterator, Sequence
 from typing import Any
 
@@ -146,6 +147,16 @@ class Aura:
         # Health check
         routes.append(self._health_route())
 
+        # Register routes with the template engine (if configured) so that
+        # url_for() is available inside templates.
+        self._routes_snapshot = routes
+        try:
+            from aura.templates.shortcuts import _engine
+            if _engine is not None:
+                _engine.register_routes(routes)
+        except ImportError:
+            pass
+
         starlette_middleware = self._build_middleware()
 
         @contextlib.asynccontextmanager
@@ -201,8 +212,36 @@ class Aura:
         except Exception:
             logger.exception("Failed to load config — using defaults")
 
+        # Auto-initialise the database if AURA__DATABASE__URL is set
+        db_url = os.environ.get("AURA__DATABASE__URL")
+        if db_url:
+            try:
+                from aura.orm.session import db as _db
+                if _db._engine is None:
+                    _db.init(db_url)
+                    logger.info("Database auto-initialized from AURA__DATABASE__URL")
+            except ImportError:
+                logger.warning(
+                    "AURA__DATABASE__URL is set but SQLAlchemy is not installed; "
+                    "skipping auto-initialization."
+                )
+
         # Warm up singletons
         await self.container.startup()
+
+        # Run per-module startup hooks (e.g. AuraTemplateModule.on_startup)
+        await self.registry.run_module_startups(self.container, self.debug)
+
+        # After module startups the template engine may have just been set;
+        # register the route list with it now if available.
+        try:
+            from aura.templates.shortcuts import _engine as _tmpl_engine
+            routes = getattr(self, "_routes_snapshot", None)
+            if _tmpl_engine is not None and routes is not None:
+                _tmpl_engine.register_routes(routes)
+        except ImportError:
+            pass
+
         logger.info("%s started successfully", self.title)
 
     async def _on_shutdown(self) -> None:

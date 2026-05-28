@@ -30,17 +30,29 @@ def worker_command(
         "-a",
         help="Import path for the Aura app (to load registered tasks), e.g. 'main:app'",
     ),
+    broker_url: str = typer.Option(
+        None,
+        "--broker-url",
+        help=(
+            "Redis URL for SAQ backend, e.g. 'redis://localhost:6379'. "
+            "Overrides the AURA__JOBS__BROKER_URL environment variable."
+        ),
+    ),
 ) -> None:
     """Start the Aura background worker.
 
     The worker processes tasks enqueued via ``@task``-decorated functions.
 
+    When ``--broker-url`` (or the ``AURA__JOBS__BROKER_URL`` env var) is set,
+    the worker uses SAQ + Redis for distributed task processing.
+
     Examples::
 
-        aura worker                              # default queue, 4 concurrency
-        aura worker -q emails -q default -c 8   # multiple queues
-        aura worker --burst                      # process then exit
-        aura worker --app myapp.main:app         # load app to register tasks
+        aura worker                                    # default queue, 4 concurrency
+        aura worker -q emails -q default -c 8         # multiple queues
+        aura worker --burst                            # process then exit
+        aura worker --app myapp.main:app               # load app to register tasks
+        aura worker --broker-url redis://localhost:6379 -q emails
     """
     if app_path:
         _import_app(app_path)
@@ -51,6 +63,7 @@ def worker_command(
         queues=list(queues),
         concurrency=concurrency,
         burst=burst,
+        broker_url=broker_url or None,
     )
 
     try:

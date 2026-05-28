@@ -2,6 +2,7 @@
 
 > Lista completa e atualizada de itens pendentes no Aura Framework.  
 > Atualizado em 2026-05-28. Organizado por prioridade e área.
+> **243 testes passando · ruff clean · mypy strict 77 arquivos**
 
 ---
 
@@ -41,41 +42,26 @@
   `RateLimitMiddleware` global existente; raises 429 via `on_denied`
 - [x] **`SessionMiddleware`** — sessões assinadas em cookie via `itsdangerous`; carrega em
   `request.state.session`; nova extra `[session]`; 11 testes integração
+- [x] **`DatabaseManager` no ciclo de vida do app** — lê `AURA__DATABASE__URL` na startup e
+  chama `db.init()` automaticamente; backward-compatible (sem env var = comportamento anterior)
+- [x] **`AuraTemplateModule.on_startup` integrado** — `ModuleRegistry.run_module_startups()`
+  itera todos os módulos e chama `on_startup(container, debug)` se definido (sync e async)
+- [x] **`url_for()` global no Jinja2** — `AuraTemplateEngine.register_routes(routes)` registra
+  closure `url_for(name, **params)` substituindo `{param}` no path; wired automaticamente no build
+- [x] **SAQ backend auto-detectado** — detecta `AURA__JOBS__BROKER_URL`; sem env var → `MemoryBackend`;
+  com URL → `SAQBackend(redis_url=...)` instanciado lazy
+- [x] **`aura worker` funcional** — `AuraWorker.run()` detecta SAQ e usa o worker nativo SAQ com
+  `TaskRegistry`; CLI ganhou `--broker-url` como alternativa ao env var
+- [x] **`Repository.paginate()`** — retorna `Page[T]` com `items`, `total`, `page`, `per_page`,
+  `has_next`; roda COUNT + SELECT separados; exportado em `aura` e `aura.orm`
+- [x] **`async with db.transaction()`** — unit-of-work semântico; alias de `db.session()` para
+  operações em múltiplos repositórios dentro de uma transação
+- [x] **`aura generate module --with-db`** — flag descomenta `models.py` e `repositories.py` com
+  código real (`AuraModel` + `Repository[T]`); sem flag = stubs comentados (comportamento atual)
 
 ---
 
-## 🔴 Alta Prioridade (v0.2.0)
-
-### ORM & Database
-
-- [ ] **`DatabaseManager` no ciclo de vida do app** — ler `AURA__DATABASE__URL` na startup
-  e iniciar o pool SQLAlchemy automaticamente (hoje o dev chama `db.init()` manualmente)
-
-### Templates — integração com ciclo de vida
-
-- [ ] **`AuraTemplateModule.on_startup` integrado com `ModuleRegistry`** — hoje o dev
-  precisa chamar `set_engine()` manualmente; o `ModuleRegistry.collect_routes()` ou o
-  `Aura._build()` precisa chamar `on_startup(container, debug)` de todos os módulos registrados
-- [ ] **`url_for()` global no Jinja2** — registrar `url_for(name, **params)` como global
-  no engine, resolvendo a URL de uma rota pelo nome do handler
-
-### Jobs & Workers
-
-- [ ] **SAQ backend integrado** — `aura/jobs/backends/saq_backend.py` existe mas `AuraTask.dispatch()`
-  só usa `MemoryBackend`; precisa detectar `AURA__JOBS__BROKER_URL` e usar SAQ automaticamente
-- [ ] **`aura worker` funcional** — conectar ao SAQ e processar filas configuradas
-
----
-
-## 🟡 Média Prioridade (v0.3.0)
-
-### ORM — Melhorias
-
-- [ ] **`Repository.paginate()`** — método com retorno `Page[T]` contendo `total`, `page`,
-  `per_page`, `has_next`, `items`
-- [ ] **`async with db.transaction()`** — unit-of-work para operações em múltiplos repositories
-- [ ] **`aura generate module --with-db`** — flag que descomenta `models.py` e `repositories.py`
-  automaticamente ao gerar módulo (sem a flag, ficam comentados como hoje)
+## 🟡 Média Prioridade (v0.3.0 — restante)
 
 ### Guards & Auth
 
