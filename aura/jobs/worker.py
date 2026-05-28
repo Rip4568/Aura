@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import signal
-import sys
 from typing import Any
 
 from rich.console import Console
@@ -82,7 +81,7 @@ class AuraWorker:
         implemented here.  This loop primarily keeps the worker alive.
         """
         try:
-            while self._running:
+            while self._running:  # noqa: ASYNC110
                 await asyncio.sleep(0.5)
         except asyncio.CancelledError:
             pass

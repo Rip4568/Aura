@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from aura.routing.decorators import delete, get, patch, post, put, ws
+from aura.routing.decorators import delete, get, post, ws
 from aura.routing.params import (
     BodyMarker,
     CookieMarker,
@@ -13,7 +13,6 @@ from aura.routing.params import (
     QueryMarker,
 )
 from aura.routing.router import Router
-
 
 # ---------------------------------------------------------------------------
 # Decorator tests

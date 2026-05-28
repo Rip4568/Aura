@@ -5,8 +5,8 @@ from typing import Any
 
 from starlette.requests import Request
 
-from aura.guards.base import Guard
 from aura.exceptions.http import UnauthorizedException
+from aura.guards.base import Guard
 
 
 class JWTGuard(Guard):
@@ -78,7 +78,7 @@ class JWTGuard(Guard):
 
     def _decode(self, token: str) -> dict[str, Any] | None:
         try:
-            from jose import jwt, JWTError  # noqa: F401
+            from jose import JWTError, jwt  # noqa: F401
 
             return dict(jwt.decode(token, self.secret, algorithms=[self.algorithm]))
         except Exception:

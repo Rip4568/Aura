@@ -7,14 +7,15 @@ No template engine setup is required.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 from aura import Aura, Module, get
 from aura.core.request import AuraRequest
 from aura.templates.decorators import html, sse
 from aura.templates.response import HtmlResponse
-
 
 # ---------------------------------------------------------------------------
 # Controllers
@@ -41,12 +42,12 @@ class EventController:
     """SSE endpoints."""
 
     @sse("/stream")
-    async def stream(self):
+    async def stream(self) -> AsyncIterator[dict[str, object]]:
         yield {"event": "ping", "count": 1}
         yield {"event": "pong", "count": 2}
 
     @sse("/text-stream")
-    async def text_stream(self):
+    async def text_stream(self) -> AsyncIterator[str]:
         yield "hello"
         yield "world"
 

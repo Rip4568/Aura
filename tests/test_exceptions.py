@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from aura.exceptions.base import AuraException
 from aura.exceptions.http import (
     BadRequestException,

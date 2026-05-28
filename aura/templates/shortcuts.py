@@ -56,12 +56,12 @@ def set_engine(engine: Any) -> None:
 
 async def render(
     template_name: str,
-    context: "TemplateContext | dict[str, Any]",
+    context: TemplateContext | dict[str, Any],
     *,
     status: int = 200,
     headers: dict[str, str] | None = None,
     extra: dict[str, Any] | None = None,
-) -> "HtmlResponse":
+) -> HtmlResponse:
     """Render a template and return an :class:`~aura.templates.response.HtmlResponse`.
 
     Args:
@@ -98,10 +98,10 @@ async def render(
 
 async def render_string(
     source: str,
-    context: "TemplateContext | dict[str, Any]",
+    context: TemplateContext | dict[str, Any],
     *,
     status: int = 200,
-) -> "HtmlResponse":
+) -> HtmlResponse:
     """Render a Jinja2 template from a source string.
 
     Useful for dynamic templates, email bodies, or testing.
@@ -122,7 +122,7 @@ async def render_string(
 
 async def render_to_string(
     template_name: str,
-    context: "TemplateContext | dict[str, Any]",
+    context: TemplateContext | dict[str, Any],
     *,
     extra: dict[str, Any] | None = None,
 ) -> str:

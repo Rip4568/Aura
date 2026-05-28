@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from aura.jobs.base import TaskDefinition, TaskResult, TaskRegistry
 from aura.jobs.backends.base import TaskBackend
+from aura.jobs.base import TaskRegistry, TaskResult
 
 
 class Queue:

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any, Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 
 class ModuleMetadata:
@@ -46,7 +46,7 @@ class ModuleMetadata:
         self.guards = guards or []
 
 
-def Module(
+def Module(  # noqa: N802
     *,
     imports: Sequence[type] = (),
     providers: Sequence[type] = (),

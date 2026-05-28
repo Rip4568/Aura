@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import pytest
 from starlette.requests import Request
-from starlette.testclient import TestClient
 
 from aura.exceptions.http import ForbiddenException
 from aura.guards.base import Guard
-
 
 # ---------------------------------------------------------------------------
 # Guard implementations for testing

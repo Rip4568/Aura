@@ -32,7 +32,7 @@ class Guard(ABC):
     """
 
     @abstractmethod
-    async def can_activate(self, request: "Request") -> bool:
+    async def can_activate(self, request: Request) -> bool:
         """
         Determine whether the request is allowed to proceed.
 
@@ -44,7 +44,7 @@ class Guard(ABC):
         """
         ...
 
-    async def on_denied(self, request: "Request") -> None:
+    async def on_denied(self, request: Request) -> None:
         """
         Called when :meth:`can_activate` returns ``False``.
 

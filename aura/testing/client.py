@@ -34,9 +34,9 @@ class AuraTestClient:
         self.base_url = base_url
         self._client: Any = None
 
-    async def __aenter__(self) -> "AuraTestClient":
+    async def __aenter__(self) -> AuraTestClient:
         try:
-            from httpx import AsyncClient, ASGITransport
+            from httpx import ASGITransport, AsyncClient
         except ImportError as exc:
             raise ImportError(
                 "httpx is required for AuraTestClient. "

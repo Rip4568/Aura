@@ -1,8 +1,8 @@
 """Dependency Injection module."""
 
 from aura.di.container import DIContainer, Lifetime
-from aura.di.decorators import injectable, inject
-from aura.di.providers import Provider, SingletonProvider, TransientProvider, ScopedProvider
+from aura.di.decorators import inject, injectable
+from aura.di.providers import Provider, ScopedProvider, SingletonProvider, TransientProvider
 
 __all__ = [
     "DIContainer",

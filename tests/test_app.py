@@ -5,9 +5,7 @@ from __future__ import annotations
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from aura import Aura, Module, Schema, get, post, NotFoundException
-from aura.routing.decorators import delete
-
+from aura import Aura, Module, Schema, get, post
 
 # ---------------------------------------------------------------------------
 # Schemas
@@ -88,7 +86,7 @@ def app() -> Aura:
 
 
 @pytest.fixture
-async def client(app: Aura):  # type: ignore[misc]
+async def client(app: Aura) -> AsyncClient:  # type: ignore[misc]
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://testserver",

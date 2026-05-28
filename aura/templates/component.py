@@ -41,19 +41,18 @@ Or in Python (useful for tests)::
 
 from __future__ import annotations
 
-import inspect
 from typing import TYPE_CHECKING, Any, cast  # noqa: F401
 
 if TYPE_CHECKING:
-    from aura.templates.engine import AuraTemplateEngine
     from aura.templates.context import TemplateContext
+    from aura.templates.engine import AuraTemplateEngine
 
 
 # Global registry: template_name → Component class
-_COMPONENT_REGISTRY: dict[str, type["Component"]] = {}
+_COMPONENT_REGISTRY: dict[str, type[Component]] = {}
 
 
-def register_component(name: str, component_cls: type["Component"]) -> None:
+def register_component(name: str, component_cls: type[Component]) -> None:
     """Register a component class under a name for template use.
 
     Args:
@@ -63,7 +62,7 @@ def register_component(name: str, component_cls: type["Component"]) -> None:
     _COMPONENT_REGISTRY[name] = component_cls
 
 
-def get_component(name: str) -> type["Component"] | None:
+def get_component(name: str) -> type[Component] | None:
     """Look up a registered component by name.
 
     Args:
@@ -83,7 +82,7 @@ class ComponentMeta(type):
         name: str,
         bases: tuple[type, ...],
         namespace: dict[str, Any],
-    ) -> "ComponentMeta":
+    ) -> ComponentMeta:
         cls = super().__new__(mcs, name, bases, namespace)
         # Auto-register if the class has a 'name' attribute or derive from class name
         if bases and hasattr(cls, "template") and cls.template:
@@ -126,13 +125,13 @@ class Component(metaclass=ComponentMeta):
     """
 
     template: str = ""
-    Props: type["TemplateContext"] | None = None
+    Props: type[TemplateContext] | None = None
     name: str = ""  # override auto-derived name if needed
 
-    def __init__(self, engine: "AuraTemplateEngine") -> None:
+    def __init__(self, engine: AuraTemplateEngine) -> None:
         self._engine = engine
 
-    async def render(self, props: "TemplateContext | dict[str, Any]") -> str:
+    async def render(self, props: TemplateContext | dict[str, Any]) -> str:
         """Render the component with the given props.
 
         Args:
@@ -149,7 +148,7 @@ class Component(metaclass=ComponentMeta):
         return await self._engine.render_string_or_file(self.template, context)
 
     @classmethod
-    def validate_props(cls, **kwargs: Any) -> "TemplateContext":
+    def validate_props(cls, **kwargs: Any) -> TemplateContext:
         """Validate keyword arguments against the Props schema.
 
         Args:

@@ -2,12 +2,11 @@
 from __future__ import annotations
 
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 from starlette.requests import Request
 
-from aura import Aura, Module, get, post
+from aura import Aura, Module, get
 from aura.guards.rate_limit import RateLimitGuard
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -233,8 +232,8 @@ async def test_session_middleware_round_trip() -> None:
 @pytest.mark.asyncio
 async def test_session_middleware_import_error_without_itsdangerous() -> None:
     """SessionMiddleware raises ImportError when itsdangerous is not available."""
-    import sys
     import importlib
+    import sys
 
     # Temporarily hide itsdangerous
     original = sys.modules.get("itsdangerous")

@@ -9,7 +9,6 @@ import pytest
 from aura.config.base import AuraConfig, DatabaseConfig, JobsConfig, ServerConfig
 from aura.config.loader import get_env, load_config
 
-
 # ---------------------------------------------------------------------------
 # ServerConfig
 # ---------------------------------------------------------------------------

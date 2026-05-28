@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import typer
-from rich.console import Console
 from rich import print as rprint
+from rich.console import Console
 
 app = typer.Typer(
     name="aura",
@@ -28,7 +28,7 @@ def version() -> None:
 # ---------------------------------------------------------------------------
 # Register sub-command groups
 # ---------------------------------------------------------------------------
-from aura.cli.commands import new, generate, run, worker, migrate  # noqa: E402
+from aura.cli.commands import generate, migrate, new, run, worker  # noqa: E402
 
 app.add_typer(new.app, name="new", help="Scaffold a new Aura project or resource.")
 app.add_typer(generate.app, name="generate", help="Generate modules, schemas, guards, etc.")

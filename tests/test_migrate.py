@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 from typer.testing import CliRunner
 
 from aura.cli.commands.migrate import _generate_alembic_ini, app
@@ -444,7 +443,8 @@ class TestResetCommand:
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0)
             result = runner.invoke(app, ["reset", "--yes"])
-            assert "WARNING" in result.output or "warning" in result.output.lower() or "destroy" in result.output.lower()
+            out = result.output.lower()
+            assert "warning" in out or "destroy" in out
 
     def test_reset_listed_in_command_table(self) -> None:
         result = runner.invoke(app, [])

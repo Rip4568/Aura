@@ -6,7 +6,6 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich import box
@@ -146,7 +145,7 @@ def _list_commands(ctx: typer.Context) -> None:
 
 @app.command("make")
 def make_migration(
-    message: Optional[str] = typer.Argument(
+    message: str | None = typer.Argument(
         None,
         help="Short description of the migration (default: current timestamp)",
     ),
@@ -349,20 +348,32 @@ def migrate_reset(
         typer.confirm("\nAre you sure you want to reset the database?", abort=True)
 
     console.print()
-    with console.status("[bold yellow]Reverting all migrations (downgrade base)...[/]", spinner="dots"):
+    with console.status(
+        "[bold yellow]Reverting all migrations (downgrade base)...[/]", spinner="dots"
+    ):
         down_code = _run_alembic("downgrade", "base")
 
     if down_code != 0:
-        console.print(Panel("[red]Downgrade failed — reset aborted[/]", border_style="red", expand=False))
+        console.print(
+            Panel("[red]Downgrade failed — reset aborted[/]", border_style="red", expand=False)
+        )
         raise typer.Exit(down_code)
 
     console.print("[dim]  ✓ downgrade base[/]")
 
-    with console.status("[bold cyan]Re-applying all migrations (upgrade head)...[/]", spinner="dots"):
+    with console.status(
+        "[bold cyan]Re-applying all migrations (upgrade head)...[/]", spinner="dots"
+    ):
         up_code = _run_alembic("upgrade", "head")
 
     if up_code != 0:
-        console.print(Panel("[red]Upgrade failed — database may be in a partial state[/]", border_style="red", expand=False))
+        console.print(
+            Panel(
+                "[red]Upgrade failed — database may be in a partial state[/]",
+                border_style="red",
+                expand=False,
+            )
+        )
         raise typer.Exit(up_code)
 
     console.print(
@@ -378,7 +389,7 @@ def migrate_reset(
 @app.command("init")
 def migrate_init(
     migrations_dir: str = typer.Argument("migrations", help="Directory to create"),
-    model_import: Optional[str] = typer.Option(
+    model_import: str | None = typer.Option(
         None,
         "--models",
         help="Import path for your AuraModel base, e.g. 'myapp.models:Base'",

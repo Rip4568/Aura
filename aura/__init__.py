@@ -28,32 +28,32 @@ Quick start::
     app = Aura(modules=[UserModule], title="My API")
 """
 
-from aura.core.app import Aura
-from aura.modules.base import Module
-from aura.routing.router import Router
-from aura.routing.decorators import get, post, put, delete, patch, ws
-from aura.routing.params import Body, Param, Query, Header, Cookie
-from aura.schema.base import Schema, ResponseSchema
-from aura.di.decorators import injectable, inject
-from aura.di.container import DIContainer, Lifetime
-from aura.guards.base import Guard
-from aura.exceptions.http import (
-    HTTPException,
-    BadRequestException,
-    UnauthorizedException,
-    ForbiddenException,
-    NotFoundException,
-    ConflictException,
-    UnprocessableEntityException,
-    InternalServerException,
-)
 from aura.config.base import AuraConfig
-from aura.core.response import AuraResponse, ok, created, no_content, redirect
+from aura.core.app import Aura
 from aura.core.request import AuraRequest
+from aura.core.response import AuraResponse, created, no_content, ok, redirect
+from aura.di.container import DIContainer, Lifetime
+from aura.di.decorators import inject, injectable
+from aura.exceptions.http import (
+    BadRequestException,
+    ConflictException,
+    ForbiddenException,
+    HTTPException,
+    InternalServerException,
+    NotFoundException,
+    UnauthorizedException,
+    UnprocessableEntityException,
+)
+from aura.guards.base import Guard
+from aura.modules.base import Module
+from aura.routing.decorators import delete, get, patch, post, put, ws
+from aura.routing.params import Body, Cookie, Header, Param, Query
+from aura.routing.router import Router
+from aura.schema.base import ResponseSchema, Schema
 
 # ORM (optional — requires aura-web[sqlalchemy])
 try:
-    from aura.orm import AuraModel, Repository, DatabaseManager, db
+    from aura.orm import AuraModel, DatabaseManager, Repository, db
 except ImportError:
     pass
 
@@ -74,18 +74,18 @@ except ImportError:
 
 # Templates (optional — requires aura-web[templates])
 try:
-    from aura.templates import (
-        TemplateContext,
-        HtmlResponse,
+    from aura.templates import (  # noqa: F401
         AuraTemplateEngine,
+        AuraTemplateModule,
         Component,
+        HtmlResponse,
         HtmxInfo,
+        TemplateContext,
+        html,
         render,
         render_string,
         render_to_string,
-        html,
         sse,
-        AuraTemplateModule,
     )
 except ImportError:
     pass  # Jinja2 not installed — templates disabled

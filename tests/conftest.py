@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-import pytest
-from httpx import AsyncClient, ASGITransport
+from typing import Any
 
-from aura import Aura, Module
+import pytest
+from httpx import ASGITransport, AsyncClient
+
+from aura import Aura
 
 
 @pytest.fixture
@@ -14,7 +16,7 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
-def make_app(**kwargs) -> Aura:  # type: ignore[no-untyped-def]
+def make_app(**kwargs: Any) -> Aura:
     """Create a minimal :class:`~aura.core.app.Aura` instance for testing.
 
     Any keyword arguments are forwarded to :class:`~aura.core.app.Aura`.

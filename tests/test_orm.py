@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
 from aura.orm.base import AuraModel
 from aura.orm.repository import Repository
 from aura.orm.session import DatabaseManager
-
 
 # ---------------------------------------------------------------------------
 # Test model
@@ -35,7 +37,7 @@ class ItemRepository(Repository[Item]):
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
-async def db_manager():
+async def db_manager() -> AsyncIterator[DatabaseManager]:
     """Provide a fresh in-memory SQLite DatabaseManager for each test."""
     manager = DatabaseManager()
     manager.init("sqlite+aiosqlite:///:memory:", echo=False)
@@ -46,14 +48,14 @@ async def db_manager():
 
 
 @pytest.fixture
-async def session(db_manager: DatabaseManager):
+async def session(db_manager: DatabaseManager) -> AsyncIterator[AsyncSession]:
     """Provide an AsyncSession within a transaction that is rolled back after the test."""
     async with db_manager.session() as s:
         yield s
 
 
 @pytest.fixture
-async def repo(session):
+async def repo(session: AsyncSession) -> ItemRepository:
     """Provide an ItemRepository bound to the test session."""
     return ItemRepository(session)
 

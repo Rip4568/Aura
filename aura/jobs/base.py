@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import asyncio
-from abc import ABC, abstractmethod
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any, TypeVar
-import uuid
 
 if TYPE_CHECKING:
     from aura.jobs.backends.base import TaskBackend
@@ -75,7 +72,7 @@ class AuraTask:
         result = await send_welcome_email.run_sync(user_id=1, email="...")
     """
 
-    def __init__(self, definition: TaskDefinition, backend: "TaskBackend") -> None:
+    def __init__(self, definition: TaskDefinition, backend: TaskBackend) -> None:
         self.definition = definition
         self._backend = backend
         # Preserve wrapped function attributes

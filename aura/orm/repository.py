@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Generic, List as _List, TypeVar
+import builtins
+from typing import Any, Generic, TypeVar
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -213,7 +214,7 @@ class Repository(Generic[ModelT]):
         result = await self.session.execute(stmt)
         return result.scalars().first()
 
-    async def bulk_create(self, items: _List[dict[str, Any]]) -> _List[ModelT]:
+    async def bulk_create(self, items: builtins.list[dict[str, Any]]) -> builtins.list[ModelT]:
         """Insert multiple records in a single flush.
 
         Args:

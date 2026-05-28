@@ -7,7 +7,6 @@ import pytest
 from aura.di.container import DIContainer, Lifetime
 from aura.di.decorators import injectable
 
-
 # ---------------------------------------------------------------------------
 # Test services
 # ---------------------------------------------------------------------------

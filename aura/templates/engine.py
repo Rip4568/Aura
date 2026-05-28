@@ -13,7 +13,6 @@ AuraTemplateEngine solves all three:
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -90,7 +89,7 @@ class AuraTemplateEngine:
     async def render(
         self,
         template_name: str,
-        context: "TemplateContext | dict[str, Any]",
+        context: TemplateContext | dict[str, Any],
         *,
         extra: dict[str, Any] | None = None,
     ) -> str:
@@ -118,7 +117,7 @@ class AuraTemplateEngine:
     async def render_string(
         self,
         source: str,
-        context: "TemplateContext | dict[str, Any]",
+        context: TemplateContext | dict[str, Any],
     ) -> str:
         """Render a Jinja2 template from a source string.
 
@@ -193,7 +192,7 @@ class AuraTemplateEngine:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _to_dict(context: "TemplateContext | dict[str, Any]") -> dict[str, Any]:
+    def _to_dict(context: TemplateContext | dict[str, Any]) -> dict[str, Any]:
         if hasattr(context, "to_template_dict"):
             return context.to_template_dict()
         return dict(context)

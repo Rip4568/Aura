@@ -5,11 +5,9 @@ from __future__ import annotations
 import pathlib
 from pathlib import Path
 
-import pytest
 from typer.testing import CliRunner
 
 from aura.cli.main import app
-
 
 runner = CliRunner()
 

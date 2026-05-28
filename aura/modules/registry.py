@@ -25,7 +25,7 @@ class ModuleRegistry:
         container: The application-level :class:`~aura.di.container.DIContainer`.
     """
 
-    def __init__(self, container: "DIContainer") -> None:
+    def __init__(self, container: DIContainer) -> None:
         self.container = container
         self._modules: list[type] = []
         self._registered: set[type] = set()

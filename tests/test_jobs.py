@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+
 import pytest
 
-from aura.jobs.base import TaskDefinition, TaskRegistry, TaskResult, TaskStatus
 from aura.jobs.backends.memory import MemoryBackend
+from aura.jobs.base import TaskDefinition, TaskRegistry, TaskResult, TaskStatus
 from aura.jobs.decorators import PeriodicTaskDefinition
-
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -20,7 +20,7 @@ class Provider(ABC, Generic[T]):
     """
 
     @abstractmethod
-    async def get(self, container: "Any") -> T:
+    async def get(self, container: Any) -> T:
         """
         Resolve and return the managed instance.
 
@@ -51,7 +51,7 @@ class SingletonProvider(Provider[T]):
         self._instance: T | None = None
         self._lock = asyncio.Lock()
 
-    async def get(self, container: "Any") -> T:
+    async def get(self, container: Any) -> T:
         """Return the singleton, creating it if this is the first call."""
         if self._instance is None:
             async with self._lock:
@@ -72,7 +72,7 @@ class TransientProvider(Provider[T]):
     def __init__(self, factory: Callable[..., Any]) -> None:
         self._factory = factory
 
-    async def get(self, container: "Any") -> T:
+    async def get(self, container: Any) -> T:
         """Create and return a brand-new instance."""
         return cast(T, await _call(self._factory, container))
 
@@ -94,7 +94,7 @@ class ScopedProvider(Provider[T]):
         self._scope_instances: dict[int, T] = {}
         self._lock = asyncio.Lock()
 
-    async def get(self, container: "Any") -> T:
+    async def get(self, container: Any) -> T:
         """Return the scoped instance, creating it within the current scope if absent."""
         scope_id = id(container)
         if scope_id not in self._scope_instances:
@@ -103,7 +103,7 @@ class ScopedProvider(Provider[T]):
                     self._scope_instances[scope_id] = await _call(self._factory, container)
         return self._scope_instances[scope_id]
 
-    def clear_scope(self, container: "Any") -> None:
+    def clear_scope(self, container: Any) -> None:
         """Remove the cached instance for the given scope.
 
         Args:
@@ -117,7 +117,7 @@ class ScopedProvider(Provider[T]):
 # ---------------------------------------------------------------------------
 
 
-async def _call(factory: Callable[..., Any], container: "Any") -> Any:
+async def _call(factory: Callable[..., Any], container: Any) -> Any:
     """Invoke *factory* with zero arguments, awaiting it if it is a coroutine.
 
     Args:

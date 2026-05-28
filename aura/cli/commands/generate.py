@@ -35,7 +35,7 @@ def _plural(name: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _schemas(name: str) -> str:
-    p, s, pl = _pascal(name), _snake(name), _plural(name)
+    p, s, _ = _pascal(name), _snake(name), _plural(name)
     return f'''\
 """Schemas (Spec) for the {p} module.
 
@@ -65,7 +65,7 @@ class {p}Response(Schema):
 
 
 def _models(name: str) -> str:
-    p, s, pl = _pascal(name), _snake(name), _plural(name)
+    p, _, pl = _pascal(name), _snake(name), _plural(name)
     return f'''\
 """ORM model for the {p} module.
 
@@ -88,7 +88,7 @@ from __future__ import annotations
 
 
 def _repository(name: str) -> str:
-    p, s, pl = _pascal(name), _snake(name), _plural(name)
+    p, _, _pl = _pascal(name), _snake(name), _plural(name)
     return f'''\
 """Repository for the {p} module.
 
@@ -227,7 +227,7 @@ class {p}Controller:
 
 
 def _module(name: str) -> str:
-    p, s, pl = _pascal(name), _snake(name), _plural(name)
+    p, _, pl = _pascal(name), _snake(name), _plural(name)
     return f'''\
 """Module declaration for the {p} feature."""
 from aura import Module

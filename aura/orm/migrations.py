@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import os
-import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -81,7 +78,6 @@ async def run_migrations_online(target_metadata: Any, engine: Any) -> None:
     """
     try:
         from alembic import context as alembic_context
-        from sqlalchemy.ext.asyncio import AsyncConnection
     except ImportError as exc:
         raise ImportError("Alembic / SQLAlchemy not installed") from exc
 

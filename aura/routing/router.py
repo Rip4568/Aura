@@ -199,7 +199,6 @@ def _wrap_http_handler(
         An async ASGI-compatible endpoint callable.
     """
     from starlette.requests import Request
-    from starlette.responses import JSONResponse, Response
 
     async def endpoint(request: Request) -> Response:
         try:
@@ -254,7 +253,6 @@ def _wrap_html_handler(
         An async ASGI-compatible endpoint callable.
     """
     from starlette.requests import Request
-    from starlette.responses import Response
 
     async def endpoint(request: Request) -> Response:
         try:
@@ -294,7 +292,6 @@ def _wrap_sse_handler(
         An async ASGI-compatible endpoint callable.
     """
     from starlette.requests import Request
-    from starlette.responses import Response
 
     async def endpoint(request: Request) -> Response:
         try:
@@ -332,7 +329,11 @@ def _wrap_sse_handler(
                         result = await result
                     if hasattr(result, "__aiter__"):
                         async for item in result:
-                            data = _json.dumps(item, default=str) if isinstance(item, dict) else str(item)
+                            data = (
+                                _json.dumps(item, default=str)
+                                if isinstance(item, dict)
+                                else str(item)
+                            )
                             yield f"data: {data}\n\n".encode()
 
             from starlette.responses import StreamingResponse
@@ -419,7 +420,7 @@ async def _to_html_response(
     return HTMLResponse(str(result), status_code=status)
 
 
-def _handle_html_exception(exc: Exception) -> "Response":
+def _handle_html_exception(exc: Exception) -> Response:
     """Convert an exception raised in an ``@html`` handler to an HTML error response.
 
     HTTP exceptions render a minimal HTML error page.
@@ -455,7 +456,7 @@ def _handle_html_exception(exc: Exception) -> "Response":
     return _handle_exception(exc)
 
 
-def _handle_exception(exc: Exception) -> "Response":
+def _handle_exception(exc: Exception) -> Response:
     """Convert an exception raised in a route handler to an HTTP response.
 
     Handles:
@@ -676,7 +677,7 @@ def _coerce(value: str, target_type: Any) -> Any:
         return value
 
 
-def _to_response(result: Any, status: int) -> "Response":
+def _to_response(result: Any, status: int) -> Response:
     """Convert a handler return value into a Starlette :class:`~starlette.responses.Response`.
 
     - ``None`` → :class:`~starlette.responses.Response` with the given *status*.

@@ -173,7 +173,7 @@ class DIContainer:
     # Scoped sub-container
     # ------------------------------------------------------------------
 
-    def create_scope(self) -> "DIContainer":
+    def create_scope(self) -> DIContainer:
         """Create a child container that shares singleton registrations but
         maintains its own scoped instances.
 

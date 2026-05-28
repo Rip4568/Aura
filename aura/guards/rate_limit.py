@@ -7,8 +7,8 @@ from collections.abc import Callable
 
 from starlette.requests import Request
 
-from aura.guards.base import Guard
 from aura.exceptions.http import HTTPException
+from aura.guards.base import Guard
 
 
 class RateLimitGuard(Guard):

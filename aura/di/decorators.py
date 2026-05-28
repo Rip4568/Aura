@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, TypeVar, overload
+from typing import TypeVar, overload
 
 from aura.di.container import Lifetime
 

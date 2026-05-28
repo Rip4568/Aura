@@ -6,8 +6,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from aura.jobs.base import TaskDefinition, TaskResult, TaskStatus
 from aura.jobs.backends.base import TaskBackend
+from aura.jobs.base import TaskDefinition, TaskResult, TaskStatus
 
 
 class SAQBackend(TaskBackend):
@@ -130,6 +130,12 @@ class SAQBackend(TaskBackend):
             status=status_map.get(job.status, TaskStatus.PENDING),
             result=job.result,
             error=str(job.error) if job.error else None,
-            started_at=datetime.fromtimestamp(job.started / 1000, tz=timezone.utc) if job.started else None,
-            completed_at=datetime.fromtimestamp(job.completed / 1000, tz=timezone.utc) if job.completed else None,
+            started_at=(
+                datetime.fromtimestamp(job.started / 1000, tz=timezone.utc) if job.started else None
+            ),
+            completed_at=(
+                datetime.fromtimestamp(job.completed / 1000, tz=timezone.utc)
+                if job.completed
+                else None
+            ),
         )

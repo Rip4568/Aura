@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 
-class AuraException(Exception):
+class AuraException(Exception):  # noqa: N818
     """
     Root exception for all Aura-specific errors.
 

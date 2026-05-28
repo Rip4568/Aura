@@ -7,8 +7,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from aura.jobs.base import TaskDefinition, TaskResult, TaskStatus
 from aura.jobs.backends.base import TaskBackend
+from aura.jobs.base import TaskDefinition, TaskResult, TaskStatus
 
 
 class MemoryBackend(TaskBackend):
@@ -34,7 +34,9 @@ class MemoryBackend(TaskBackend):
 
     def __init__(self, concurrency: int = 4) -> None:
         self._concurrency = concurrency
-        self._queue: asyncio.Queue[tuple[str, TaskDefinition, tuple[Any, ...], dict[str, Any], int]] = asyncio.Queue()
+        self._queue: asyncio.Queue[
+            tuple[str, TaskDefinition, tuple[Any, ...], dict[str, Any], int]
+        ] = asyncio.Queue()
         self._results: dict[str, TaskResult] = {}
         self._workers: list[asyncio.Task[None]] = []
         self._running = False

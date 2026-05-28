@@ -52,7 +52,7 @@ class HtmxInfo:
     prompt: str | None = None
 
     @classmethod
-    def from_headers(cls, headers: Any) -> "HtmxInfo":
+    def from_headers(cls, headers: Any) -> HtmxInfo:
         """Parse htmx info from request headers.
 
         Args:
@@ -99,7 +99,7 @@ class HtmxResponseHeaders:
 
     _headers: dict[str, str] = field(default_factory=dict)
 
-    def trigger(self, *events: str | dict[str, Any]) -> "HtmxResponseHeaders":
+    def trigger(self, *events: str | dict[str, Any]) -> HtmxResponseHeaders:
         """Trigger client-side events after the response is processed.
 
         Args:
@@ -123,7 +123,7 @@ class HtmxResponseHeaders:
             self._headers["HX-Trigger"] = json.dumps(payload)
         return self
 
-    def redirect(self, url: str) -> "HtmxResponseHeaders":
+    def redirect(self, url: str) -> HtmxResponseHeaders:
         """Redirect to a URL (full page load).
 
         Args:
@@ -132,7 +132,7 @@ class HtmxResponseHeaders:
         self._headers["HX-Redirect"] = url
         return self
 
-    def push_url(self, url: str) -> "HtmxResponseHeaders":
+    def push_url(self, url: str) -> HtmxResponseHeaders:
         """Push a new URL into browser history without full page load.
 
         Args:
@@ -141,7 +141,7 @@ class HtmxResponseHeaders:
         self._headers["HX-Push-Url"] = url
         return self
 
-    def replace_url(self, url: str) -> "HtmxResponseHeaders":
+    def replace_url(self, url: str) -> HtmxResponseHeaders:
         """Replace the current URL in browser history.
 
         Args:
@@ -150,7 +150,7 @@ class HtmxResponseHeaders:
         self._headers["HX-Replace-Url"] = url
         return self
 
-    def retarget(self, css_selector: str) -> "HtmxResponseHeaders":
+    def retarget(self, css_selector: str) -> HtmxResponseHeaders:
         """Override the target element for the swap.
 
         Args:
@@ -159,7 +159,7 @@ class HtmxResponseHeaders:
         self._headers["HX-Retarget"] = css_selector
         return self
 
-    def reswap(self, strategy: str) -> "HtmxResponseHeaders":
+    def reswap(self, strategy: str) -> HtmxResponseHeaders:
         """Override the swap strategy.
 
         Args:
@@ -169,12 +169,12 @@ class HtmxResponseHeaders:
         self._headers["HX-Reswap"] = strategy
         return self
 
-    def refresh(self) -> "HtmxResponseHeaders":
+    def refresh(self) -> HtmxResponseHeaders:
         """Force a full page refresh."""
         self._headers["HX-Refresh"] = "true"
         return self
 
-    def location(self, url: str, **kwargs: Any) -> "HtmxResponseHeaders":
+    def location(self, url: str, **kwargs: Any) -> HtmxResponseHeaders:
         """Navigate without full page reload (htmx history push).
 
         Args:

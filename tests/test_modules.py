@@ -9,7 +9,6 @@ from aura.modules.base import Module, ModuleMetadata
 from aura.modules.registry import ModuleRegistry
 from aura.routing.decorators import get
 
-
 # ---------------------------------------------------------------------------
 # Module decorator tests
 # ---------------------------------------------------------------------------

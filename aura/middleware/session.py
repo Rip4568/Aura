@@ -1,8 +1,8 @@
 """SessionMiddleware — signed cookie sessions for Aura."""
 from __future__ import annotations
 
-from typing import Any
 from collections.abc import Callable
+from typing import Any
 
 # ASGI type aliases
 Scope = dict[str, Any]
@@ -68,7 +68,8 @@ class SessionMiddleware:
     def _load_session(self, headers: list[tuple[bytes, bytes]]) -> dict[str, Any]:
         """Decode session from Cookie header."""
         import json  # noqa: F401
-        from itsdangerous import URLSafeTimedSerializer, BadSignature
+
+        from itsdangerous import BadSignature, URLSafeTimedSerializer
 
         serializer = URLSafeTimedSerializer(self.secret_key)
         for name, value in headers:
