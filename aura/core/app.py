@@ -174,6 +174,7 @@ class Aura:
             lifespan=_lifespan,
             exception_handlers={Exception: exception_handler},
         )
+        app.state.container = self.container
         return app
 
     def _build_middleware(self) -> list[Middleware]:

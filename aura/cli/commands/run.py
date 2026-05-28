@@ -26,6 +26,14 @@ def run_command(
         aura run myapp.main:app --reload  # custom module, hot-reload
         aura run --port 9000 --workers 4  # production-like
     """
+    import os
+    import sys
+
+    # Ensure current working directory is in sys.path so that user modules can be imported
+    cwd = os.getcwd()
+    if cwd not in sys.path:
+        sys.path.insert(0, cwd)
+
     console.print(f"[bold cyan]Aura[/] starting on [bold]{host}:{port}[/]")
     console.print(f"  App: [cyan]{app_path}[/]")
     if reload:

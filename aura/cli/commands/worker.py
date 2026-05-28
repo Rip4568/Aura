@@ -54,6 +54,14 @@ def worker_command(
         aura worker --app myapp.main:app               # load app to register tasks
         aura worker --broker-url redis://localhost:6379 -q emails
     """
+    import os
+    import sys
+
+    # Ensure current working directory is in sys.path so that user modules can be imported
+    cwd = os.getcwd()
+    if cwd not in sys.path:
+        sys.path.insert(0, cwd)
+
     if app_path:
         _import_app(app_path)
 
