@@ -246,6 +246,109 @@ class QuerySet(Generic[ModelT]):
             has_next=page * per_page < total,
         )
 
+    async def aggregate(self, **kwargs: Any) -> dict[str, Any]:
+        """Compute aggregate values over matching records in a single query.
+
+        Example::
+
+            stats = await Post.objects.using(session).filter(active=True).aggregate(
+                total=Count("id"),
+                avg_views=Avg("view_count"),
+                max_views=Max("view_count"),
+            )
+            # {"total": 42, "avg_views": 13.7, "max_views": 500}
+        """
+        from aura.orm.aggregates import Aggregate
+
+        columns = []
+        labels: builtins.list[str] = []
+        for label, agg in kwargs.items():
+            if not isinstance(agg, Aggregate):
+                raise TypeError(
+                    f"Expected an Aggregate instance for '{label}', "
+                    f"got {type(agg).__name__}. Use Count(), Sum(), Avg(), Min() or Max()."
+                )
+            columns.append(agg._to_sqla(self._model).label(label))
+            labels.append(label)
+
+        stmt = select(*columns).select_from(self._model)
+        all_conditions = self._filters + self._excludes
+        if all_conditions:
+            stmt = stmt.where(and_(*all_conditions))
+
+        result = await self._get_session().execute(stmt)
+        row = result.one()
+        return {label: getattr(row, label) for label in labels}
+
+    async def values(self, *fields: str) -> builtins.list[dict[str, Any]]:
+        """Return dicts instead of model instances.
+
+        Example::
+
+            rows = await User.objects.using(session).filter(active=True).values("id", "name")
+            # [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
+
+        With no arguments, returns all columns as dicts (equivalent to .to_dict()).
+        """
+        if fields:
+            columns: builtins.list[Any] = [getattr(self._model, f) for f in fields]
+            stmt = select(*columns)
+        else:
+            stmt = select(self._model)
+
+        all_conditions = self._filters + self._excludes
+        if all_conditions:
+            stmt = stmt.where(and_(*all_conditions))
+        if self._order_by_clauses:
+            stmt = stmt.order_by(*self._order_by_clauses)
+        if self._limit_val is not None:
+            stmt = stmt.limit(self._limit_val)
+        if self._offset_val:
+            stmt = stmt.offset(self._offset_val)
+
+        result = await self._get_session().execute(stmt)
+        if fields:
+            return [dict(zip(fields, row)) for row in result.all()]
+        return [obj.to_dict() for obj in result.scalars().all()]
+
+    async def values_list(
+        self,
+        *fields: str,
+        flat: bool = False,
+    ) -> builtins.list[Any]:
+        """Return tuples, or flat values when flat=True and only one field given.
+
+        Example::
+
+            ids = await User.objects.using(session).values_list("id", flat=True)
+            # [1, 2, 3]
+
+            pairs = await User.objects.using(session).values_list("id", "name")
+            # [(1, "Alice"), (2, "Bob")]
+        """
+        if not fields:
+            raise ValueError("values_list() requires at least one field name.")
+        if flat and len(fields) > 1:
+            raise ValueError("values_list(flat=True) requires exactly one field.")
+
+        columns_vl: builtins.list[Any] = [getattr(self._model, f) for f in fields]
+        stmt = select(*columns_vl)
+        all_conditions = self._filters + self._excludes
+        if all_conditions:
+            stmt = stmt.where(and_(*all_conditions))
+        if self._order_by_clauses:
+            stmt = stmt.order_by(*self._order_by_clauses)
+        if self._limit_val is not None:
+            stmt = stmt.limit(self._limit_val)
+        if self._offset_val:
+            stmt = stmt.offset(self._offset_val)
+
+        result = await self._get_session().execute(stmt)
+        rows = result.all()
+        if flat:
+            return [row[0] for row in rows]
+        return [tuple(row) for row in rows]
+
     async def delete(self) -> int:
         """Delete all matching records. Returns count deleted."""
         from sqlalchemy import delete as _delete

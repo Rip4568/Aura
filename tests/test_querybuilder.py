@@ -9,6 +9,7 @@ from sqlalchemy import ForeignKey
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from aura.orm.aggregates import Avg, Count, Max, Min, Sum
 from aura.orm.base import AuraModel
 from aura.orm.expressions import Q
 from aura.orm.query import MultipleObjectsReturnedException, QuerySet
@@ -605,3 +606,137 @@ class TestQObject:
         assert "Keep active" in titles
         assert "High views" in titles
         assert "skip this" not in titles
+
+
+# ---------------------------------------------------------------------------
+# TestAggregate
+# ---------------------------------------------------------------------------
+
+
+class TestAggregate:
+    """Tests for QuerySet.aggregate() and Aggregate functions."""
+
+    async def test_count_all(self, session: AsyncSession) -> None:
+        for i in range(4):
+            await _create_post(session, f"P{i}", view_count=i * 10)
+        result = await QBPost.objects.using(session).aggregate(total=Count("id"))
+        assert result["total"] == 4
+
+    async def test_count_star(self, session: AsyncSession) -> None:
+        await _create_post(session, "A", view_count=1)
+        await _create_post(session, "B", view_count=2)
+        result = await QBPost.objects.using(session).aggregate(total=Count("*"))
+        assert result["total"] == 2
+
+    async def test_sum(self, session: AsyncSession) -> None:
+        await _create_post(session, "A", view_count=10)
+        await _create_post(session, "B", view_count=30)
+        result = await QBPost.objects.using(session).aggregate(total=Sum("view_count"))
+        assert result["total"] == 40
+
+    async def test_avg(self, session: AsyncSession) -> None:
+        await _create_post(session, "A", view_count=10)
+        await _create_post(session, "B", view_count=30)
+        result = await QBPost.objects.using(session).aggregate(avg=Avg("view_count"))
+        assert result["avg"] == 20.0
+
+    async def test_min(self, session: AsyncSession) -> None:
+        await _create_post(session, "A", view_count=5)
+        await _create_post(session, "B", view_count=15)
+        result = await QBPost.objects.using(session).aggregate(minimum=Min("view_count"))
+        assert result["minimum"] == 5
+
+    async def test_max(self, session: AsyncSession) -> None:
+        await _create_post(session, "A", view_count=5)
+        await _create_post(session, "B", view_count=15)
+        result = await QBPost.objects.using(session).aggregate(maximum=Max("view_count"))
+        assert result["maximum"] == 15
+
+    async def test_multiple_aggregates(self, session: AsyncSession) -> None:
+        for v in [10, 20, 30]:
+            await _create_post(session, f"P{v}", view_count=v)
+        result = await QBPost.objects.using(session).aggregate(
+            total=Count("id"),
+            total_views=Sum("view_count"),
+            avg_views=Avg("view_count"),
+            min_views=Min("view_count"),
+            max_views=Max("view_count"),
+        )
+        assert result["total"] == 3
+        assert result["total_views"] == 60
+        assert result["avg_views"] == 20.0
+        assert result["min_views"] == 10
+        assert result["max_views"] == 30
+
+    async def test_aggregate_with_filter(self, session: AsyncSession) -> None:
+        await _create_post(session, "Active", active=True, view_count=100)
+        await _create_post(session, "Inactive", active=False, view_count=200)
+        result = await (
+            QBPost.objects.using(session)
+            .filter(active=True)
+            .aggregate(total=Count("id"), views=Sum("view_count"))
+        )
+        assert result["total"] == 1
+        assert result["views"] == 100
+
+    async def test_aggregate_wrong_type_raises(self, session: AsyncSession) -> None:
+        with pytest.raises(TypeError, match="Aggregate"):
+            await QBPost.objects.using(session).aggregate(bad="not_an_aggregate")  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# TestValues
+# ---------------------------------------------------------------------------
+
+
+class TestValues:
+    """Tests for QuerySet.values() and QuerySet.values_list()."""
+
+    async def test_values_specific_fields(self, session: AsyncSession) -> None:
+        await _create_post(session, "Alpha", view_count=10)
+        await _create_post(session, "Beta", view_count=20)
+        rows = await QBPost.objects.using(session).order_by("title").values("title", "view_count")
+        assert rows == [
+            {"title": "Alpha", "view_count": 10},
+            {"title": "Beta", "view_count": 20},
+        ]
+
+    async def test_values_all_fields(self, session: AsyncSession) -> None:
+        await _create_post(session, "Gamma")
+        rows = await QBPost.objects.using(session).values()
+        assert len(rows) == 1
+        assert "id" in rows[0]
+        assert "title" in rows[0]
+
+    async def test_values_with_filter(self, session: AsyncSession) -> None:
+        await _create_post(session, "Active", active=True)
+        await _create_post(session, "Inactive", active=False)
+        rows = await QBPost.objects.using(session).filter(active=True).values("title")
+        assert rows == [{"title": "Active"}]
+
+    async def test_values_list_single_field(self, session: AsyncSession) -> None:
+        await _create_post(session, "A")
+        await _create_post(session, "B")
+        rows = await QBPost.objects.using(session).order_by("title").values_list("title")
+        assert rows == [("A",), ("B",)]
+
+    async def test_values_list_flat(self, session: AsyncSession) -> None:
+        await _create_post(session, "X")
+        await _create_post(session, "Y")
+        titles = await (
+            QBPost.objects.using(session).order_by("title").values_list("title", flat=True)
+        )
+        assert titles == ["X", "Y"]
+
+    async def test_values_list_multiple_fields(self, session: AsyncSession) -> None:
+        await _create_post(session, "Post1", view_count=5)
+        rows = await QBPost.objects.using(session).values_list("title", "view_count")
+        assert rows == [("Post1", 5)]
+
+    async def test_values_list_flat_multiple_raises(self, session: AsyncSession) -> None:
+        with pytest.raises(ValueError, match="exactly one field"):
+            await QBPost.objects.using(session).values_list("title", "view_count", flat=True)
+
+    async def test_values_list_no_fields_raises(self, session: AsyncSession) -> None:
+        with pytest.raises(ValueError, match="at least one field"):
+            await QBPost.objects.using(session).values_list()
