@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from collections import defaultdict
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast  # noqa: F401
 
 # ASGI type aliases
 Scope = dict[str, Any]
@@ -100,7 +100,7 @@ class RateLimitMiddleware:
         """Extract the client IP address as the rate-limit key."""
         client = scope.get("client")
         if client:
-            return client[0]
+            return cast(str, client[0])
         # Fallback: try X-Forwarded-For from headers
         headers: list[tuple[bytes, bytes]] = scope.get("headers", [])
         for name, value in headers:

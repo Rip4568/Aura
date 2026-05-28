@@ -75,3 +75,4 @@ logs/
 
 # Ruff
 .ruff_cache/
+.ignore/*

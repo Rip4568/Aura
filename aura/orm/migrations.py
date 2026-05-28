@@ -27,7 +27,7 @@ def get_alembic_config(
         ImportError: If Alembic is not installed.
     """
     try:
-        from alembic.config import Config  # type: ignore[import]
+        from alembic.config import Config
     except ImportError as exc:
         raise ImportError(
             "Alembic is required for migrations. "
@@ -56,7 +56,7 @@ def run_migrations_offline(target_metadata: Any, url: str) -> None:
         url: The database URL.
     """
     try:
-        from alembic import context as alembic_context  # type: ignore[import]
+        from alembic import context as alembic_context
     except ImportError as exc:
         raise ImportError("Alembic not installed") from exc
 
@@ -80,8 +80,8 @@ async def run_migrations_online(target_metadata: Any, engine: Any) -> None:
         engine: An async SQLAlchemy engine.
     """
     try:
-        from alembic import context as alembic_context  # type: ignore[import]
-        from sqlalchemy.ext.asyncio import AsyncConnection  # type: ignore[import]
+        from alembic import context as alembic_context
+        from sqlalchemy.ext.asyncio import AsyncConnection
     except ImportError as exc:
         raise ImportError("Alembic / SQLAlchemy not installed") from exc
 

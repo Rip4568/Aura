@@ -117,24 +117,24 @@ class _AnnotatedAlias(Generic[T]):
     def __init__(self, marker_cls: type) -> None:
         self._marker_cls = marker_cls
 
-    def __class_getitem__(cls, item: Any) -> Any:  # type: ignore[override]
+    def __class_getitem__(cls, item: Any) -> Any:
         return item  # fallback — real magic is in __getitem__
 
     def __getitem__(self, item: Any) -> Any:
         return Annotated[item, self._marker_cls()]
 
 
-Body: _AnnotatedAlias[Any] = _AnnotatedAlias(BodyMarker)  # type: ignore[assignment]
+Body: _AnnotatedAlias[Any] = _AnnotatedAlias(BodyMarker)
 """Type alias helper — ``Body[T]`` → ``Annotated[T, BodyMarker()]``."""
 
-Query: _AnnotatedAlias[Any] = _AnnotatedAlias(QueryMarker)  # type: ignore[assignment]
+Query: _AnnotatedAlias[Any] = _AnnotatedAlias(QueryMarker)
 """Type alias helper — ``Query[T]`` → ``Annotated[T, QueryMarker()]``."""
 
-Param: _AnnotatedAlias[Any] = _AnnotatedAlias(ParamMarker)  # type: ignore[assignment]
+Param: _AnnotatedAlias[Any] = _AnnotatedAlias(ParamMarker)
 """Type alias helper — ``Param[T]`` → ``Annotated[T, ParamMarker()]``."""
 
-Header: _AnnotatedAlias[Any] = _AnnotatedAlias(HeaderMarker)  # type: ignore[assignment]
+Header: _AnnotatedAlias[Any] = _AnnotatedAlias(HeaderMarker)
 """Type alias helper — ``Header[T]`` → ``Annotated[T, HeaderMarker()]``."""
 
-Cookie: _AnnotatedAlias[Any] = _AnnotatedAlias(CookieMarker)  # type: ignore[assignment]
+Cookie: _AnnotatedAlias[Any] = _AnnotatedAlias(CookieMarker)
 """Type alias helper — ``Cookie[T]`` → ``Annotated[T, CookieMarker()]``."""

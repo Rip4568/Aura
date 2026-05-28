@@ -177,7 +177,7 @@ class Aura:
             if isinstance(mw, Middleware):
                 result.append(mw)
             elif isinstance(mw, type):
-                result.append(Middleware(mw))
+                result.append(Middleware(mw))  # type: ignore[arg-type]
             else:
                 logger.warning("Skipping unrecognised middleware: %r", mw)
         return result
@@ -314,7 +314,7 @@ class Aura:
         try:
             cfg = self._config_class()
         except Exception:
-            cfg = AuraConfig()  # type: ignore[assignment]
+            cfg = AuraConfig()
 
         _host = host or cfg.server.host
         _port = port or cfg.server.port

@@ -28,7 +28,7 @@ def load_config(
     """
     if env_file is not None:
         # Override env_file at instantiation time via ``_env_file``
-        return config_class(_env_file=str(env_file))  # type: ignore[call-arg]
+        return config_class(_env_file=str(env_file))
     return config_class()
 
 

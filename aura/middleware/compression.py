@@ -47,7 +47,7 @@ class CompressionMiddleware:
             A wrapped ASGI application.
         """
         try:
-            from starlette.middleware.gzip import GZipMiddleware  # type: ignore[import]
+            from starlette.middleware.gzip import GZipMiddleware
         except ImportError as exc:
             raise ImportError(
                 "starlette is required for CompressionMiddleware."
@@ -56,7 +56,7 @@ class CompressionMiddleware:
         # Prefer brotli if available
         try:
             import brotli  # noqa: F401 — check availability
-            from starlette_brotli import BrotliMiddleware  # type: ignore[import]
+            from starlette_brotli import BrotliMiddleware
             return BrotliMiddleware(app, minimum_size=self.minimum_size)
         except ImportError:
             pass

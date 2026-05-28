@@ -34,7 +34,7 @@ def run_command(
         console.print(f"  Workers: [cyan]{workers}[/]")
 
     try:
-        import uvicorn  # type: ignore[import]
+        import uvicorn
     except ImportError:
         console.print(
             "[red]uvicorn is not installed.[/] "

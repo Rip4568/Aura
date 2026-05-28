@@ -58,7 +58,7 @@ class CORSMiddleware:
             A new ASGI application with CORS handling applied.
         """
         try:
-            from starlette.middleware.cors import CORSMiddleware as StarletteCORS  # type: ignore[import]
+            from starlette.middleware.cors import CORSMiddleware as StarletteCORS
         except ImportError as exc:
             raise ImportError(
                 "starlette is required for CORSMiddleware. "

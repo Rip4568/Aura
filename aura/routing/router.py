@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import inspect
 import logging
-from collections.abc import Callable
-from typing import Any
+from collections.abc import AsyncGenerator, Callable
+from typing import Any, cast
 
+from starlette.responses import Response
 from starlette.routing import Route, WebSocketRoute
 from starlette.websockets import WebSocket
 
@@ -125,7 +126,7 @@ class Router:
             response_type = meta.get("response_type", "json")
 
             if method == "WS":
-                route = WebSocketRoute(
+                route: Route | WebSocketRoute = WebSocketRoute(
                     path,
                     endpoint=_wrap_ws_handler(handler, all_guards),
                     name=getattr(handler, "__name__", None),
@@ -217,7 +218,7 @@ def _wrap_http_handler(
                 result = await result
 
             # Convert result to response
-            return _to_response(result, handler.__aura_route__.get("status", 200))
+            return _to_response(result, getattr(handler, "__aura_route__", {}).get("status", 200))
 
         except Exception as exc:  # noqa: BLE001
             return _handle_exception(exc)
@@ -304,7 +305,7 @@ def _wrap_sse_handler(
 
             kwargs = await _resolve_params(handler, request)
 
-            async def event_stream():
+            async def event_stream() -> AsyncGenerator[bytes, None]:
                 import json as _json
 
                 gen = handler(**kwargs)
@@ -356,7 +357,7 @@ async def _to_html_response(
     *,
     template: str | None,
     status: int,
-) -> Any:
+) -> Response:
     """Convert a handler return value to an HTML response.
 
     Args:
@@ -418,7 +419,7 @@ async def _to_html_response(
     return HTMLResponse(str(result), status_code=status)
 
 
-def _handle_html_exception(exc: Exception) -> Any:
+def _handle_html_exception(exc: Exception) -> "Response":
     """Convert an exception raised in an ``@html`` handler to an HTML error response.
 
     HTTP exceptions render a minimal HTML error page.
@@ -454,7 +455,7 @@ def _handle_html_exception(exc: Exception) -> Any:
     return _handle_exception(exc)
 
 
-def _handle_exception(exc: Exception) -> Any:
+def _handle_exception(exc: Exception) -> "Response":
     """Convert an exception raised in a route handler to an HTTP response.
 
     Handles:
@@ -585,7 +586,11 @@ async def _resolve_params(
                     kwargs[param_name] = request
                 else:
                     try:
-                        _send = getattr(request, "_send", None)
+                        from collections.abc import Awaitable, MutableMapping
+                        _send = cast(
+                            Callable[[MutableMapping[str, Any]], Awaitable[None]],
+                            getattr(request, "_send", None),
+                        )
                         kwargs[param_name] = inner_type(
                             request.scope, request.receive, _send
                         )
@@ -671,7 +676,7 @@ def _coerce(value: str, target_type: Any) -> Any:
         return value
 
 
-def _to_response(result: Any, status: int) -> Any:
+def _to_response(result: Any, status: int) -> "Response":
     """Convert a handler return value into a Starlette :class:`~starlette.responses.Response`.
 
     - ``None`` → :class:`~starlette.responses.Response` with the given *status*.

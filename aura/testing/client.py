@@ -36,7 +36,7 @@ class AuraTestClient:
 
     async def __aenter__(self) -> "AuraTestClient":
         try:
-            from httpx import AsyncClient, ASGITransport  # type: ignore[import]
+            from httpx import AsyncClient, ASGITransport
         except ImportError as exc:
             raise ImportError(
                 "httpx is required for AuraTestClient. "
@@ -45,7 +45,7 @@ class AuraTestClient:
 
         # Build the ASGI-compatible app — Aura exposes ._build() or is itself callable
         asgi_app = self.app._build() if hasattr(self.app, "_build") else self.app
-        transport = ASGITransport(app=asgi_app)  # type: ignore[arg-type]
+        transport = ASGITransport(app=asgi_app)
         self._client = AsyncClient(transport=transport, base_url=self.base_url)
         return self
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeVar, cast
 
 T = TypeVar("T")
 
@@ -57,8 +57,8 @@ class SingletonProvider(Provider[T]):
             async with self._lock:
                 # Double-checked locking
                 if self._instance is None:
-                    self._instance = await _call(self._factory, container)
-        return self._instance  # type: ignore[return-value]
+                    self._instance = cast(T, await _call(self._factory, container))
+        return self._instance
 
 
 class TransientProvider(Provider[T]):
@@ -74,7 +74,7 @@ class TransientProvider(Provider[T]):
 
     async def get(self, container: "Any") -> T:
         """Create and return a brand-new instance."""
-        return await _call(self._factory, container)
+        return cast(T, await _call(self._factory, container))
 
 
 class ScopedProvider(Provider[T]):

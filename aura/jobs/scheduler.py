@@ -74,7 +74,7 @@ class CronScheduler:
     async def _loop(self) -> None:
         """Main scheduler tick loop."""
         try:
-            import croniter  # type: ignore[import]
+            import croniter
         except ImportError:
             logger.warning(
                 "croniter is not installed — periodic tasks will not be scheduled. "

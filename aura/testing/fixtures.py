@@ -25,7 +25,7 @@ def aura_app() -> Any:
         A bare :class:`~aura.core.app.Aura` instance (or override).
     """
     try:
-        from aura.core.app import Aura  # type: ignore[import]
+        from aura.core.app import Aura
         return Aura()
     except ImportError:
         # Core module may not be available; return a trivial ASGI app for testing.

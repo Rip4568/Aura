@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, List as _List, TypeVar
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -84,7 +84,7 @@ class Repository(Generic[ModelT]):
         """
         obj = await self.get(id)
         if obj is None:
-            from aura.exceptions.http import NotFoundException  # type: ignore[import]
+            from aura.exceptions.http import NotFoundException
             raise NotFoundException(f"{self.model.__name__} with id {id} not found")
         return obj
 
@@ -177,7 +177,7 @@ class Repository(Generic[ModelT]):
         Returns:
             ``True`` if a matching record exists.
         """
-        stmt = select(self.model.id)  # type: ignore[attr-defined]
+        stmt = select(self.model.id)
         for key, value in filters.items():
             stmt = stmt.where(getattr(self.model, key) == value)
         result = await self.session.execute(stmt)
@@ -213,7 +213,7 @@ class Repository(Generic[ModelT]):
         result = await self.session.execute(stmt)
         return result.scalars().first()
 
-    async def bulk_create(self, items: list[dict[str, Any]]) -> list[ModelT]:
+    async def bulk_create(self, items: _List[dict[str, Any]]) -> _List[ModelT]:
         """Insert multiple records in a single flush.
 
         Args:

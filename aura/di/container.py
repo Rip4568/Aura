@@ -7,7 +7,7 @@ import inspect
 import logging
 from collections.abc import Callable
 from enum import Enum
-from typing import Any, TypeVar, overload
+from typing import Any, TypeVar, cast, get_type_hints, overload  # noqa: F401
 
 from aura.di.providers import (
     Provider,
@@ -145,7 +145,7 @@ class DIContainer:
                 f"No provider registered for '{service_type.__name__}'. "
                 "Did you forget to add it to the module's providers list?"
             )
-        return await provider.get(self)
+        return cast(T, await provider.get(self))
 
     async def resolve_optional(self, service_type: type[T]) -> T | None:
         """Like :meth:`resolve` but returns ``None`` when *service_type* is not registered.
@@ -265,10 +265,10 @@ def _get_init_type_hints(cls: type) -> dict[str, Any]:
     """
     try:
         hints = {}
-        sig = inspect.signature(cls.__init__)
-        type_hints = {}
+        sig = inspect.signature(cls)
+        type_hints: dict[str, Any] = {}
         try:
-            type_hints = inspect.get_annotations(cls.__init__, eval_str=True)
+            type_hints = get_type_hints(cls.__init__, include_extras=True)  # type: ignore[misc]
         except Exception:
             pass
         for name, param in sig.parameters.items():

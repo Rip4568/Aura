@@ -91,7 +91,7 @@ class AuraWorker:
         """Register OS signal handlers for graceful shutdown."""
         loop = asyncio.get_event_loop()
 
-        def _stop(_signum: int, _frame: Any) -> None:  # type: ignore[type-arg]
+        def _stop(_signum: int, _frame: Any) -> None:
             console.print("\n[yellow]Signal received — initiating graceful shutdown...[/]")
             self._running = False
 

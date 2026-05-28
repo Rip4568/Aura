@@ -42,7 +42,7 @@ Or in Python (useful for tests)::
 from __future__ import annotations
 
 import inspect
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast  # noqa: F401
 
 if TYPE_CHECKING:
     from aura.templates.engine import AuraTemplateEngine
@@ -88,7 +88,7 @@ class ComponentMeta(type):
         # Auto-register if the class has a 'name' attribute or derive from class name
         if bases and hasattr(cls, "template") and cls.template:
             component_name = getattr(cls, "name", None) or _class_to_name(name)
-            register_component(component_name, cls)
+            register_component(component_name, cast(type["Component"], cls))
         return cls
 
 

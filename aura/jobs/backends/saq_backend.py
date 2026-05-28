@@ -42,8 +42,8 @@ class SAQBackend(TaskBackend):
     async def startup(self) -> None:
         """Initialise the Redis connection and SAQ queue."""
         try:
-            import redis.asyncio as aioredis  # type: ignore[import]
-            import saq  # type: ignore[import]
+            import redis.asyncio as aioredis
+            import saq
         except ImportError as exc:
             raise RuntimeError(
                 "SAQBackend requires 'saq' and 'redis' packages. "

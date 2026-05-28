@@ -20,7 +20,7 @@ Usage::
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast  # noqa: F401
 
 if TYPE_CHECKING:
     from aura.templates.context import TemplateContext
@@ -139,4 +139,4 @@ async def render_to_string(
         Rendered HTML string.
     """
     engine = _get_engine()
-    return await engine.render(template_name, context, extra=extra)
+    return cast(str, await engine.render(template_name, context, extra=extra))
