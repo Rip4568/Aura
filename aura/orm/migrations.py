@@ -113,10 +113,13 @@ def generate_env_py(migrations_dir: Path, model_import: str | None) -> str:
         )
     else:
         import_block = (
-            "# TODO: import your models Base here, e.g.:\n"
-            "# from myapp.models import Base as target_metadata_base\n"
-            "# target_metadata = target_metadata_base.metadata\n"
-            "target_metadata = None  # replace with Base.metadata"
+            "# Import AuraModel and attempt to import main to auto-register all models.\n"
+            "from aura.orm import AuraModel\n"
+            "try:\n"
+            "    import main\n"
+            "except ImportError:\n"
+            "    pass\n\n"
+            "target_metadata = AuraModel.metadata"
         )
 
     return f'''\
