@@ -35,7 +35,7 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,sqlalchemy,jwt,session]" aiosqlite
 
       - name: Run tests
         run: python3 -m pytest tests/ -x -q
@@ -62,7 +62,7 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,sqlalchemy,jwt,session]" aiosqlite
 
       - name: Run type check
         run: python3 -m mypy aura/ --ignore-missing-imports
@@ -89,7 +89,7 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,sqlalchemy,jwt,session]" aiosqlite
 
       - name: Run linter
         run: python3 -m ruff check aura/ tests/
