@@ -243,6 +243,52 @@ class Repository(Generic[ModelT]):
             await self.session.refresh(obj)
         return objects
 
+    async def bulk_update(
+        self,
+        ids: builtins.list[int],
+        **data: Any,
+    ) -> builtins.list[ModelT]:
+        """Update the same set of fields on multiple records at once.
+
+        Args:
+            ids: Primary-key values of the records to update.
+            **data: Column values to set on every matched record.
+
+        Returns:
+            List of updated model instances (same order as *ids*).
+
+        Raises:
+            NotFoundException: If any id in *ids* does not exist.
+        """
+        objects = []
+        for pk in ids:
+            obj = await self.get_or_raise(pk)
+            for key, value in data.items():
+                setattr(obj, key, value)
+            objects.append(obj)
+        await self.session.flush()
+        for obj in objects:
+            await self.session.refresh(obj)
+        return objects
+
+    async def bulk_delete(self, ids: builtins.list[int]) -> int:
+        """Delete multiple records by primary key in a single flush.
+
+        Args:
+            ids: Primary-key values of the records to delete.
+
+        Returns:
+            Number of records actually deleted (skips missing ids).
+        """
+        deleted = 0
+        for pk in ids:
+            obj = await self.get(pk)
+            if obj is not None:
+                await self.session.delete(obj)
+                deleted += 1
+        await self.session.flush()
+        return deleted
+
     async def paginate(
         self,
         *,

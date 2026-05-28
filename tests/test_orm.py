@@ -225,6 +225,30 @@ class TestRepository:
         titles = {i.title for i in items}
         assert titles == {"Bulk1", "Bulk2", "Bulk3"}
 
+    async def test_bulk_update(self, repo: ItemRepository) -> None:
+        a = await repo.create(title="A", price=1.0)
+        b = await repo.create(title="B", price=2.0)
+        updated = await repo.bulk_update([a.id, b.id], active=False)
+        assert len(updated) == 2
+        assert all(not u.active for u in updated)
+
+    async def test_bulk_update_raises_on_missing_id(self, repo: ItemRepository) -> None:
+        with pytest.raises(Exception):
+            await repo.bulk_update([99999], title="Ghost")
+
+    async def test_bulk_delete(self, repo: ItemRepository) -> None:
+        a = await repo.create(title="Del A", price=1.0)
+        b = await repo.create(title="Del B", price=2.0)
+        count = await repo.bulk_delete([a.id, b.id])
+        assert count == 2
+        assert await repo.get(a.id) is None
+        assert await repo.get(b.id) is None
+
+    async def test_bulk_delete_skips_missing(self, repo: ItemRepository) -> None:
+        a = await repo.create(title="Exists", price=1.0)
+        count = await repo.bulk_delete([a.id, 99999])
+        assert count == 1  # only the existing one was deleted
+
 
 # ---------------------------------------------------------------------------
 # Repository.paginate()
