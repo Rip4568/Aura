@@ -110,14 +110,40 @@ def _get_package_name() -> str:
     return data["project"]["name"]
 
 
+def _load_dotenv() -> None:
+    """Load .env from the project root if python-dotenv is available."""
+    env_file = ROOT / ".env"
+    if not env_file.exists():
+        return
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(env_file)
+        print("   (loaded .env)")
+    except ImportError:
+        # Fallback: parse manually (only KEY=VALUE lines, no multiline)
+        with open(env_file) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key and key not in os.environ:
+                    os.environ[key] = value
+        print("   (loaded .env manually)")
+
+
 def _get_token(args: argparse.Namespace) -> str:
+    _load_dotenv()
+
     # 1. CLI argument
     if args.token:
         return args.token
-    # 2. Environment variable
+    # 2. Environment variable (shell export or .env)
     token = os.environ.get("PYPI_TOKEN", "")
     if token:
-        print("   (using token from PYPI_TOKEN env var)")
+        print("   (using token from PYPI_TOKEN)")
         return token
     # 3. Interactive prompt
     import getpass
