@@ -2,18 +2,23 @@
 
 from __future__ import annotations
 
-from typing import Any, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar, overload
 
 from aura.di.container import Lifetime
 
 T = TypeVar("T")
 
 
+@overload
+def injectable(_cls: type[T], *, lifetime: Lifetime = ...) -> type[T]: ...
+@overload
+def injectable(_cls: None = ..., *, lifetime: Lifetime = ...) -> Callable[[type[T]], type[T]]: ...
 def injectable(
     _cls: type[T] | None = None,
     *,
     lifetime: Lifetime = Lifetime.SINGLETON,
-) -> Any:
+) -> type[T] | Callable[[type[T]], type[T]]:
     """
     Class decorator that marks a class as injectable by the DI container.
 
@@ -50,7 +55,17 @@ def injectable(
     return decorator
 
 
-def inject(param_name: str | None = None) -> Any:
+class InjectMarker:
+    """Marker attached to a parameter via ``Annotated`` metadata."""
+
+    def __init__(self, name: str | None) -> None:
+        self.name = name
+
+    def __repr__(self) -> str:
+        return f"InjectMarker(name={self.name!r})"
+
+
+def inject(param_name: str | None = None) -> InjectMarker:
     """
     Parameter annotation helper for explicit dependency injection.
 
@@ -75,14 +90,4 @@ def inject(param_name: str | None = None) -> Any:
             ) -> None:
                 self.repo = repo
     """
-
-    class InjectMarker:
-        """Marker attached to a parameter via ``Annotated`` metadata."""
-
-        def __init__(self, name: str | None) -> None:
-            self.name = name
-
-        def __repr__(self) -> str:
-            return f"InjectMarker(name={self.name!r})"
-
     return InjectMarker(param_name)
