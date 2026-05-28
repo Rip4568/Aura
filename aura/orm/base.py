@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, ClassVar
 
 from sqlalchemy import func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -13,7 +13,23 @@ class _AuraRegistry(DeclarativeBase):
     """Internal SQLAlchemy registry. Never subclass this directly — use AuraModel."""
 
 
-class AuraModel(_AuraRegistry):
+class _QuerySetDescriptor:
+    """Descriptor that returns a fresh QuerySet when accessed as a class attribute."""
+
+    def __get__(self, obj: Any, objtype: type[Any] | None = None) -> Any:
+        from aura.orm.query import QuerySet
+        if objtype is None:
+            objtype = type(obj)
+        return QuerySet(objtype)
+
+
+class QueryMixin:
+    """Adds .objects class attribute to AuraModel for fluent queries."""
+
+    objects: ClassVar[Any] = _QuerySetDescriptor()
+
+
+class AuraModel(_AuraRegistry, QueryMixin):
     """Base class for all Aura ORM models.
 
     Provides automatic:
