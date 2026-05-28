@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import builtins
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeVar, cast
 
 from sqlalchemy import func, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aura.orm.base import AuraModel
@@ -250,44 +251,73 @@ class Repository(Generic[ModelT]):
     ) -> builtins.list[ModelT]:
         """Update the same set of fields on multiple records at once.
 
+        Executes a single UPDATE … WHERE id IN (…) instead of N individual
+        updates.
+
         Args:
             ids: Primary-key values of the records to update.
             **data: Column values to set on every matched record.
 
         Returns:
-            List of updated model instances (same order as *ids*).
+            List of updated model instances in unspecified order.
 
         Raises:
             NotFoundException: If any id in *ids* does not exist.
         """
-        objects = []
-        for pk in ids:
-            obj = await self.get_or_raise(pk)
-            for key, value in data.items():
-                setattr(obj, key, value)
-            objects.append(obj)
-        await self.session.flush()
-        for obj in objects:
-            await self.session.refresh(obj)
-        return objects
+        from sqlalchemy import update as _update
+
+        unique_ids = list(dict.fromkeys(ids))  # deduplicate, preserve order
+
+        count_result = await self.session.execute(
+            select(func.count())
+            .select_from(self.model)
+            .where(self.model.id.in_(unique_ids))
+        )
+        if (count_result.scalar() or 0) != len(unique_ids):
+            from aura.exceptions.http import NotFoundException
+            raise NotFoundException(
+                f"{self.model.__name__}: one or more ids not found"
+            )
+
+        await self.session.execute(
+            _update(self.model)
+            .where(self.model.id.in_(unique_ids))
+            .values(**data)
+            .execution_options(synchronize_session=False)
+        )
+        # Expire stale identity-map entries so the SELECT below reads fresh data.
+        self.session.expire_all()
+
+        result = await self.session.execute(
+            select(self.model).where(self.model.id.in_(unique_ids))
+        )
+        return list(result.scalars().all())
 
     async def bulk_delete(self, ids: builtins.list[int]) -> int:
-        """Delete multiple records by primary key in a single flush.
+        """Delete multiple records by primary key in a single query.
+
+        Executes a single DELETE … WHERE id IN (…) instead of N individual
+        deletes.  Missing ids are silently skipped.
 
         Args:
             ids: Primary-key values of the records to delete.
 
         Returns:
-            Number of records actually deleted (skips missing ids).
+            Number of records actually deleted.
         """
-        deleted = 0
-        for pk in ids:
-            obj = await self.get(pk)
-            if obj is not None:
-                await self.session.delete(obj)
-                deleted += 1
-        await self.session.flush()
-        return deleted
+        from sqlalchemy import delete as _delete
+
+        # AsyncSession.execute() is typed as Result[Any] for all statements, but
+        # DML operations return CursorResult at runtime — cast reflects reality.
+        result = cast(
+            CursorResult[Any],
+            await self.session.execute(
+                _delete(self.model)
+                .where(self.model.id.in_(ids))
+                .execution_options(synchronize_session="fetch")
+            ),
+        )
+        return result.rowcount
 
     async def paginate(
         self,
