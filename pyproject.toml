@@ -54,8 +54,9 @@ saq = ["saq>=0.12"]
 taskiq = ["taskiq>=0.11", "taskiq-redis>=0.5"]
 redis = ["redis[asyncio]>=5.0"]
 jwt = ["python-jose[cryptography]>=3.3"]
+session = ["itsdangerous>=2.1"]
 all = [
-    "aura-web[granian,uvicorn,sqlalchemy,saq,redis,jwt,templates]"
+    "aura-web[granian,uvicorn,sqlalchemy,saq,redis,jwt,session,templates]"
 ]
 dev = [
     "pytest>=7.4",

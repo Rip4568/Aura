@@ -9,3 +9,11 @@ __all__ = [
     "CompressionMiddleware",
     "RateLimitMiddleware",
 ]
+
+# SessionMiddleware is optional (requires aura-web[session])
+try:
+    from aura.middleware.session import SessionMiddleware
+
+    __all__ = __all__ + ["SessionMiddleware"]
+except ImportError:
+    pass

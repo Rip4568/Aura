@@ -5,7 +5,7 @@
 
 ---
 
-## ✅ Recentemente concluído
+## ✅ Recentemente concluído (v0.3.0 em progresso)
 
 - [x] **`@html` integrado ao router** — `_wrap_html_handler` detecta `response_type="html"`,
   converte `TemplateContext` → render, `str` → `HtmlResponse`, `Response` → passthrough
@@ -32,6 +32,15 @@
 - [x] **`AuraModel.__abstract__ = True`** — separação em `_AuraRegistry(DeclarativeBase)` +
   `AuraModel(_AuraRegistry, __abstract__=True)`; habilita modelos abstratos intermediários
   sem quebrar `AuraModel.metadata`
+- [x] **`aura migrate` completo** — `init` gera `alembic.ini` + `env.py` sem subprocess;
+  `make` aceita mensagem opcional (padrão = timestamp); `up`, `down`, `stamp`, `status`;
+  spinners Rich + painéis coloridos de sucesso/erro; 37 testes
+- [x] **`JWTGuard`** — valida `Authorization: Bearer` com `python-jose`; popula
+  `request.state.user`; suporta `auto_error=False`; extra `[jwt]` já existia
+- [x] **`RateLimitGuard`** — Guard por rota (sliding window, só stdlib); complementa o
+  `RateLimitMiddleware` global existente; raises 429 via `on_denied`
+- [x] **`SessionMiddleware`** — sessões assinadas em cookie via `itsdangerous`; carrega em
+  `request.state.session`; nova extra `[session]`; 11 testes integração
 
 ---
 
@@ -39,9 +48,6 @@
 
 ### ORM & Database
 
-- [ ] **`aura migrate make "<msg>"`** — implementar o wrapper Alembic para criar migrations
-  (o stub em `aura/cli/commands/migrate.py` existe mas lança `NotImplementedError`)
-- [ ] **`aura migrate up` / `aura migrate down`** — aplicar e reverter migrations
 - [ ] **`DatabaseManager` no ciclo de vida do app** — ler `AURA__DATABASE__URL` na startup
   e iniciar o pool SQLAlchemy automaticamente (hoje o dev chama `db.init()` manualmente)
 
@@ -73,10 +79,9 @@
 
 ### Guards & Auth
 
-- [ ] **`JWTGuard` builtin** — extrai `Authorization: Bearer`, valida com `python-jose`,
-  popula `request.state.user` com payload tipado
-- [ ] **`RateLimitGuard`** — rate limiting por IP/usuário via Redis ou in-memory sliding window
-- [ ] **`SessionMiddleware`** — sessões assinadas via cookie seguro com `itsdangerous`
+- [x] ~~`JWTGuard`~~ ✓ concluído  
+- [x] ~~`RateLimitGuard`~~ ✓ concluído  
+- [x] ~~`SessionMiddleware`~~ ✓ concluído
 
 ### Routing — DX
 

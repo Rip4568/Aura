@@ -57,6 +57,21 @@ try:
 except ImportError:
     pass
 
+# JWT Guard (optional — requires aura-web[jwt])
+try:
+    from aura.guards.jwt import JWTGuard
+except ImportError:
+    pass
+
+# Per-route rate-limit guard (no external deps)
+from aura.guards.rate_limit import RateLimitGuard
+
+# Session middleware (optional — requires aura-web[session])
+try:
+    from aura.middleware.session import SessionMiddleware
+except ImportError:
+    pass
+
 # Templates (optional — requires aura-web[templates])
 try:
     from aura.templates import (
@@ -106,6 +121,9 @@ __all__ = [
     "Lifetime",
     # Guards
     "Guard",
+    "RateLimitGuard",
+    "JWTGuard",
+    "SessionMiddleware",
     # Exceptions
     "HTTPException",
     "BadRequestException",
