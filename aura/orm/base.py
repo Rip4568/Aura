@@ -9,7 +9,11 @@ from sqlalchemy import func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
-class AuraModel(DeclarativeBase):
+class _AuraRegistry(DeclarativeBase):
+    """Internal SQLAlchemy registry. Never subclass this directly — use AuraModel."""
+
+
+class AuraModel(_AuraRegistry):
     """Base class for all Aura ORM models.
 
     Provides automatic:
@@ -34,7 +38,19 @@ class AuraModel(DeclarativeBase):
         # Works seamlessly with Aura schemas:
         user = await user_repo.get(1)
         schema = UserSchema.model_validate(user.to_dict())
+
+    Intermediate abstract models are also supported::
+
+        class TimestampedModel(AuraModel):
+            __abstract__ = True
+            deleted_at: Mapped[datetime | None] = mapped_column(nullable=True, default=None)
+
+        class Post(TimestampedModel):
+            __tablename__ = "posts"
+            title: Mapped[str]
     """
+
+    __abstract__ = True
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -50,11 +66,7 @@ class AuraModel(DeclarativeBase):
     )
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialise all table columns to a plain Python dictionary.
-
-        Returns:
-            A dict mapping column name to the current attribute value.
-        """
+        """Serialise all table columns to a plain Python dictionary."""
         return {col.name: getattr(self, col.name) for col in self.__table__.columns}
 
     def __repr__(self) -> str:

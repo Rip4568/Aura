@@ -1,12 +1,12 @@
 # Roadmap — O que já foi construído e o que está por vir
 
-## Estado Atual: Alpha (v0.1.0)
+## Estado Atual: Alpha (v0.2.0)
 
 O Aura está funcional e testado para uso em produção em projetos internos. O core está estável.
 
 ---
 
-## ✅ Construído (v0.1.0)
+## ✅ Construído (v0.1.0 → v0.2.0)
 
 ### Core
 - [x] **ASGI app** — baseado em Starlette, 100% compatível com qualquer servidor ASGI
@@ -31,11 +31,13 @@ O Aura está funcional e testado para uso em produção em projetos internos. O 
 - [x] **OpenAPI 3.1** — gerado automaticamente dos type hints e decorators
 
 ### ORM
-- [x] **`AuraModel`** — `id`, `created_at`, `updated_at` automáticos
+- [x] **`AuraModel`** — `id`, `created_at`, `updated_at` automáticos; `__abstract__ = True`
+  com `_AuraRegistry(DeclarativeBase)` interno; suporta modelos abstratos intermediários
 - [x] **`Repository[T]`** — `get`, `get_or_raise`, `list`, `create`, `update`, `delete`
-- [x] **Métodos extras** — `exists`, `count`, `first`, `bulk_create`
+- [x] **Métodos extras** — `exists`, `count`, `first`, `bulk_create`, `bulk_update`, `bulk_delete`
 - [x] **SQLAlchemy 2.x async** — async real (não thread-pool)
 - [x] **`DatabaseManager`** — singleton com `init()`, `session()`, `close()`
+- [x] **`from aura import AuraModel`** — import direto do pacote principal (opcional, não quebra sem SQLAlchemy)
 
 ### Exceções HTTP
 - [x] **Hierarquia completa** — 400, 401, 403, 404, 405, 409, 422, 429, 500, 503, 504
@@ -65,8 +67,9 @@ O Aura está funcional e testado para uso em produção em projetos internos. O 
 - [x] **`aura run`** — inicia servidor
 - [x] **`aura worker`** — inicia worker de background jobs
 - [x] **`aura new`** — scaffolding de novo projeto
-- [x] **`aura generate`** — geração de módulo, controller, service
-- [x] **`aura migrate`** — wrapper do Alembic
+- [x] **`aura generate`** — módulo, controller, service, schema, guard
+  (inclui `models.py` + `repositories.py` comentados mostrando padrão correto)
+- [x] **`aura migrate`** — wrapper do Alembic (stub — comandos `make`/`up`/`down` pendentes)
 
 ### Developer Experience
 - [x] **`/health`** — liveness probe automático em toda app
@@ -74,31 +77,33 @@ O Aura está funcional e testado para uso em produção em projetos internos. O 
 - [x] **`/docs`** — Swagger UI embutido
 - [x] **`/redoc`** — Redoc embutido
 - [x] **Suporte a Uvicorn e Granian** — `app.run(server="granian")`
-- [x] **Testes** — 138 testes, cobrindo todos os subsistemas
+- [x] **Testes** — 156 testes, cobrindo todos os subsistemas
+- [x] **mypy strict** — 0 erros em 74 arquivos
+- [x] **GitHub Actions CI** — matrix Python 3.10/3.12, typecheck, lint
+- [x] **Makefile** — `make test`, `make typecheck`, `make lint`, `make check`
 
 ---
 
-## 🚧 Em Desenvolvimento (v0.2.0)
+## 🚧 Em Desenvolvimento (v0.2.0 → v0.3.0)
 
-### SAQ Backend (produção)
-- [ ] Integração real com SAQ + Redis
-- [ ] Worker CLI conectando ao SAQ
-- [ ] Dashboard de monitoramento de tasks
-- [ ] Dead letter queue
-- [ ] Retry com backoff exponencial
+### Migrations (bloqueante para prod)
+- [ ] **`aura migrate make "<msg>"`** — wrapper Alembic para criar migration
+- [ ] **`aura migrate up` / `aura migrate down`** — aplicar e reverter
 
 ### ORM Melhorias
-- [ ] Migrations automáticas via `aura migrate make`
-- [ ] `Repository.paginate()` com metadados (`total_pages`, `has_next`)
-- [ ] Suporte a transações explícitas `async with db.transaction()`
-- [ ] Multi-banco — `db_secondary.session()`
-- [ ] Query builder fluente para filtros complexos
+- [ ] `Repository.paginate()` com metadados (`total`, `page`, `has_next`, `items`)
+- [ ] `async with db.transaction()` — unit-of-work para múltiplos repositories
+- [ ] `DatabaseManager` inicializado automaticamente na startup do app
 
 ### Guards & Auth
 - [ ] **`JWTGuard`** builtin — plug-and-play com `python-jose`
 - [ ] **`RateLimitGuard`** — rate limiting por IP/usuário
-- [ ] **`CORSMiddleware`** — configuração simples `Aura(cors=CORSConfig(...))`
 - [ ] **`SessionMiddleware`** — sessões assinadas
+
+### SAQ Backend (produção)
+- [ ] Integração real com SAQ + Redis
+- [ ] Worker CLI conectando ao SAQ
+- [ ] Backend auto-seleção: `AURA__JOBS__BROKER_URL` presente → SAQ, ausente → MemoryBackend
 
 ---
 
@@ -269,10 +274,10 @@ app = Aura(plugins=[RedisPlugin()])
 
 | Versão | Status | Foco |
 |---|---|---|
-| `0.1.0` | ✅ Alpha | Core estável, routing, DI, ORM, jobs básico |
-| `0.2.0` | 🚧 Em dev | SAQ prod, ORM melhorias, auth guards |
-| `0.3.0` | 📋 Planejado | Interceptors, WebSocket Gateway, Pipes |
-| `0.4.0` | 📋 Planejado | GraphQL, gRPC, multi-tenancy |
+| `0.1.0` | ✅ Released | Core estável, routing, DI, ORM, jobs básico |
+| `0.2.0` | ✅ Released | bulk ops, scaffold models/repos, AuraModel abstract, mypy 0 erros, CI |
+| `0.3.0` | 🚧 Em dev | Migrations, `paginate()`, JWTGuard, SAQ backend, Interceptors |
+| `0.4.0` | 📋 Planejado | WebSocket Gateway, Pipes, GraphQL, gRPC |
 | `1.0.0` | 🎯 Meta | API estável, prod-ready, documentação completa |
 
 ---

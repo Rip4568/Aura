@@ -148,7 +148,9 @@ aura run --reload
 │       ├── module.py        # @Module declaration
 │       ├── controller.py    # Route handlers
 │       ├── service.py       # Business logic (@injectable)
-│       └── schemas.py       # Pydantic DTOs (the Spec)
+│       ├── schemas.py       # Pydantic DTOs (the Spec)
+│       ├── models.py        # ORM model (commented — uncomment for DB)
+│       └── repositories.py  # Repository (commented — uncomment for DB)
 └── tests/
     └── test_users.py        # Integration tests
 ```
@@ -195,6 +197,47 @@ build/
 
 # ---- modules/users/ --------------------------------------------------------
 
+def _users_models() -> str:
+    return '''\
+"""ORM model for the Users module.
+
+Uncomment when adding database persistence.
+Requires: pip install "aura-web[sqlalchemy]"
+"""
+from __future__ import annotations
+
+# from aura.orm import AuraModel
+# from sqlalchemy.orm import Mapped, mapped_column
+#
+#
+# class User(AuraModel):
+#     __tablename__ = "users"
+#
+#     name: Mapped[str]
+#     email: Mapped[str] = mapped_column(unique=True)
+'''
+
+def _users_repositories() -> str:
+    return '''\
+"""Repository for the Users module.
+
+Uncomment when adding database persistence.
+Configure the ORM model in models.py first.
+"""
+from __future__ import annotations
+
+# from aura.orm import Repository
+# from .models import User
+#
+#
+# class UserRepository(Repository[User]):
+#     model = User
+#
+#     # Add custom queries here, e.g.:
+#     # async def find_by_email(self, email: str) -> User | None:
+#     #     return await self.first(email=email)
+'''
+
 def _users_schemas() -> str:
     return '''\
 """
@@ -229,11 +272,18 @@ class UserResponse(Schema):
 
 def _users_service() -> str:
     return '''\
-"""
-UserService — business logic layer.
+"""UserService — business logic layer.
 
 Uses an in-memory store so the app works immediately without a database.
-When you\'re ready for persistence, replace self._store with a Repository[User].
+To switch to a database, replace _store with a Repository:
+
+    from aura.orm.database import db
+    from .repositories import UserRepository
+
+    async def list_users(self) -> list[UserResponse]:
+        async with db.session() as session:
+            rows = await UserRepository(session).list()
+            return [UserResponse.model_validate(r.to_dict()) for r in rows]
 """
 from __future__ import annotations
 
@@ -246,7 +296,6 @@ class UserService:
     """Handles all business logic for the Users feature."""
 
     def __init__(self) -> None:
-        # In-memory store — swap for Repository[User] when adding SQLAlchemy
         self._store: dict[int, UserResponse] = {
             1: UserResponse(id=1, name="Alice", email="alice@example.com"),
             2: UserResponse(id=2, name="Bob",   email="bob@example.com"),
@@ -254,37 +303,31 @@ class UserService:
         self._next_id = 3
 
     async def list_users(self) -> list[UserResponse]:
-        """Return all users."""
         return list(self._store.values())
 
     async def get_user(self, user_id: int) -> UserResponse:
-        """Return a single user or raise 404."""
         user = self._store.get(user_id)
         if user is None:
             raise NotFoundException(f"User {user_id} not found")
         return user
 
     async def create_user(self, data: CreateUserDTO) -> UserResponse:
-        """Create a new user, raising 409 if the email is taken."""
         for existing in self._store.values():
             if existing.email == data.email:
                 raise ConflictException(f"Email \'{data.email}\' already in use")
-
         user = UserResponse(id=self._next_id, **data.model_dump())
         self._store[self._next_id] = user
         self._next_id += 1
         return user
 
     async def update_user(self, user_id: int, data: UpdateUserDTO) -> UserResponse:
-        """Partially update a user."""
         user = await self.get_user(user_id)
-        updated = user.model_copy(update={k: v for k, v in data.model_dump().items() if v is not None})
+        updated = user.model_copy(update=data.model_dump(exclude_none=True))
         self._store[user_id] = updated
         return updated
 
     async def delete_user(self, user_id: int) -> None:
-        """Delete a user or raise 404."""
-        await self.get_user(user_id)  # raises 404 if not found
+        await self.get_user(user_id)
         del self._store[user_id]
 '''
 
@@ -488,12 +531,14 @@ def _build_files(project_name: str) -> dict[str, str]:
         ".env.example":                   _env_example(),
         "README.md":                      _readme(project_name),
         ".gitignore":                     _gitignore(),
-        "modules/__init__.py":            '"""Application modules."""\n',
-        "modules/users/__init__.py":      _users_init(),
-        "modules/users/schemas.py":       _users_schemas(),
-        "modules/users/service.py":       _users_service(),
-        "modules/users/controller.py":    _users_controller(),
-        "modules/users/module.py":        _users_module(),
+        "modules/__init__.py":                 '"""Application modules."""\n',
+        "modules/users/__init__.py":           _users_init(),
+        "modules/users/models.py":             _users_models(),
+        "modules/users/schemas.py":            _users_schemas(),
+        "modules/users/repositories.py":       _users_repositories(),
+        "modules/users/service.py":            _users_service(),
+        "modules/users/controller.py":         _users_controller(),
+        "modules/users/module.py":             _users_module(),
         "tests/__init__.py":              _tests_init(),
         "tests/conftest.py":              _conftest(project_name),
         "tests/test_users.py":            _test_users(),

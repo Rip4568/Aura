@@ -51,6 +51,12 @@ from aura.config.base import AuraConfig
 from aura.core.response import AuraResponse, ok, created, no_content, redirect
 from aura.core.request import AuraRequest
 
+# ORM (optional — requires aura-web[sqlalchemy])
+try:
+    from aura.orm import AuraModel, Repository, DatabaseManager, db
+except ImportError:
+    pass
+
 # Templates (optional — requires aura-web[templates])
 try:
     from aura.templates import (
@@ -111,6 +117,11 @@ __all__ = [
     "InternalServerException",
     # Config
     "AuraConfig",
+    # ORM (optional)
+    "AuraModel",
+    "Repository",
+    "DatabaseManager",
+    "db",
     # Response helpers
     "AuraResponse",
     "ok",

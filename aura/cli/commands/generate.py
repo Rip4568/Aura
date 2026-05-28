@@ -64,6 +64,52 @@ class {p}Response(Schema):
 '''
 
 
+def _models(name: str) -> str:
+    p, s, pl = _pascal(name), _snake(name), _plural(name)
+    return f'''\
+"""ORM model for the {p} module.
+
+Uncomment when adding database persistence.
+Requires: pip install "aura-web[sqlalchemy]"
+"""
+from __future__ import annotations
+
+# from aura.orm import AuraModel
+# from sqlalchemy.orm import Mapped, mapped_column
+#
+#
+# class {p}(AuraModel):
+#     __tablename__ = "{pl}"
+#
+#     name: Mapped[str]
+#     # email: Mapped[str] = mapped_column(unique=True)
+#     # description: Mapped[str | None] = None
+'''
+
+
+def _repository(name: str) -> str:
+    p, s, pl = _pascal(name), _snake(name), _plural(name)
+    return f'''\
+"""Repository for the {p} module.
+
+Uncomment when adding database persistence.
+Configure the ORM model in models.py first.
+"""
+from __future__ import annotations
+
+# from aura.orm import Repository
+# from .models import {p}
+#
+#
+# class {p}Repository(Repository[{p}]):
+#     model = {p}
+#
+#     # Add custom queries here, e.g.:
+#     # async def find_by_name(self, name: str) -> {p} | None:
+#     #     return await self.first(name=name)
+'''
+
+
 def _service(name: str) -> str:
     p, s, pl = _pascal(name), _snake(name), _plural(name)
     return f'''\
@@ -79,7 +125,15 @@ class {p}Service:
     """Business logic for {p} operations.
 
     Uses an in-memory store by default.
-    Replace self._store with Repository[{p}] when adding SQLAlchemy.
+    To switch to a database, replace _store with a Repository:
+
+        from aura.orm.database import db
+        from .repositories import {p}Repository
+
+        async def list_{pl}(self) -> list[{p}Response]:
+            async with db.session() as session:
+                rows = await {p}Repository(session).list()
+                return [{p}Response.model_validate(r.to_dict()) for r in rows]
     """
 
     def __init__(self) -> None:
@@ -103,9 +157,7 @@ class {p}Service:
 
     async def update_{s}(self, {s}_id: int, data: Update{p}DTO) -> {p}Response:
         obj = await self.get_{s}({s}_id)
-        updated = obj.model_copy(
-            update={{k: v for k, v in data.model_dump().items() if v is not None}}
-        )
+        updated = obj.model_copy(update=data.model_dump(exclude_none=True))
         self._store[{s}_id] = updated
         return updated
 
@@ -320,11 +372,13 @@ def generate_module(
     console.print(f"\n[bold]Generating module [cyan]{p}[/]...[/]\n")
 
     files = {
-        base / "__init__.py":    f'"""Module: {p}."""\n',
-        base / "schemas.py":     _schemas(name),
-        base / "service.py":     _service(name),
-        base / "controller.py":  _controller(name),
-        base / "module.py":      _module(name),
+        base / "__init__.py":      f'"""Module: {p}."""\n',
+        base / "models.py":        _models(name),
+        base / "schemas.py":       _schemas(name),
+        base / "repositories.py":  _repository(name),
+        base / "service.py":       _service(name),
+        base / "controller.py":    _controller(name),
+        base / "module.py":        _module(name),
     }
     for path, content in files.items():
         _write(path, content, force)
