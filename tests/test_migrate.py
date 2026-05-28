@@ -296,7 +296,7 @@ class TestInitCommand:
             result = runner.invoke(app, ["init"])
             assert result.exit_code == 0
             env_content = (tmp_path / "migrations" / "env.py").read_text()
-            assert "TODO" in env_content or "replace" in env_content.lower()
+            assert "AuraModel" in env_content
         finally:
             os.chdir(orig)
 
@@ -362,7 +362,7 @@ class TestGenerateEnvPy:
 
     def test_without_model_import_has_placeholder(self) -> None:
         content = generate_env_py(Path("migrations"), None)
-        assert "TODO" in content or "replace" in content.lower()
+        assert "AuraModel" in content
         assert "run_migrations_offline" in content
         assert "run_migrations_online" in content
 
