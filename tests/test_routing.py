@@ -148,3 +148,36 @@ def test_router_add_handler_without_decorator_raises() -> None:
 
     with pytest.raises(ValueError, match="__aura_route__"):
         router.add_handler(plain_function)
+
+
+class DummyService:
+    def get_value(self) -> str:
+        return "injected"
+
+
+class DiController:
+    def __init__(self, service: DummyService) -> None:
+        self.service = service
+
+    @get("/hello")
+    async def hello(self) -> str:
+        return self.service.get_value()
+
+
+def test_router_controller_with_di() -> None:
+    from aura.core.app import Aura
+    from aura.modules.base import Module
+    from starlette.testclient import TestClient
+
+    @Module(
+        providers=[DummyService],
+        controllers=[DiController],
+    )
+    class DiModule:
+        pass
+
+    app = Aura(modules=[DiModule])
+    client = TestClient(app)
+    response = client.get("/hello")
+    assert response.status_code == 200
+    assert response.json() == "injected"

@@ -71,6 +71,12 @@ class ModuleRegistry:
         for provider_class in meta.providers:
             self._register_provider(provider_class)
 
+        # Register controllers into the DI container so they can be resolved with dependencies
+        from aura.di.container import Lifetime
+        for controller_class in meta.controllers:
+            if not self.container.is_registered(controller_class):
+                self.container.register(controller_class, lifetime=Lifetime.SINGLETON)
+
         self._modules.append(module_class)
         logger.debug("Module registered: %s", module_class.__name__)
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import pathlib
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from aura.cli.main import app
@@ -262,17 +263,41 @@ class TestGenerateCommand:
 
 
 # ---------------------------------------------------------------------------
-# run command (import check only)
+# run command
 # ---------------------------------------------------------------------------
 
 class TestRunCommand:
-    """Tests for ``aura run`` — we only test that the command is wired up
-    correctly; actually starting a server is out of scope for unit tests."""
+    """Tests for ``aura run``."""
 
     def test_run_help(self) -> None:
         result = runner.invoke(app, ["run", "--help"])
         assert result.exit_code == 0
         assert "host" in result.output.lower() or "Host" in result.output
+
+    def test_run_imports_from_cwd(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Create a dummy main.py in tmp_path
+        (tmp_path / "main.py").write_text("app = 'my_test_app'")
+
+        # Change current working directory to tmp_path
+        monkeypatch.chdir(tmp_path)
+
+        # Mock uvicorn.run to ensure it doesn't run the actual server, and we can check sys.path
+        called = False
+        def mock_uvicorn_run(app_path: str, **kwargs: any) -> None:
+            nonlocal called
+            called = True
+            import sys
+            assert str(tmp_path) in sys.path
+            import importlib
+            mod = importlib.import_module("main")
+            assert mod.app == 'my_test_app'
+
+        import uvicorn
+        monkeypatch.setattr(uvicorn, "run", mock_uvicorn_run)
+
+        result = runner.invoke(app, ["run", "main:app"])
+        assert result.exit_code == 0
+        assert called
 
 
 # ---------------------------------------------------------------------------
@@ -280,12 +305,30 @@ class TestRunCommand:
 # ---------------------------------------------------------------------------
 
 class TestWorkerCommand:
-    """Tests for ``aura worker`` CLI wiring."""
+    """Tests for ``aura worker``."""
 
     def test_worker_help(self) -> None:
         result = runner.invoke(app, ["worker", "--help"])
         assert result.exit_code == 0
         assert "queue" in result.output.lower() or "Queue" in result.output
+
+    def test_worker_imports_from_cwd(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Create a dummy main.py in tmp_path
+        (tmp_path / "main.py").write_text("app = 'my_test_app'")
+
+        # Change current working directory to tmp_path
+        monkeypatch.chdir(tmp_path)
+
+        # Mock AuraWorker.run to be a no-op asyncio task
+        async def mock_run(*args: any, **kwargs: any) -> None:
+            return
+
+        from aura.jobs.worker import AuraWorker
+        monkeypatch.setattr(AuraWorker, "run", mock_run)
+
+        # Invoke worker and load our dummy app
+        result = runner.invoke(app, ["worker", "--app", "main:app"])
+        assert result.exit_code == 0
 
 
 # ---------------------------------------------------------------------------

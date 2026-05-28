@@ -72,13 +72,24 @@ class Router:
             prefix: Additional URL prefix prepended to each route in the
                 controller.
         """
-        obj = controller if not isinstance(controller, type) else controller()
-        for name in dir(obj):
-            method = getattr(obj, name, None)
-            if method is None:
-                continue
-            if hasattr(method, "__aura_route__"):
-                self._handlers.append((method, prefix))
+        if isinstance(controller, type):
+            cls = controller
+            for name in dir(cls):
+                method = getattr(cls, name, None)
+                if method is None:
+                    continue
+                if hasattr(method, "__aura_route__"):
+                    # Attach the controller class to the method so request wrappers can resolve it
+                    method.__aura_controller_class__ = cls
+                    self._handlers.append((method, prefix))
+        else:
+            obj = controller
+            for name in dir(obj):
+                method = getattr(obj, name, None)
+                if method is None:
+                    continue
+                if hasattr(method, "__aura_route__"):
+                    self._handlers.append((method, prefix))
 
     def add_handler(self, handler: Callable[..., Any], prefix: str = "") -> None:
         """Register a single function/method that carries ``__aura_route__`` metadata.
@@ -209,16 +220,27 @@ def _wrap_http_handler(
                 if not allowed:
                     await guard.on_denied(request)
 
+            actual_handler = handler
+            cls = getattr(handler, "__aura_controller_class__", None)
+            if cls is not None:
+                container = getattr(request.app.state, "container", None)
+                if container is not None:
+                    controller_instance = await container.resolve(cls)
+                    actual_handler = getattr(controller_instance, handler.__name__)
+                else:
+                    controller_instance = cls()
+                    actual_handler = getattr(controller_instance, handler.__name__)
+
             # Resolve handler parameters
-            kwargs = await _resolve_params(handler, request)
+            kwargs = await _resolve_params(actual_handler, request)
 
             # Call the handler
-            result = handler(**kwargs)
+            result = actual_handler(**kwargs)
             if inspect.iscoroutine(result):
                 result = await result
 
             # Convert result to response
-            return _to_response(result, getattr(handler, "__aura_route__", {}).get("status", 200))
+            return _to_response(result, getattr(actual_handler, "__aura_route__", {}).get("status", 200))
 
         except Exception as exc:  # noqa: BLE001
             return _handle_exception(exc)
@@ -262,9 +284,20 @@ def _wrap_html_handler(
                 if not allowed:
                     await guard.on_denied(request)
 
-            kwargs = await _resolve_params(handler, request)
+            actual_handler = handler
+            cls = getattr(handler, "__aura_controller_class__", None)
+            if cls is not None:
+                container = getattr(request.app.state, "container", None)
+                if container is not None:
+                    controller_instance = await container.resolve(cls)
+                    actual_handler = getattr(controller_instance, handler.__name__)
+                else:
+                    controller_instance = cls()
+                    actual_handler = getattr(controller_instance, handler.__name__)
 
-            result = handler(**kwargs)
+            kwargs = await _resolve_params(actual_handler, request)
+
+            result = actual_handler(**kwargs)
             if inspect.iscoroutine(result):
                 result = await result
 
@@ -301,12 +334,23 @@ def _wrap_sse_handler(
                 if not allowed:
                     await guard.on_denied(request)
 
-            kwargs = await _resolve_params(handler, request)
+            actual_handler = handler
+            cls = getattr(handler, "__aura_controller_class__", None)
+            if cls is not None:
+                container = getattr(request.app.state, "container", None)
+                if container is not None:
+                    controller_instance = await container.resolve(cls)
+                    actual_handler = getattr(controller_instance, handler.__name__)
+                else:
+                    controller_instance = cls()
+                    actual_handler = getattr(controller_instance, handler.__name__)
+
+            kwargs = await _resolve_params(actual_handler, request)
 
             async def event_stream() -> AsyncGenerator[bytes, None]:
                 import json as _json
 
-                gen = handler(**kwargs)
+                gen = actual_handler(**kwargs)
                 if inspect.isasyncgen(gen):
                     async for item in gen:
                         if isinstance(item, dict):
@@ -534,7 +578,19 @@ def _wrap_ws_handler(
             if not allowed:
                 await guard.on_denied(websocket)
                 return
-        result = handler(websocket)
+
+        actual_handler = handler
+        cls = getattr(handler, "__aura_controller_class__", None)
+        if cls is not None:
+            container = getattr(websocket.app.state, "container", None)
+            if container is not None:
+                controller_instance = await container.resolve(cls)
+                actual_handler = getattr(controller_instance, handler.__name__)
+            else:
+                controller_instance = cls()
+                actual_handler = getattr(controller_instance, handler.__name__)
+
+        result = actual_handler(websocket)
         if inspect.iscoroutine(result):
             await result
 
@@ -723,6 +779,16 @@ def _coerce(value: str, target_type: Any) -> Any:
         return value
 
 
+def _serialize(obj: Any) -> Any:
+    if hasattr(obj, "model_dump"):
+        return obj.model_dump(mode="json")
+    if isinstance(obj, list):
+        return [_serialize(x) for x in obj]
+    if isinstance(obj, dict):
+        return {k: _serialize(v) for k, v in obj.items()}
+    return obj
+
+
 def _to_response(result: Any, status: int) -> Response:
     """Convert a handler return value into a Starlette :class:`~starlette.responses.Response`.
 
@@ -750,7 +816,7 @@ def _to_response(result: Any, status: int) -> Response:
         return JSONResponse(content=result.model_dump(mode="json"), status_code=status)
 
     if isinstance(result, (dict, list)):
-        return JSONResponse(content=result, status_code=status)
+        return JSONResponse(content=_serialize(result), status_code=status)
 
     # Fallback: try JSON serialisation
     try:
