@@ -56,9 +56,12 @@ def setup_logging(config: LogConfig) -> None:
         setup_logging(config)
         Log.info("Application started")
     """
-    # 1. Create stdlib logger root
-    stdlib_logger = logging.getLogger("aura.app")
+    # 1. Configure the "aura" parent logger so all child loggers (aura.app,
+    #    aura.access, etc.) inherit handlers and level via propagation.
+    stdlib_logger = logging.getLogger("aura")
     stdlib_logger.setLevel(getattr(logging, config.level.upper(), logging.INFO))
+    for _h in stdlib_logger.handlers[:]:
+        _h.close()
     stdlib_logger.handlers.clear()
 
     # 2. Choose formatter based on config

@@ -28,7 +28,7 @@ class LogConfig(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="LOG_", extra="ignore")
 
-    level: str = "INFO"
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     dir: str = "storage/logs"
     max_lines: int | None = None
     format: Literal["plain", "json"] = "plain"

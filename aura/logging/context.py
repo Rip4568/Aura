@@ -6,6 +6,14 @@ import contextvars
 from collections.abc import Awaitable, Coroutine
 from typing import Any, TypeVar
 
+# Keys that stdlib logging reserves in LogRecord.__dict__ — cannot appear in extra={}
+_LOGRECORD_RESERVED: frozenset[str] = frozenset({
+    "name", "msg", "args", "created", "filename", "funcName",
+    "levelname", "levelno", "lineno", "message", "module", "msecs",
+    "pathname", "process", "processName", "relativeCreated",
+    "thread", "threadName", "exc_info", "exc_text", "stack_info", "taskName",
+})
+
 request_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "request_id", default=None
 )
@@ -54,7 +62,7 @@ def get_current_context() -> dict[str, Any]:
 
     extra = extra_context_var.get()
     if extra:
-        context.update(extra)
+        context.update({k: v for k, v in extra.items() if k not in _LOGRECORD_RESERVED})
 
     return context
 
@@ -102,25 +110,18 @@ async def run_with_context(
             )
             return {"id": user.id}
     """
-    # Create a wrapper function that sets context vars and runs the coroutine
-    async def _run_in_context() -> T:
-        # Set context variables
-        if "request_id" in context_dict:
-            request_id_var.set(context_dict["request_id"])
-        if "user_id" in context_dict:
-            user_id_var.set(context_dict["user_id"])
+    # Set context variables and collect reset tokens so we can restore state on exit.
+    tokens: list[tuple[contextvars.ContextVar[Any], contextvars.Token[Any]]] = []
+    if "request_id" in context_dict:
+        tokens.append((request_id_var, request_id_var.set(context_dict["request_id"])))
+    if "user_id" in context_dict:
+        tokens.append((user_id_var, user_id_var.set(context_dict["user_id"])))
+    extra = {k: v for k, v in context_dict.items() if k not in ("request_id", "user_id")}
+    if extra:
+        tokens.append((extra_context_var, extra_context_var.set(extra)))
 
-        # Handle extra context
-        extra = {
-            k: v
-            for k, v in context_dict.items()
-            if k not in ("request_id", "user_id")
-        }
-        if extra:
-            extra_context_var.set(extra)
-
-        # Execute coroutine
+    try:
         return await coro
-
-    # Run the wrapper
-    return await _run_in_context()
+    finally:
+        for var, token in tokens:
+            var.reset(token)

@@ -45,20 +45,23 @@ class RequestLogInterceptor(Interceptor):
         log_body: If ``True``, the request body is logged at DEBUG level
                   (only safe for small payloads).
 
-    Example::
+    Note:
+        This interceptor uses the :class:`Interceptor` chain protocol and is
+        **not** wired via ``Aura(middleware=...)``.  For an ASGI middleware that
+        integrates directly with ``Aura``, use
+        :class:`aura.logging.interceptor.RequestLogInterceptor` instead::
 
-        from aura.logging.context import set_request_id
-        from aura import Aura
-        import uuid
+            from starlette.middleware import Middleware
+            from aura import Aura
+            from aura.logging import RequestLogInterceptor
 
-        app = Aura(interceptors=[RequestLogInterceptor()])
+            app = Aura(middleware=[Middleware(RequestLogInterceptor)])
 
-        @app.get("/")
-        async def hello(request):
-            request_id = str(uuid.uuid4())
-            set_request_id(request_id)
-            # Logs will now include request_id automatically
-            return {"msg": "Hello"}
+        To use this interceptor in a custom chain, call ``intercept()``
+        directly::
+
+            interceptor = RequestLogInterceptor()
+            response = await interceptor.intercept(request, handler, call_next)
     """
 
     def __init__(self, log_headers: bool = False, log_body: bool = False) -> None:

@@ -71,14 +71,27 @@ class PlainFormatter(logging.Formatter):
                 "stack_info",
                 "taskName",
             ):
+                if isinstance(value, dict) and self.sanitizer:
+                    value = self.sanitizer.sanitize_body(value)
                 extras.append(f"{key}={value}")
 
         extras_str = " " + " ".join(extras) if extras else ""
 
-        return (
+        line = (
             f"[{timestamp}] {record.levelname:<8} {record.name}: "
             f"{record.getMessage()}{context_str}{extras_str}"
         )
+
+        # Append exception traceback and stack info when present
+        if record.exc_info:
+            if not record.exc_text:
+                record.exc_text = self.formatException(record.exc_info)
+        if record.exc_text:
+            line = f"{line}\n{record.exc_text}"
+        if record.stack_info:
+            line = f"{line}\n{self.formatStack(record.stack_info)}"
+
+        return line
 
 
 class JsonFormatter(logging.Formatter):
@@ -147,4 +160,13 @@ class JsonFormatter(logging.Formatter):
                 else:
                     log_dict[key] = value
 
-        return json.dumps(log_dict)
+        # Append exception traceback and stack info when present
+        if record.exc_info:
+            if not record.exc_text:
+                record.exc_text = self.formatException(record.exc_info)
+        if record.exc_text:
+            log_dict["exception"] = record.exc_text
+        if record.stack_info:
+            log_dict["stack_info"] = self.formatStack(record.stack_info)
+
+        return json.dumps(log_dict, default=str)

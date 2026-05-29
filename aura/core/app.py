@@ -232,6 +232,7 @@ class Aura:
             logger.debug("Config loaded: %s", cfg.model_dump())
         except Exception:
             logger.exception("Failed to load config — using defaults")
+            cfg = AuraConfig()
 
         # Initialize logging system
         try:
@@ -241,7 +242,7 @@ class Aura:
             log_config = getattr(cfg, "logging", None) or _LogConfig()
             setup_logging(log_config)
         except Exception:
-            pass
+            logger.exception("Failed to initialize logging system")
 
         # Auto-initialise the database if AURA__DATABASE__URL is set
         db_url = os.environ.get("AURA__DATABASE__URL")
