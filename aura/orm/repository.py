@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import builtins
+import uuid
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar, cast
+from typing import Any, Generic, TypeAlias, TypeVar, cast
 
 from sqlalchemy import func, select
 from sqlalchemy.engine import CursorResult
@@ -14,6 +15,8 @@ from aura.orm.base import AuraModel
 
 ModelT = TypeVar("ModelT", bound=AuraModel)
 T = TypeVar("T")
+
+PkType: TypeAlias = int | str | uuid.UUID
 
 
 @dataclass
@@ -119,7 +122,7 @@ class Repository(Generic[ModelT]):
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def get(self, id: int) -> ModelT | None:
+    async def get(self, id: PkType) -> ModelT | None:
         """Fetch a single record by primary key.
 
         Args:
@@ -130,7 +133,7 @@ class Repository(Generic[ModelT]):
         """
         return await self.session.get(self.model, id)
 
-    async def get_or_raise(self, id: int) -> ModelT:
+    async def get_or_raise(self, id: PkType) -> ModelT:
         """Fetch a single record by primary key, raising 404 if absent.
 
         Args:
@@ -191,7 +194,7 @@ class Repository(Generic[ModelT]):
         await self.session.refresh(obj)
         return obj
 
-    async def update(self, id: int, **data: Any) -> ModelT:
+    async def update(self, id: PkType, **data: Any) -> ModelT:
         """Update an existing record in place.
 
         Args:
@@ -211,7 +214,7 @@ class Repository(Generic[ModelT]):
         await self.session.refresh(obj)
         return obj
 
-    async def delete(self, id: int) -> bool:
+    async def delete(self, id: PkType) -> bool:
         """Delete a record by primary key.
 
         Args:
@@ -287,7 +290,7 @@ class Repository(Generic[ModelT]):
 
     async def bulk_update(
         self,
-        ids: builtins.list[int],
+        ids: builtins.list[PkType],
         **data: Any,
     ) -> builtins.list[ModelT]:
         """Update the same set of fields on multiple records at once.
@@ -334,7 +337,7 @@ class Repository(Generic[ModelT]):
         )
         return list(result.scalars().all())
 
-    async def bulk_delete(self, ids: builtins.list[int]) -> int:
+    async def bulk_delete(self, ids: builtins.list[PkType]) -> int:
         """Delete multiple records by primary key in a single query.
 
         Executes a single DELETE … WHERE id IN (…) instead of N individual

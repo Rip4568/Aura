@@ -53,7 +53,7 @@ from aura.schema.base import ResponseSchema, Schema
 
 # ORM (optional — requires aura-web[sqlalchemy])
 try:
-    from aura.orm import AuraModel, DatabaseManager, Page, Repository, db
+    from aura.orm import AuraModel, DatabaseManager, Page, PkType, Repository, db
 except ImportError:
     pass
 
@@ -150,6 +150,7 @@ __all__ = [
     "AuraModel",
     "Repository",
     "Page",
+    "PkType",
     "DatabaseManager",
     "db",
     # Response helpers
