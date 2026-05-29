@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import inspect
 import logging
 from collections.abc import Callable
 from enum import Enum
-from typing import Any, TypeVar, cast, get_type_hints, overload  # noqa: F401
+from typing import Any, TypeVar, Union, cast, get_type_hints, overload  # noqa: F401
 
 from aura.di.providers import (
     Provider,
@@ -19,6 +20,11 @@ from aura.di.providers import (
 logger = logging.getLogger("aura.di")
 
 T = TypeVar("T")
+
+# Context variable to track which types are currently being resolved (for cycle detection)
+_resolving_types: contextvars.ContextVar[frozenset[type]] = contextvars.ContextVar(
+    "_resolving_types", default=frozenset()
+)
 
 
 class Lifetime(str, Enum):
@@ -64,6 +70,7 @@ class DIContainer:
     def __init__(self) -> None:
         self._providers: dict[type, Provider[Any]] = {}
         self._lock = asyncio.Lock()
+        self._scoped_cache: dict[type, Any] = {}
 
     # ------------------------------------------------------------------
     # Registration
@@ -138,14 +145,29 @@ class DIContainer:
 
         Raises:
             KeyError: If *service_type* is not registered.
+            RuntimeError: If a circular dependency is detected.
         """
+        # Check for circular dependency
+        resolving = _resolving_types.get()
+        if service_type in resolving:
+            raise RuntimeError(
+                f"DIContainer: Circular dependency detected for '{_type_name(service_type)}'"
+            )
+
         provider = self._providers.get(service_type)
         if provider is None:
             raise KeyError(
                 f"No provider registered for '{service_type.__name__}'. "
                 "Did you forget to add it to the module's providers list?"
             )
-        return cast(T, await provider.get(self))
+
+        # Add to resolving set and resolve
+        resolving_updated = resolving | frozenset([service_type])
+        token = _resolving_types.set(resolving_updated)
+        try:
+            return cast(T, await provider.get(self))
+        finally:
+            _resolving_types.reset(token)
 
     async def resolve_optional(self, service_type: type[T]) -> T | None:
         """Like :meth:`resolve` but returns ``None`` when *service_type* is not registered.
@@ -223,7 +245,7 @@ class DIContainer:
         if lifetime == Lifetime.SINGLETON:
             provider = SingletonProvider(factory)
         elif lifetime == Lifetime.SCOPED:
-            provider = ScopedProvider(factory)
+            provider = ScopedProvider(factory, service_type)
         else:
             provider = TransientProvider(factory)
         self._providers[service_type] = provider
@@ -243,15 +265,68 @@ class DIContainer:
         async def factory() -> Any:
             kwargs: dict[str, Any] = {}
             hints = _get_init_type_hints(impl)
+            sig = inspect.signature(impl)
+
             for param_name, param_type in hints.items():
                 if param_name == "return":
                     continue
+
+                # Determine if this parameter is optional
+                is_optional = _is_optional_type(param_type)
+                param_obj = sig.parameters.get(param_name)
+                has_default = param_obj and param_obj.default is not inspect.Parameter.empty
+
+                # Try to resolve the dependency
                 dep = await container_ref.resolve_optional(param_type)
+
                 if dep is not None:
                     kwargs[param_name] = dep
+                elif not is_optional and not has_default:
+                    # Required dependency not registered and no default
+                    raise RuntimeError(
+                        f"DIContainer: '{impl.__name__}' depends on "
+                        f"'{_type_name(param_type)}' which is not registered. "
+                        f"Add it to the module's providers list."
+                    )
+
             return impl(**kwargs)
 
         return factory
+
+
+def _is_optional_type(type_hint: Any) -> bool:
+    """Check if a type hint represents an optional type.
+
+    A type is optional if it is Union[X, None] or Optional[X].
+
+    Args:
+        type_hint: The type hint to check.
+
+    Returns:
+        True if the type is optional, False otherwise.
+    """
+    # Get the origin (Union, Optional, etc.)
+    origin = getattr(type_hint, "__origin__", None)
+
+    # Check if it's Union and has None in args
+    if origin is Union:
+        args = getattr(type_hint, "__args__", ())
+        return type(None) in args
+    return False
+
+
+def _type_name(type_hint: Any) -> str:
+    """Get a readable name for a type hint.
+
+    Args:
+        type_hint: The type hint to get a name for.
+
+    Returns:
+        A readable string representation of the type.
+    """
+    if hasattr(type_hint, "__name__"):
+        return cast(str, type_hint.__name__)
+    return str(type_hint)
 
 
 def _get_init_type_hints(cls: type) -> dict[str, Any]:

@@ -23,6 +23,7 @@ class _AuraRegistry(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
+
 class _QuerySetDescriptor:
     """Descriptor that returns a fresh QuerySet when accessed as a class attribute."""
 

@@ -85,31 +85,34 @@ class ScopedProvider(Provider[T]):
     like singletons within a scope but create a fresh instance for each
     new scope.
 
+    The instance is cached in the container's ``_scoped_cache`` dict to ensure
+    the cache lifetime is tied to the container and avoids ``id()`` reuse issues.
+
     Args:
         factory: An async (or sync) callable that produces the instance.
+        service_type: The type being provided (used as cache key).
     """
 
-    def __init__(self, factory: Callable[..., Any]) -> None:
+    def __init__(self, factory: Callable[..., Any], service_type: type) -> None:
         self._factory = factory
-        self._scope_instances: dict[int, T] = {}
+        self._service_type = service_type
         self._lock = asyncio.Lock()
 
     async def get(self, container: Any) -> T:
         """Return the scoped instance, creating it within the current scope if absent."""
-        scope_id = id(container)
-        if scope_id not in self._scope_instances:
+        # Ensure the container has a scoped cache
+        if not hasattr(container, "_scoped_cache"):
+            container._scoped_cache = {}
+
+        cache: dict[type, T] = container._scoped_cache
+
+        if self._service_type not in cache:
             async with self._lock:
-                if scope_id not in self._scope_instances:
-                    self._scope_instances[scope_id] = await _call(self._factory, container)
-        return self._scope_instances[scope_id]
+                # Double-check after acquiring lock
+                if self._service_type not in cache:
+                    cache[self._service_type] = cast(T, await _call(self._factory, container))
 
-    def clear_scope(self, container: Any) -> None:
-        """Remove the cached instance for the given scope.
-
-        Args:
-            container: The container whose scope should be cleared.
-        """
-        self._scope_instances.pop(id(container), None)
+        return cache[self._service_type]
 
 
 # ---------------------------------------------------------------------------
