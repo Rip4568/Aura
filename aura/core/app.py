@@ -25,6 +25,25 @@ from aura.schema.openapi import OpenAPIGenerator
 logger = logging.getLogger("aura")
 
 
+def _load_dotenv(env_path: str = ".env") -> None:
+    """Load variables from a .env file into os.environ if present, without overwriting."""
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if "=" in line:
+                        key, val = line.split("=", 1)
+                        key = key.strip()
+                        val = val.strip().strip("'\"")
+                        if key and key not in os.environ:
+                            os.environ[key] = val
+        except Exception:
+            pass
+
+
 class Aura:
     """
     Main Aura application class.
@@ -72,6 +91,7 @@ class Aura:
         openapi_url: str | None = "/openapi.json",
         redoc_url: str | None = "/redoc",
     ) -> None:
+        _load_dotenv()
         self.title = title
         self.version = version
         self.description = description
