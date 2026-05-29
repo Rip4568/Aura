@@ -144,7 +144,8 @@ class TestRepository:
         assert fetched.id == item.id
 
     async def test_get_or_raise_missing(self, repo: ItemRepository) -> None:
-        with pytest.raises(Exception):  # NotFoundException or similar
+        from aura.exceptions.http import NotFoundException
+        with pytest.raises(NotFoundException):
             await repo.get_or_raise(99999)
 
     async def test_list_all(self, repo: ItemRepository) -> None:
@@ -233,7 +234,8 @@ class TestRepository:
         assert all(not u.active for u in updated)
 
     async def test_bulk_update_raises_on_missing_id(self, repo: ItemRepository) -> None:
-        with pytest.raises(Exception):
+        from aura.exceptions.http import NotFoundException
+        with pytest.raises(NotFoundException):
             await repo.bulk_update([99999], title="Ghost")
 
     async def test_bulk_delete(self, repo: ItemRepository) -> None:
@@ -248,6 +250,44 @@ class TestRepository:
         a = await repo.create(title="Exists", price=1.0)
         count = await repo.bulk_delete([a.id, 99999])
         assert count == 1  # only the existing one was deleted
+
+    async def test_list_order_by_ascending(self, repo: ItemRepository) -> None:
+        await repo.create(title="C", price=3.0)
+        await repo.create(title="A", price=1.0)
+        await repo.create(title="B", price=2.0)
+        items = await repo.list(order_by="price")
+        prices = [i.price for i in items]
+        assert prices == sorted(prices)
+
+    async def test_list_order_by_descending(self, repo: ItemRepository) -> None:
+        await repo.create(title="C", price=3.0)
+        await repo.create(title="A", price=1.0)
+        await repo.create(title="B", price=2.0)
+        items = await repo.list(order_by="-price")
+        prices = [i.price for i in items]
+        assert prices == sorted(prices, reverse=True)
+
+    async def test_list_order_by_nonexistent_field_raises(self, repo: ItemRepository) -> None:
+        from aura.exceptions.http import UnprocessableEntityException
+        with pytest.raises(UnprocessableEntityException, match="Unknown order_by field"):
+            await repo.list(order_by="nonexistent")
+
+    async def test_list_filter_nonexistent_field_raises(self, repo: ItemRepository) -> None:
+        from aura.exceptions.http import UnprocessableEntityException
+        with pytest.raises(UnprocessableEntityException, match="Unknown filter field"):
+            await repo.list(nonexistent_field="value")
+
+    async def test_bulk_create_empty_list(self, repo: ItemRepository) -> None:
+        result = await repo.bulk_create([])
+        assert result == []
+
+    async def test_bulk_update_empty_list(self, repo: ItemRepository) -> None:
+        result = await repo.bulk_update([])
+        assert result == []
+
+    async def test_bulk_delete_empty_list(self, repo: ItemRepository) -> None:
+        result = await repo.bulk_delete([])
+        assert result == 0
 
 
 # ---------------------------------------------------------------------------
@@ -291,6 +331,16 @@ class TestPaginate:
         assert result.total == 0
         assert result.items == []
         assert result.has_next is False
+
+    async def test_paginate_page_zero_raises(self, repo: ItemRepository) -> None:
+        from aura.exceptions.http import UnprocessableEntityException
+        with pytest.raises(UnprocessableEntityException, match="Page must be >= 1"):
+            await repo.paginate(page=0)
+
+    async def test_paginate_negative_page_raises(self, repo: ItemRepository) -> None:
+        from aura.exceptions.http import UnprocessableEntityException
+        with pytest.raises(UnprocessableEntityException, match="Page must be >= 1"):
+            await repo.paginate(page=-1)
 
 
 # ---------------------------------------------------------------------------

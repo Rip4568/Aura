@@ -177,6 +177,55 @@ class TestContext:
         ctx2 = get_current_context()
         assert "extra" not in ctx2
 
+    @pytest.mark.asyncio
+    async def test_run_with_context_propagates_request_id(self) -> None:
+        """Test that run_with_context propagates request_id to coroutine."""
+        from aura.logging.context import run_with_context
+
+        captured_context: dict[str, Any] = {}
+
+        async def background_task() -> None:
+            nonlocal captured_context
+            captured_context = get_current_context()
+
+        context_dict = {"request_id": "bg-req-123"}
+        await run_with_context(background_task(), context_dict)
+
+        assert captured_context["request_id"] == "bg-req-123"
+
+    @pytest.mark.asyncio
+    async def test_run_with_context_propagates_user_id(self) -> None:
+        """Test that run_with_context propagates user_id to coroutine."""
+        from aura.logging.context import run_with_context
+
+        captured_context: dict[str, Any] = {}
+
+        async def background_task() -> None:
+            nonlocal captured_context
+            captured_context = get_current_context()
+
+        context_dict = {"user_id": 999}
+        await run_with_context(background_task(), context_dict)
+
+        assert captured_context["user_id"] == 999
+
+    @pytest.mark.asyncio
+    async def test_run_with_context_with_both_request_and_user_id(self) -> None:
+        """Test that run_with_context propagates both request_id and user_id."""
+        from aura.logging.context import run_with_context
+
+        captured_context: dict[str, Any] = {}
+
+        async def background_task() -> None:
+            nonlocal captured_context
+            captured_context = get_current_context()
+
+        context_dict = {"request_id": "req-123", "user_id": 456}
+        await run_with_context(background_task(), context_dict)
+
+        assert captured_context["request_id"] == "req-123"
+        assert captured_context["user_id"] == 456
+
 
 class TestDailyRotatingFileHandler:
     """Tests for DailyRotatingFileHandler."""
@@ -577,3 +626,98 @@ class TestRequestLogInterceptor:
 
         await interceptor(scope, mock_receive, mock_send)
         assert app_called
+
+    @pytest.mark.asyncio
+    async def test_interceptor_http_with_header(self) -> None:
+        """Test that HTTP request with X-Request-ID header sets context."""
+        from aura.logging.interceptor import RequestLogInterceptor
+
+        clear_context()
+        request_id_in_context: str | None = None
+
+        async def dummy_app(scope: Any, receive: Any, send: Any) -> None:
+            nonlocal request_id_in_context
+            from aura.logging.context import get_current_context
+            context = get_current_context()
+            request_id_in_context = context.get("request_id")
+
+        interceptor = RequestLogInterceptor(dummy_app)
+
+        scope = {
+            "type": "http",
+            "headers": [
+                (b"x-request-id", b"test-req-123"),
+            ],
+        }
+
+        async def mock_receive() -> Any:
+            return {}
+
+        async def mock_send(message: Any) -> None:
+            pass
+
+        await interceptor(scope, mock_receive, mock_send)
+        assert request_id_in_context == "test-req-123"
+
+    @pytest.mark.asyncio
+    async def test_interceptor_http_without_header_generates_uuid(self) -> None:
+        """Test that HTTP request without X-Request-ID generates UUID."""
+        from aura.logging.interceptor import RequestLogInterceptor
+
+        clear_context()
+        request_id_in_context: str | None = None
+
+        async def dummy_app(scope: Any, receive: Any, send: Any) -> None:
+            nonlocal request_id_in_context
+            from aura.logging.context import get_current_context
+            context = get_current_context()
+            request_id_in_context = context.get("request_id")
+
+        interceptor = RequestLogInterceptor(dummy_app, generate_request_id=True)
+
+        scope = {
+            "type": "http",
+            "headers": [],
+        }
+
+        async def mock_receive() -> Any:
+            return {}
+
+        async def mock_send(message: Any) -> None:
+            pass
+
+        await interceptor(scope, mock_receive, mock_send)
+        assert request_id_in_context is not None
+        assert len(request_id_in_context) > 0
+
+    @pytest.mark.asyncio
+    async def test_interceptor_context_cleared_after_request(self) -> None:
+        """Test that context is cleared in finally block after request."""
+        from aura.logging.interceptor import RequestLogInterceptor
+
+        clear_context()
+
+        async def dummy_app(scope: Any, receive: Any, send: Any) -> None:
+            from aura.logging.context import get_current_context
+            context = get_current_context()
+            assert "request_id" in context  # Context is set during request
+
+        interceptor = RequestLogInterceptor(dummy_app)
+
+        scope = {
+            "type": "http",
+            "headers": [
+                (b"x-request-id", b"test-req-456"),
+            ],
+        }
+
+        async def mock_receive() -> Any:
+            return {}
+
+        async def mock_send(message: Any) -> None:
+            pass
+
+        await interceptor(scope, mock_receive, mock_send)
+        # After request, context should be cleared
+        from aura.logging.context import get_current_context
+        assert get_current_context() == {}

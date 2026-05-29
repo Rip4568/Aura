@@ -368,6 +368,24 @@ class Repository(Generic[ModelT]):
         order_by: str | None = None,
         **filters: Any,
     ) -> Page[ModelT]:
+        """Fetch a paginated list of records.
+
+        Args:
+            page: Page number (starting from 1). Must be >= 1.
+            per_page: Number of records per page.
+            order_by: Column name to order by; prefix with ``-`` for DESC.
+            **filters: Equality filters (column=value).
+
+        Returns:
+            A Page object containing items, total count, and pagination metadata.
+
+        Raises:
+            ValueError: If page < 1.
+        """
+        if page < 1:
+            from aura.exceptions.http import UnprocessableEntityException
+            raise UnprocessableEntityException("Page must be >= 1")
+
         # count query with filters applied
         count_stmt = select(func.count()).select_from(self.model)
         count_stmt = _apply_filters(count_stmt, self.model, filters)

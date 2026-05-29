@@ -68,6 +68,8 @@ class PlainFormatter(logging.Formatter):
                 "threadName",
                 "exc_info",
                 "exc_text",
+                "stack_info",
+                "taskName",
             ):
                 extras.append(f"{key}={value}")
 
@@ -137,6 +139,8 @@ class JsonFormatter(logging.Formatter):
                 "threadName",
                 "exc_info",
                 "exc_text",
+                "stack_info",
+                "taskName",
             ):
                 if isinstance(value, dict) and self.sanitizer:
                     log_dict[key] = self.sanitizer.sanitize_body(value)

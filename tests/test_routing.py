@@ -184,3 +184,41 @@ def test_router_controller_with_di() -> None:
     assert response.json() == "injected"
 
 
+# ---------------------------------------------------------------------------
+# Integration tests with HTTP errors
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_handler_raising_runtime_error_returns_500() -> None:
+    """Test that an unhandled RuntimeError in a handler returns HTTP 500."""
+    from httpx import ASGITransport, AsyncClient
+
+    from aura.core.app import Aura
+    from aura.modules.base import Module
+
+    class ErrorController:
+        @get("/error")
+        async def error(self) -> None:
+            raise RuntimeError("unexpected error")
+
+    @Module(controllers=[ErrorController], prefix="")
+    class ErrorModule:
+        pass
+
+    app = Aura(modules=[ErrorModule])
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as c:
+        r = await c.get("/error")
+        assert r.status_code == 500
+
+
+# ---------------------------------------------------------------------------
+# Param binding integration tests
+# ---------------------------------------------------------------------------
+
+
+
+

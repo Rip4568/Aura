@@ -67,6 +67,7 @@ docs/
 | `arquiteto` | "Como estruturar isso?", review de API pública, ADRs, identificar acoplamento | Implementação de código |
 | `engenheiro` | Implementar feature aprovada, corrigir bug, escrever testes, fix lint/mypy | Decisões arquiteturais |
 | `research` | "Como outros frameworks fazem X?", verificar docs, pesquisar boas práticas | Implementação |
+| `qa` | "Isso está correto e bem feito?", auditoria de módulo, busca por bugs, código duplicado/morto, cobertura de testes | Escrever código de correção |
 
 ### Fluxo correto para uma feature nova
 
@@ -74,7 +75,8 @@ docs/
 1. PO/PM → "Isso deve ser construído? Com que critérios de aceite?"
 2. Arquiteto → "Como estruturar? Breaking changes? ADR necessário?"
 3. Engenheiro → Implementa o contrato definido pelo Arquiteto
-4. Você (líder) → Verifica que o código realmente existe (grep), roda os testes, valida
+4. QA → Audita o que foi implementado: bugs, testes ausentes, duplicações, edge cases
+5. Você (líder) → Verifica que o código realmente existe (grep), roda os testes, valida
 ```
 
 ---

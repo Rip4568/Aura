@@ -120,10 +120,7 @@ async def run_with_context(
             extra_context_var.set(extra)
 
         # Execute coroutine
-        if isinstance(coro, Coroutine):
-            return await coro
-        else:
-            return await coro
+        return await coro
 
     # Run the wrapper
     return await _run_in_context()

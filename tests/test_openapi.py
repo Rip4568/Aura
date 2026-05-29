@@ -165,3 +165,71 @@ class TestOpenAPIGenerator:
         assert "Person" in components
         assert "Address2" in components
         assert "Country" in components
+
+    def test_route_with_path_and_query_parameters(self) -> None:
+        """Test that parameters (path and query) are included in the spec."""
+
+        class UserResponse(Schema):
+            """User response model."""
+
+            id: int
+            name: str
+
+        generator = OpenAPIGenerator(
+            title="Test API",
+            version="1.0.0",
+        )
+
+        parameters = [
+            {
+                "name": "id",
+                "in": "path",
+                "required": True,
+                "schema": {"type": "integer"},
+            },
+            {
+                "name": "page",
+                "in": "query",
+                "required": False,
+                "schema": {"type": "integer", "default": 1},
+            },
+        ]
+
+        generator.add_route(
+            {
+                "method": "GET",
+                "path": "/users/{id}",
+                "response": UserResponse,
+                "status": 200,
+                "tags": ["users"],
+                "summary": "Get user by ID",
+                "operation_id": "get_user",
+                "deprecated": False,
+                "parameters": parameters,
+            }
+        )
+
+        spec = generator.generate()
+        paths = spec["paths"]
+
+        # Check that the path exists with correct method
+        assert "/users/{id}" in paths
+        assert "get" in paths["/users/{id}"]
+
+        # Check that parameters are present
+        get_op = paths["/users/{id}"]["get"]
+        assert "parameters" in get_op
+        assert len(get_op["parameters"]) == 2
+
+        # Verify path parameter
+        path_param = next((p for p in get_op["parameters"] if p["name"] == "id"), None)
+        assert path_param is not None
+        assert path_param["in"] == "path"
+        assert path_param["required"] is True
+
+        # Verify query parameter
+        query_param = next(
+            (p for p in get_op["parameters"] if p["name"] == "page"), None
+        )
+        assert query_param is not None
+        assert query_param["in"] == "query"

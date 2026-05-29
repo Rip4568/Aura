@@ -7,9 +7,13 @@ from aura.exceptions.http import (
     BadRequestException,
     ConflictException,
     ForbiddenException,
+    GatewayTimeoutException,
     HTTPException,
     InternalServerException,
+    MethodNotAllowedException,
     NotFoundException,
+    ServiceUnavailableException,
+    TooManyRequestsException,
     UnauthorizedException,
     UnprocessableEntityException,
 )
@@ -89,3 +93,36 @@ def test_exception_inherits_aura_exception() -> None:
 def test_exception_with_headers() -> None:
     exc = UnauthorizedException(headers={"WWW-Authenticate": "Bearer"})
     assert exc.headers["WWW-Authenticate"] == "Bearer"
+
+
+def test_http_exception_to_dict_with_detail() -> None:
+    exc = HTTPException(404, "Not Found", detail={"field": "id"})
+    payload = exc.to_dict()
+    assert payload["error"]["status"] == 404
+    assert payload["error"]["detail"] == {"field": "id"}
+
+
+def test_method_not_allowed_exception() -> None:
+    exc = MethodNotAllowedException()
+    assert exc.status_code == 405
+
+
+def test_too_many_requests_exception() -> None:
+    exc = TooManyRequestsException()
+    assert exc.status_code == 429
+
+
+def test_too_many_requests_exception_with_retry_after() -> None:
+    exc = TooManyRequestsException(retry_after=30)
+    assert exc.status_code == 429
+    assert exc.headers.get("Retry-After") == "30"
+
+
+def test_service_unavailable_exception() -> None:
+    exc = ServiceUnavailableException()
+    assert exc.status_code == 503
+
+
+def test_gateway_timeout_exception() -> None:
+    exc = GatewayTimeoutException()
+    assert exc.status_code == 504
