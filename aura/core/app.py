@@ -29,7 +29,7 @@ def _load_dotenv(env_path: str = ".env") -> None:
     """Load variables from a .env file into os.environ if present, without overwriting."""
     if os.path.exists(env_path):
         try:
-            with open(env_path, "r", encoding="utf-8") as f:
+            with open(env_path, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if not line or line.startswith("#"):

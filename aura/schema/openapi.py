@@ -84,8 +84,7 @@ class OpenAPIGenerator:
             if body_schema is not None and inspect.isclass(body_schema) and issubclass(
                 body_schema, BaseModel
             ):
-                schema_name = body_schema.__name__
-                components_schemas[schema_name] = body_schema.model_json_schema()
+                schema_name = self._register_schema(body_schema, components_schemas)
                 operation["requestBody"] = {
                     "required": True,
                     "content": {
@@ -101,8 +100,7 @@ class OpenAPIGenerator:
             if response_schema is not None and inspect.isclass(
                 response_schema
             ) and issubclass(response_schema, BaseModel):
-                resp_name = response_schema.__name__
-                components_schemas[resp_name] = response_schema.model_json_schema()
+                resp_name = self._register_schema(response_schema, components_schemas)
                 operation["responses"][status_code] = {
                     "description": "Successful Response",
                     "content": {
@@ -171,6 +169,41 @@ class OpenAPIGenerator:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def _register_schema(
+        self, model: type[BaseModel], components: dict[str, Any]
+    ) -> str:
+        """Register a Pydantic model schema in components, flattening nested $defs.
+
+        This method:
+        1. Calls model_json_schema() with ref_template pointing to components/schemas
+        2. Extracts and registers any nested schemas from $defs
+        3. Removes $defs from the root schema
+        4. Registers the root schema in components
+
+        Args:
+            model: A Pydantic BaseModel class to register
+            components: The components/schemas dict to populate
+
+        Returns:
+            The model's class name (for use in $ref)
+        """
+        schema_name = model.__name__
+        # Use ref_template to ensure refs point to #/components/schemas/{model}
+        schema = model.model_json_schema(
+            ref_template="#/components/schemas/{model}"
+        )
+
+        # Extract and register nested schemas from $defs
+        defs = schema.pop("$defs", {})
+        for def_name, def_schema in defs.items():
+            if def_name not in components:
+                components[def_name] = def_schema
+
+        # Register the root schema
+        components[schema_name] = schema
+
+        return schema_name
 
     @staticmethod
     def _convert_path(path: str) -> str:
