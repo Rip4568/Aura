@@ -27,6 +27,51 @@ class Page(Generic[T]):
     has_next: bool
 
 
+def _apply_filters(stmt: Any, model: type, filters: dict[str, Any]) -> Any:
+    """Apply equality filters to a SQLAlchemy statement.
+
+    Args:
+        stmt: The base SELECT/COUNT statement.
+        model: The AuraModel subclass being queried.
+        filters: Column name → value pairs for WHERE clauses.
+
+    Returns:
+        The statement with WHERE clauses applied.
+
+    Raises:
+        UnprocessableEntityException: If a filter key has no matching column.
+    """
+    for key, value in filters.items():
+        col = getattr(model, key, None)
+        if col is None:
+            from aura.exceptions.http import UnprocessableEntityException
+            raise UnprocessableEntityException(f"Unknown filter field: '{key}'")
+        stmt = stmt.where(col == value)
+    return stmt
+
+
+def _apply_order_by(stmt: Any, model: type, order_by: str) -> Any:
+    """Apply ordering to a SQLAlchemy statement.
+
+    Prefix the column name with ``-`` for descending order.
+
+    Args:
+        stmt: The SELECT statement.
+        model: The AuraModel subclass.
+        order_by: Column name, optionally prefixed with ``-`` for DESC.
+
+    Returns:
+        The statement with ORDER BY applied.
+    """
+    descending = order_by.startswith("-")
+    col_name = order_by.lstrip("-")
+    col = getattr(model, col_name, None)
+    if col is None:
+        from aura.exceptions.http import UnprocessableEntityException
+        raise UnprocessableEntityException(f"Unknown order_by field: '{col_name}'")
+    return stmt.order_by(col.desc() if descending else col)
+
+
 class Repository(Generic[ModelT]):
     """Generic async repository for CRUD operations.
 
@@ -116,7 +161,7 @@ class Repository(Generic[ModelT]):
         Args:
             limit: Maximum number of records to return.
             offset: Number of records to skip.
-            order_by: Column name to order by (ascending).
+            order_by: Column name to order by; prefix with ``-`` for DESC.
             **filters: Keyword arguments used as equality filters
                        (e.g. ``active=True``).
 
@@ -124,10 +169,9 @@ class Repository(Generic[ModelT]):
             A list of model instances.
         """
         stmt = select(self.model)
-        for key, value in filters.items():
-            stmt = stmt.where(getattr(self.model, key) == value)
+        stmt = _apply_filters(stmt, self.model, filters)
         if order_by:
-            stmt = stmt.order_by(getattr(self.model, order_by))
+            stmt = _apply_order_by(stmt, self.model, order_by)
         stmt = stmt.limit(limit).offset(offset)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
@@ -193,8 +237,7 @@ class Repository(Generic[ModelT]):
             ``True`` if a matching record exists.
         """
         stmt = select(self.model.id)
-        for key, value in filters.items():
-            stmt = stmt.where(getattr(self.model, key) == value)
+        stmt = _apply_filters(stmt, self.model, filters)
         result = await self.session.execute(stmt)
         return result.scalar() is not None
 
@@ -208,8 +251,7 @@ class Repository(Generic[ModelT]):
             Number of matching records.
         """
         stmt = select(func.count()).select_from(self.model)
-        for key, value in filters.items():
-            stmt = stmt.where(getattr(self.model, key) == value)
+        stmt = _apply_filters(stmt, self.model, filters)
         result = await self.session.execute(stmt)
         return result.scalar() or 0
 
@@ -223,8 +265,7 @@ class Repository(Generic[ModelT]):
             The first matching model instance, or ``None``.
         """
         stmt = select(self.model).limit(1)
-        for key, value in filters.items():
-            stmt = stmt.where(getattr(self.model, key) == value)
+        stmt = _apply_filters(stmt, self.model, filters)
         result = await self.session.execute(stmt)
         return result.scalars().first()
 
@@ -329,18 +370,16 @@ class Repository(Generic[ModelT]):
     ) -> Page[ModelT]:
         # count query with filters applied
         count_stmt = select(func.count()).select_from(self.model)
-        for key, value in filters.items():
-            count_stmt = count_stmt.where(getattr(self.model, key) == value)
+        count_stmt = _apply_filters(count_stmt, self.model, filters)
         count_result = await self.session.execute(count_stmt)
         total = count_result.scalar() or 0
 
         # data query with filters, ordering, and pagination
         offset = (page - 1) * per_page
         stmt = select(self.model)
-        for key, value in filters.items():
-            stmt = stmt.where(getattr(self.model, key) == value)
+        stmt = _apply_filters(stmt, self.model, filters)
         if order_by:
-            stmt = stmt.order_by(getattr(self.model, order_by))
+            stmt = _apply_order_by(stmt, self.model, order_by)
         stmt = stmt.limit(per_page).offset(offset)
         result = await self.session.execute(stmt)
         items = list(result.scalars().all())

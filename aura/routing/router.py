@@ -23,6 +23,88 @@ from aura.routing.params import (
 logger = logging.getLogger("aura.routing")
 
 
+# F-06: Pre-computed binding plan
+def _compute_binding_plan(handler: Callable[..., Any]) -> dict[str, Any]:
+    """Compute handler parameter binding plan once per route build."""
+    import typing
+    plan: dict[str, Any] = {}
+    sig = inspect.signature(handler)
+    try:
+        hints = typing.get_type_hints(handler, include_extras=True)
+    except Exception:
+        hints = {}
+    for param_name, param in sig.parameters.items():
+        hint = hints.get(param_name)
+        if hint is None:
+            continue
+        origin = typing.get_origin(hint)
+        if origin is typing.Annotated:
+            args = typing.get_args(hint)
+            inner_type = args[0]
+            markers = args[1:]
+        else:
+            inner_type = hint
+            markers = ()
+        marker = next(
+            (m for m in markers if isinstance(m, (
+                BodyMarker, QueryMarker, ParamMarker, HeaderMarker, CookieMarker))),
+            None
+        )  # FormDataMarker handled separately
+        has_default = param.default is not inspect.Parameter.empty
+        plan[param_name] = {
+            'marker': marker,
+            'inner_type': inner_type,
+            'has_default': has_default,
+            'param_default': param.default if has_default else None,
+            'required': (
+                getattr(marker, 'required', False)
+                if isinstance(marker, QueryMarker)
+                else False
+            ),
+        }
+    return plan
+
+
+# F-01: Extract OpenAPI metadata
+def _extract_openapi_metadata(handler: Callable[..., Any]) -> dict[str, Any]:
+    """Extract body and parameters metadata for OpenAPI from handler."""
+    binding_plan = getattr(handler, '__aura_binding_plan__', None)
+    if binding_plan is None:
+        func = getattr(handler, '__func__', handler)
+        binding_plan = getattr(func, '__aura_binding_plan__', None)
+    if binding_plan is None:
+        binding_plan = _compute_binding_plan(handler)
+
+    metadata = {}
+    parameters = []
+    for param_name, plan in binding_plan.items():
+        marker = plan['marker']
+        if isinstance(marker, BodyMarker):
+            if 'body' not in metadata:
+                metadata['body'] = plan['inner_type']
+        elif isinstance(marker, (QueryMarker, ParamMarker, HeaderMarker, CookieMarker)):
+            param_info = {
+                'name': getattr(marker, 'alias', None) or param_name,
+                'required': plan['required'] or not plan['has_default'],
+                'schema': {'type': 'integer'} if plan['inner_type'] is int else
+                         {'type': 'number'} if plan['inner_type'] is float else
+                         {'type': 'boolean'} if plan['inner_type'] is bool else
+                         {'type': 'string'},
+            }
+            if isinstance(marker, ParamMarker):
+                param_info['in'] = 'path'
+            elif isinstance(marker, QueryMarker):
+                param_info['in'] = 'query'
+            elif isinstance(marker, HeaderMarker):
+                param_info['in'] = 'header'
+            elif isinstance(marker, CookieMarker):
+                param_info['in'] = 'cookie'
+            parameters.append(param_info)
+    if parameters:
+        metadata['parameters'] = parameters
+    return metadata
+
+
 class Router:
     """
     Collects route handlers and converts them to Starlette :class:`~starlette.routing.Route`
@@ -137,6 +219,13 @@ class Router:
 
             response_type = meta.get("response_type", "json")
 
+            # F-06 + F-01: Pre-compute binding plan and extract OpenAPI metadata
+            binding_plan = _compute_binding_plan(handler)
+            handler.__aura_binding_plan__ = binding_plan
+            if hasattr(handler, "__func__"):
+                handler.__func__.__aura_binding_plan__ = binding_plan
+            openapi_meta = _extract_openapi_metadata(handler)
+
             if method == "WS":
                 route: Route | WebSocketRoute = WebSocketRoute(
                     path,
@@ -177,11 +266,12 @@ class Router:
                 )
                 routes.append(route)
 
-            # Register with OpenAPI generator
+            # F-06 + F-01: Register with OpenAPI generator and add extracted metadata
             if openapi_gen is not None:
                 openapi_gen.add_route(
                     {
                         **meta,
+                        **openapi_meta,
                         "path": path,
                         "operation_id": getattr(handler, "__name__", ""),
                     }
@@ -190,6 +280,62 @@ class Router:
             logger.debug("Route registered: %s %s", method, path)
 
         return routes
+
+
+# ---------------------------------------------------------------------------
+# Handler wrappers
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers for guards and DI (F-07)
+# ---------------------------------------------------------------------------
+
+
+async def _run_guards(guards: list[Any], request: Any) -> None:
+    """Evaluate guards. Raises an exception if any guard denies access.
+
+    Args:
+        guards: List of guard instances to evaluate.
+        request: The request object (Starlette Request or WebSocket).
+
+    Raises:
+        Exception from guard.on_denied() if any guard denies access.
+    """
+    for guard in guards:
+        allowed = await guard.can_activate(request)
+        if not allowed:
+            await guard.on_denied(request)
+
+
+async def _resolve_handler_instance(
+    handler: Callable[..., Any],
+    app_state: Any,
+) -> Callable[..., Any]:
+    """Resolve handler instance if it's a controller method via DI.
+
+    If handler is a class method (has __aura_controller_class__),
+    resolve the controller instance via the DI container and return
+    the bound method. Otherwise, return the handler as-is.
+
+    Args:
+        handler: The original handler function or method.
+        app_state: The Starlette app state object.
+
+    Returns:
+        The handler (possibly bound to a resolved controller instance).
+    """
+    cls = getattr(handler, "__aura_controller_class__", None)
+    if cls is None:
+        return handler
+
+    container = getattr(app_state, "container", None)
+    if container is not None:
+        controller_instance = await container.resolve(cls)
+    else:
+        controller_instance = cls()
+
+    return cast(Callable[..., Any], getattr(controller_instance, handler.__name__))
 
 
 # ---------------------------------------------------------------------------
@@ -214,22 +360,11 @@ def _wrap_http_handler(
 
     async def endpoint(request: Request) -> Response:
         try:
-            # Evaluate guards
-            for guard in guards:
-                allowed = await guard.can_activate(request)
-                if not allowed:
-                    await guard.on_denied(request)
+            # Evaluate guards (F-07)
+            await _run_guards(guards, request)
 
-            actual_handler = handler
-            cls = getattr(handler, "__aura_controller_class__", None)
-            if cls is not None:
-                container = getattr(request.app.state, "container", None)
-                if container is not None:
-                    controller_instance = await container.resolve(cls)
-                    actual_handler = getattr(controller_instance, handler.__name__)
-                else:
-                    controller_instance = cls()
-                    actual_handler = getattr(controller_instance, handler.__name__)
+            # Resolve handler instance via DI (F-07)
+            actual_handler = await _resolve_handler_instance(handler, request.app.state)
 
             # Resolve handler parameters
             kwargs = await _resolve_params(actual_handler, request)
@@ -240,7 +375,8 @@ def _wrap_http_handler(
                 result = await result
 
             # Convert result to response
-            return _to_response(result, getattr(actual_handler, "__aura_route__", {}).get("status", 200))
+            route_meta = getattr(actual_handler, "__aura_route__", {})
+            return _to_response(result, route_meta.get("status", 200))
 
         except Exception as exc:  # noqa: BLE001
             return _handle_exception(exc)
@@ -279,21 +415,11 @@ def _wrap_html_handler(
 
     async def endpoint(request: Request) -> Response:
         try:
-            for guard in guards:
-                allowed = await guard.can_activate(request)
-                if not allowed:
-                    await guard.on_denied(request)
+            # Evaluate guards (F-07)
+            await _run_guards(guards, request)
 
-            actual_handler = handler
-            cls = getattr(handler, "__aura_controller_class__", None)
-            if cls is not None:
-                container = getattr(request.app.state, "container", None)
-                if container is not None:
-                    controller_instance = await container.resolve(cls)
-                    actual_handler = getattr(controller_instance, handler.__name__)
-                else:
-                    controller_instance = cls()
-                    actual_handler = getattr(controller_instance, handler.__name__)
+            # Resolve handler instance via DI (F-07)
+            actual_handler = await _resolve_handler_instance(handler, request.app.state)
 
             kwargs = await _resolve_params(actual_handler, request)
 
@@ -329,21 +455,11 @@ def _wrap_sse_handler(
 
     async def endpoint(request: Request) -> Response:
         try:
-            for guard in guards:
-                allowed = await guard.can_activate(request)
-                if not allowed:
-                    await guard.on_denied(request)
+            # Evaluate guards (F-07)
+            await _run_guards(guards, request)
 
-            actual_handler = handler
-            cls = getattr(handler, "__aura_controller_class__", None)
-            if cls is not None:
-                container = getattr(request.app.state, "container", None)
-                if container is not None:
-                    controller_instance = await container.resolve(cls)
-                    actual_handler = getattr(controller_instance, handler.__name__)
-                else:
-                    controller_instance = cls()
-                    actual_handler = getattr(controller_instance, handler.__name__)
+            # Resolve handler instance via DI (F-07)
+            actual_handler = await _resolve_handler_instance(handler, request.app.state)
 
             kwargs = await _resolve_params(actual_handler, request)
 
@@ -549,13 +665,24 @@ def _handle_exception(exc: Exception) -> Response:
     except ImportError:
         pass
 
-    # Fallback: 500
+    # Fallback: 500 (F-03)
     import logging
+
     logging.getLogger("aura.routing").exception("Unhandled error in route handler")
-    return JSONResponse(
-        content={"error": {"status": 500, "message": "Internal server error"}},
-        status_code=500,
-    )
+    try:
+        from aura.exceptions.http import InternalServerException
+
+        internal_error = InternalServerException()
+        return JSONResponse(
+            content=internal_error.to_dict(),
+            status_code=internal_error.status_code,
+        )
+    except ImportError:
+        # Fallback if exceptions module not available
+        return JSONResponse(
+            content={"error": {"status": 500, "message": "Internal server error"}},
+            status_code=500,
+        )
 
 
 def _wrap_ws_handler(
@@ -573,22 +700,15 @@ def _wrap_ws_handler(
     """
 
     async def endpoint(websocket: WebSocket) -> None:
-        for guard in guards:
-            allowed = await guard.can_activate(websocket)
-            if not allowed:
-                await guard.on_denied(websocket)
-                return
+        try:
+            # Evaluate guards (F-07)
+            await _run_guards(guards, websocket)
+        except Exception:  # noqa: BLE001
+            # Guard denied access
+            return
 
-        actual_handler = handler
-        cls = getattr(handler, "__aura_controller_class__", None)
-        if cls is not None:
-            container = getattr(websocket.app.state, "container", None)
-            if container is not None:
-                controller_instance = await container.resolve(cls)
-                actual_handler = getattr(controller_instance, handler.__name__)
-            else:
-                controller_instance = cls()
-                actual_handler = getattr(controller_instance, handler.__name__)
+        # Resolve handler instance via DI (F-07)
+        actual_handler = await _resolve_handler_instance(handler, websocket.app.state)
 
         result = actual_handler(websocket)
         if inspect.iscoroutine(result):
@@ -620,6 +740,13 @@ async def _resolve_params(
     import typing
 
     kwargs: dict[str, Any] = {}
+
+    # F-06: Use pre-computed binding plan if available
+    binding_plan = getattr(handler, '__aura_binding_plan__', None)
+    if binding_plan is None:
+        func = getattr(handler, '__func__', handler)
+        binding_plan = getattr(func, '__aura_binding_plan__', None)
+
     sig = inspect.signature(handler)
 
     try:
@@ -689,6 +816,10 @@ async def _resolve_params(
             value = request.query_params.get(alias)
             if value is not None:
                 kwargs[param_name] = _coerce(value, inner_type)
+            elif marker.required:
+                # F-09: Enforce QueryMarker.required
+                from aura.exceptions.http import UnprocessableEntityException
+                raise UnprocessableEntityException(f"Query parameter '{alias}' is required")
             elif param.default is not inspect.Parameter.empty:
                 kwargs[param_name] = param.default
             elif marker.default is not None:

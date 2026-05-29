@@ -165,9 +165,10 @@ class DiController:
 
 
 def test_router_controller_with_di() -> None:
+    from starlette.testclient import TestClient
+
     from aura.core.app import Aura
     from aura.modules.base import Module
-    from starlette.testclient import TestClient
 
     @Module(
         providers=[DummyService],
@@ -181,3 +182,5 @@ def test_router_controller_with_di() -> None:
     response = client.get("/hello")
     assert response.status_code == 200
     assert response.json() == "injected"
+
+
