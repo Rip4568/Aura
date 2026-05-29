@@ -5,6 +5,8 @@ from __future__ import annotations
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from aura.logging.config import LogConfig
+
 
 class ServerConfig(BaseSettings):
     """HTTP server configuration.
@@ -98,3 +100,4 @@ class AuraConfig(BaseSettings):
     server: ServerConfig = ServerConfig()
     database: DatabaseConfig = DatabaseConfig()
     jobs: JobsConfig = JobsConfig()
+    logging: LogConfig = Field(default_factory=LogConfig)

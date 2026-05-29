@@ -90,6 +90,11 @@ try:
 except ImportError:
     pass  # Jinja2 not installed — templates disabled
 
+# Logging
+from aura.logging import Log, RequestLogInterceptor
+from aura.logging.config import LogConfig
+from aura.logging.context import set_request_id, set_user_id
+
 __version__ = "0.3.1"
 
 __all__ = [
@@ -135,6 +140,12 @@ __all__ = [
     "InternalServerException",
     # Config
     "AuraConfig",
+    # Logging
+    "Log",
+    "LogConfig",
+    "RequestLogInterceptor",
+    "set_request_id",
+    "set_user_id",
     # ORM (optional)
     "AuraModel",
     "Repository",

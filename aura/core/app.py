@@ -233,6 +233,16 @@ class Aura:
         except Exception:
             logger.exception("Failed to load config — using defaults")
 
+        # Initialize logging system
+        try:
+            from aura.logging import setup_logging
+            from aura.logging.config import LogConfig as _LogConfig
+
+            log_config = getattr(cfg, "logging", None) or _LogConfig()
+            setup_logging(log_config)
+        except Exception:
+            pass
+
         # Auto-initialise the database if AURA__DATABASE__URL is set
         db_url = os.environ.get("AURA__DATABASE__URL")
         if db_url:

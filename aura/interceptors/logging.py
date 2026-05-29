@@ -8,28 +8,57 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from aura.interceptors.base import Interceptor
+from aura.logging.context import get_current_context
 
 logger = logging.getLogger("aura.access")
 
 
-class LoggingInterceptor(Interceptor):
-    """Logs every request with method, path, status code, and elapsed time.
+class RequestLogInterceptor(Interceptor):
+    """Logs every request with method, path, status code, elapsed time, and context.
+
+    Automatically includes structured fields in JSON logs: method, path, status_code,
+    elapsed_ms, request_id, and user_id (from context variables).
 
     Output goes to the ``aura.access`` logger at INFO level.
 
-    Log format::
+    Log format (plain)::
 
         GET /users/ 200 12.3ms
 
+    Log format (JSON)::
+
+        {
+            "timestamp": "2026-05-29 10:30:45",
+            "level": "INFO",
+            "logger": "aura.access",
+            "message": "GET /users/ 200 12.3ms",
+            "method": "GET",
+            "path": "/users/",
+            "status_code": 200,
+            "elapsed_ms": 12.3,
+            "request_id": "abc123",
+            "user_id": 42
+        }
+
     Args:
-        log_headers: If ``True``, request headers are also logged at DEBUG
-                     level.
+        log_headers: If ``True``, request headers are also logged at DEBUG level.
         log_body: If ``True``, the request body is logged at DEBUG level
                   (only safe for small payloads).
 
     Example::
 
-        app = Aura(interceptors=[LoggingInterceptor()])
+        from aura.logging.context import set_request_id
+        from aura import Aura
+        import uuid
+
+        app = Aura(interceptors=[RequestLogInterceptor()])
+
+        @app.get("/")
+        async def hello(request):
+            request_id = str(uuid.uuid4())
+            set_request_id(request_id)
+            # Logs will now include request_id automatically
+            return {"msg": "Hello"}
     """
 
     def __init__(self, log_headers: bool = False, log_body: bool = False) -> None:
@@ -66,12 +95,27 @@ class LoggingInterceptor(Interceptor):
         elapsed_ms = (time.perf_counter() - start) * 1000
         status = getattr(response, "status_code", "?")
 
+        # Get context variables (request_id, user_id, etc.)
+        context = get_current_context()
+
+        # Log with structured fields for JSON parsing
         logger.info(
             "%s %s %s %.1fms",
             method,
             path,
             status,
             elapsed_ms,
+            extra={
+                "method": method,
+                "path": path,
+                "status_code": status,
+                "elapsed_ms": round(elapsed_ms, 1),
+                **context,
+            },
         )
 
         return response
+
+
+# Backward compatibility alias
+LoggingInterceptor = RequestLogInterceptor
