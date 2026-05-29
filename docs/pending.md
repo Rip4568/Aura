@@ -1,10 +1,31 @@
 # Pendências — Tudo que falta construir e melhorar
 
 > Lista completa e atualizada de itens pendentes no Aura Framework.  
-> Atualizado em 2026-05-28. Organizado por prioridade e área.
-> **243 testes passando · ruff clean · mypy strict 77 arquivos**
+> Atualizado em 2026-05-29. Organizado por prioridade e área.
+> **298 testes passando · ruff clean · mypy strict 86 arquivos**
 
 ---
+
+## ✅ Recentemente concluído (v0.3.1 em progresso)
+
+### Logging System — AuraLogSystem v1.0
+
+- [x] **`DailyRotatingFileHandler`** — handler com daily rotation + line-based rotation,
+  thread-safe com `threading.Lock`, detecção multiprocess warning, docstring alertando
+  sobre single-process-safe
+- [x] **`QueueHandler`/`QueueListener` integration** — I/O não-bloqueante para file logs
+  em aplicações async (stdlib, sem deps extras)
+- [x] **`RequestLogInterceptor`** — ambas versões (decorator em interceptors + middleware
+  ASGI); inclui request_id, user_id, elapsed_ms como campos queryables em JSON
+- [x] **Structured logging formatters** — `PlainFormatter` e `JsonFormatter` com context
+  propagation automática
+- [x] **`run_with_context(coro, context_dict)`** — propaga context em background tasks/jobs
+- [x] **`Log` facade** — static methods para logging conveniente (Log.info/debug/error/etc)
+  com automatic context merging
+- [x] **`AuraLogger`** — logger named factory para component-specific logging
+- [x] **Auto-initialization** — logging auto-inicializa na startup do Aura via `LogConfig`
+- [x] **39 comprehensive tests** — cobertura completa de handlers, formatters, context,
+  interceptors, setup_logging
 
 ## ✅ Recentemente concluído (v0.3.0 em progresso)
 
@@ -85,8 +106,8 @@
 
 ### Interceptors
 
-- [ ] **Interface `Interceptor`** — `before(context) / after(context, response)` pipeline
-- [ ] **`LoggingInterceptor`** — log de método, path, status e duração em cada request
+- [x] **Interface `Interceptor`** — `before(context) / after(context, response)` pipeline (já existe)
+- [x] **`RequestLogInterceptor`** — log estruturado de método, path, status, elapsed_ms, context (v0.3.1)
 
 ---
 
@@ -136,7 +157,8 @@
 
 - [ ] **`X-Query-Count` header** — contar queries SQL por request em modo debug
 - [ ] **OpenTelemetry integration** — traces/metrics automáticos
-- [ ] **Structured logging** — `structlog` configurado por padrão
+- [x] **Structured logging** — AuraLogSystem v1.0 com PlainFormatter, JsonFormatter,
+  context propagation, multiprocess safety (v0.3.1)
 
 ### Docs & DX
 
