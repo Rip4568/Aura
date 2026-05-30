@@ -9,7 +9,7 @@
     <img src="https://img.shields.io/badge/pydantic-v2-orange?style=flat-square" />
     <img src="https://img.shields.io/badge/pypi-aura--web-purple?style=flat-square" />
     <img src="https://img.shields.io/badge/version-0.3.0-blue?style=flat-square" />
-    <img src="https://img.shields.io/badge/tests-243%20passing-brightgreen?style=flat-square" />
+    <img src="https://img.shields.io/badge/tests-347%20passing-brightgreen?style=flat-square" />
     <img src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square" />
     <img src="https://img.shields.io/badge/status-alpha-red?style=flat-square" />
   </p>
@@ -550,6 +550,177 @@ aura worker
 
 ---
 
+## 🔍 Logging & Debug Inteligente (AuraLogSystem v1.0)
+
+> O logging tradicional do Python é síncrono e bloqueante por padrão, o que é péssimo para a performance de aplicações assíncronas.
+> Aura resolve isso de forma elegante com o **AuraLogSystem v1.0**, um sistema de logs estruturado, assíncrono e altamente otimizado para o ciclo de vida de aplicações modernas.
+
+### 🌟 Principais Recursos
+* 🚀 **I/O Não-Bloqueante (Async-Safe)**: Integração nativa com `QueueHandler` e `QueueListener` da biblioteca padrão para delegar a escrita de logs em arquivo para uma thread em background. O Event Loop fica 100% livre e performático.
+* 🧩 **Propagação de Contexto Automática**: Rastreamento automático de `request_id`, `user_id` e variáveis contextuais personalizadas em tarefas assíncronas e background jobs usando `contextvars`.
+* 🛡️ **Sanitização de Dados Sensíveis**: Redação automática de senhas, tokens de API, cartões de crédito e outras informações confidenciais (`***REDACTED***`).
+* 📁 **Daily Rotating File Handler**: Rotação diária e baseada em contagem de linhas automática, com detecção inteligente e avisos em ambientes multiprocesso.
+* 💅 **Formatadores Flexíveis**: Suporte nativo a formato **Plain Text** (legível em desenvolvimento) e **JSON** estruturado (perfeito para Kibana, Grafana Loki, Datadog ou AWS CloudWatch).
+* 🎛️ **Configuração Simplificada via `aura.toml` ou Env**: Níveis de log, rotações, filtros e destinos de forma declarativa.
+
+---
+
+### 💻 Como usar
+
+#### 1. Usando a Facade `Log`
+Você não precisa instanciar ou buscar loggers manualmente. Use a facade estática `Log` em qualquer lugar da sua aplicação:
+
+```python
+from aura.logging import Log
+
+# Logs simples
+Log.info("Serviço de pagamento inicializado")
+
+# Logs estruturados com campos extras
+Log.warning(
+    "Tentativa de login malsucedida", 
+    username="jon_doe", 
+    ip_address="192.168.1.100"
+)
+
+# Registrando exceções com stack trace completo
+try:
+    1 / 0
+except Exception as e:
+    Log.error("Erro matemático", exc=e, operation="division")
+```
+
+#### 2. Propagação de Contexto (Contextvars)
+O Aura gerencia e propaga contextos de log automaticamente. Se você rodar tarefas em segundo plano e quiser manter o mesmo `request_id` ou `user_id` nos logs da tarefa:
+
+```python
+from aura.logging import run_with_context, Log
+import asyncio
+
+async def background_task(user_id: int):
+    # O contexto contendo o request_id e user_id estará disponível aqui!
+    Log.info("Processando relatórios para o usuário em background", user_id=user_id)
+
+# Em seu controller ou service:
+async def handle_request():
+    context = {"request_id": "req-9872134", "user_id": 42}
+    
+    # Executa a coroutine propagando o contexto
+    await run_with_context(background_task(42), context)
+```
+
+#### 3. Interceptor de Requisições HTTP
+Para que todas as requisições HTTP tenham um `request_id` único e gerem logs automáticos de acesso, basta usar o `RequestLogInterceptor` como middleware ASGI em seu `main.py`:
+
+```python
+from aura import Aura
+from aura.logging import RequestLogInterceptor
+
+app = Aura(
+    modules=[...],
+    middleware=[
+        RequestLogInterceptor(
+            log_headers=False,            # Se True, loga os headers das requisições em DEBUG
+            generate_request_id=True,     # Se True, gera UUIDs quando X-Request-ID não for enviado
+            extract_request_id_header="x-request-id"
+        ),
+    ]
+)
+```
+
+#### 4. Sanitização Automática
+Campos confidenciais são limpos dos seus logs estruturados antes de serem exibidos ou gravados:
+
+```python
+# O dicionário extra contendo dados sensíveis será sanitizado automaticamente!
+Log.info("Requisição recebida", payload={
+    "username": "admin",
+    "password": "senhaSuperSecreta123",  # -> Reduzido para ***REDACTED***
+    "token": "bearer xyz123"             # -> Reduzido para ***REDACTED***
+})
+```
+
+#### 5. Configuração
+Personalize o comportamento do sistema de logs no seu arquivo de configurações `aura.toml` ou via variáveis de ambiente com o prefixo `AURA__LOGGING__` ou `LOG_`:
+
+```toml
+[logging]
+level = "INFO"                  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+format = "plain"                # plain ou json
+console = true                  # Exibe logs no console/stdout
+file = true                     # Grava logs em arquivo
+dir = "storage/logs"            # Diretório de gravação
+max_lines = 10000               # Limite de linhas por arquivo para rotação
+sanitize_fields = ["password", "token", "cvv", "api_key", "authorization"]
+```
+
+---
+
+## ⛓️ Interceptadores (Interceptors)
+
+> Os **Interceptadores** são uma funcionalidade extremamente poderosa do Aura inspirada no ecossistema NestJS. Eles envolvem a execução de rotas e manipuladores (handlers), permitindo que você execute lógica personalizada **antes** e **depois** do processamento de cada requisição no nível do controller.
+
+Diferente dos middlewares tradicionais do ASGI (que rodam no nível da requisição bruta HTTP), os interceptadores rodam no ciclo de vida de resolução de rotas do framework, fornecendo acesso direto a contextos de execução assíncronos.
+
+### 🌟 O que eles podem fazer?
+* ⏱️ **Métricas de Performance**: Medir tempo exato de processamento de controladores.
+* 📝 **Logs de Acesso**: Gerar auditorias estruturadas de requisições.
+* 📦 **Transformação de Respostas**: Envolver ou mutar o retorno de um endpoint.
+* 💾 **Caching**: Interceptar a requisição e retornar um valor cacheado antes do handler rodar.
+
+---
+
+### 📦 Interceptadores Prontos
+
+O Aura já vem com dois interceptadores prontos para uso em `aura.interceptors`:
+
+#### 1. `TimingInterceptor`
+Adiciona automaticamente o cabeçalho `X-Process-Time` (com precisão de microssegundos) na resposta de qualquer rota interceptada.
+
+```python
+from aura.interceptors import TimingInterceptor
+
+# Pode ser chamado e encadeado em pipelines de roteamento
+```
+
+#### 2. `RequestLogInterceptor` (ou `LoggingInterceptor`)
+Grava logs de acesso estruturados a nível de rota no logger `aura.access`. Ele captura: método, URL de acesso, status da resposta, e tempo decorrido em milissegundos (`elapsed_ms`), integrando de forma limpa as variáveis de contexto (`request_id`, `user_id`, etc.).
+
+---
+
+### 🛠️ Criando e Usando Interceptadores Personalizados
+
+Para construir seu próprio interceptador, herde da classe abstrata `Interceptor` de `aura.interceptors` e implemente o método `intercept(self, request, handler, call_next)`:
+
+```python
+import time
+from typing import Any
+from aura.interceptors import Interceptor
+
+class SimpleAuditInterceptor(Interceptor):
+    async def intercept(self, request: Any, handler: Any, call_next: Any) -> Any:
+        # 1. Executa lógica ANTES do handler rodar
+        print(f"Auditoria: Rota {request.url.path} foi chamada!")
+        
+        # 2. Chama o próximo passo (próximo interceptador ou o handler em si)
+        start_time = time.perf_counter()
+        response = await call_next(request)
+        
+        # 3. Executa lógica DEPOIS do handler rodar
+        duration = time.perf_counter() - start_time
+        print(f"Auditoria: Rota respondeu com status {response.status_code} em {duration:.4f}s")
+        
+        return response
+```
+
+Para usar o interceptador em sua rota, basta chamá-lo encadeando o protocolo de execução no pipeline desejado:
+```python
+interceptor = SimpleAuditInterceptor()
+response = await interceptor.intercept(request, handler, call_next)
+```
+
+---
+
 ## ✅ O que já está pronto
 
 ### Core
@@ -623,9 +794,20 @@ aura worker
 - [x] `aura migrate init/make/up/down/stamp/status/reset` — Alembic com UX melhorada (spinners, cores)
 - [x] `aura worker` — SAQ nativo em produção, MemoryBackend em dev
 
+### Observabilidade & Logging (AuraLogSystem v1.0)
+- [x] **Facade `Log`** — métodos estáticos convenientes (`Log.info()`, `Log.debug()`, etc.) com merging automático de contexto.
+- [x] **I/O Não-Bloqueante** — fila de logs (`QueueHandler` e `QueueListener` nativos) para evitar travar o event loop assíncrono.
+- [x] **Propagação de Contexto** — suporte automático via `contextvars` para manter `request_id`, `user_id` e dados customizados correlacionados.
+- [x] **Sanitização de Dados Sensíveis** — redação automática (ex: senhas, tokens de API, cartões) configurável.
+- [x] **Daily Rotating File Handler** — rotação diária de logs, thread-safe, com aviso de segurança multiprocesso integrado.
+- [x] **Formatadores Plain & JSON** — formato texto legível em dev, JSON estruturado ideal para datadog/loki em produção.
+- [x] **RequestLogInterceptor** — interceptor/middleware ASGI para extrair/gerar `request_id` e registrar o ciclo de vida HTTP.
+- [x] **Propagador em background** — `run_with_context` para propagar dados de log em background tasks/jobs.
+- [x] **Suíte de Testes Robusta** — cobertura abrangente de toda a infraestrutura de observabilidade com 39 testes dedicados.
+
 ### Qualidade
-- [x] 243 testes passando
-- [x] mypy strict (0 erros em 77 arquivos)
+- [x] 347 testes passando
+- [x] mypy strict (0 erros em 86 arquivos)
 - [x] ruff (0 warnings)
 - [x] GitHub Actions CI (Python 3.10 + 3.12)
 - [x] Publicado no PyPI como `aura-web`
@@ -646,7 +828,7 @@ aura worker
 ### Interceptors (v0.3.0)
 
 - [ ] **Interface `Interceptor`** — `before(context) / after(context, response)` pipeline
-- [ ] **`LoggingInterceptor`** — log de método, path, status e duração em cada request
+- [x] **`LoggingInterceptor`** — log de método, path, status e duração em cada request (implementado como `RequestLogInterceptor` em v0.3.1)
 
 ### Roadmap futuro (v0.4.0+)
 
@@ -656,7 +838,7 @@ aura worker
 - [ ] `aura generate resource <name> --crud --db`
 - [ ] Multi-tenancy (row-level e schema-level)
 - [ ] OpenTelemetry integration — traces/metrics automáticos
-- [ ] Structured logging com `structlog`
+- [x] Structured logging (AuraLogSystem v1.0 concluído)
 - [ ] Site de documentação (MkDocs + GitHub Pages)
 - [ ] Exemplos completos: `examples/todo-app`, `examples/blog`
 - [ ] Benchmarks vs FastAPI / Django / Litestar

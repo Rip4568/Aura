@@ -232,6 +232,17 @@ class Aura:
             logger.debug("Config loaded: %s", cfg.model_dump())
         except Exception:
             logger.exception("Failed to load config — using defaults")
+            cfg = AuraConfig()
+
+        # Initialize logging system
+        try:
+            from aura.logging import setup_logging
+            from aura.logging.config import LogConfig as _LogConfig
+
+            log_config = getattr(cfg, "logging", None) or _LogConfig()
+            setup_logging(log_config)
+        except Exception:
+            logger.exception("Failed to initialize logging system")
 
         # Auto-initialise the database.
         # Priority: AURA__DATABASE__URL → DATABASE__URL (set by .env via _load_dotenv)

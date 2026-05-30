@@ -273,16 +273,69 @@ async def test_scoped_cache_does_not_leak_across_containers() -> None:
 
     # Create first scope and get logger
     scope1 = container.create_scope()
-    logger1_id = id(await scope1.resolve(Logger))
-
-    # Scope 1 goes out of scope and may be garbage collected
-    del scope1
+    logger1 = await scope1.resolve(Logger)
 
     # Create second scope
     scope2 = container.create_scope()
-    logger2_id = id(await scope2.resolve(Logger))
+    logger2 = await scope2.resolve(Logger)
 
-    # IDs should be different (different instances)
-    # Note: We can't strictly guarantee they're different due to id() reuse,
-    # but we can verify the instances themselves are not cached incorrectly
-    assert logger2_id != logger1_id or True  # This test primarily checks no exception occurs
+    # Instances should be different (different scopes)
+    assert logger1 is not logger2
+
+
+@pytest.mark.asyncio
+async def test_container_startup_warms_singletons() -> None:
+    """Test that startup() eagerly instantiates singleton providers."""
+    container = DIContainer()
+    instantiation_count = 0
+
+    class CountingService:
+        def __init__(self) -> None:
+            nonlocal instantiation_count
+            instantiation_count += 1
+
+    container.register(CountingService, lifetime=Lifetime.SINGLETON)
+
+    # Before startup, nothing should be instantiated
+    assert instantiation_count == 0
+
+    # After startup, singleton should be instantiated
+    await container.startup()
+    assert instantiation_count == 1
+
+    # Resolving again should return the same instance
+    await container.resolve(CountingService)
+    assert instantiation_count == 1
+
+
+@pytest.mark.asyncio
+async def test_container_startup_continues_on_factory_error() -> None:
+    """Test that startup() continues even if a factory raises an exception."""
+
+    class FailingService:
+        def __init__(self) -> None:
+            raise RuntimeError("Factory error")
+
+    class WorkingService:
+        pass
+
+    container = DIContainer()
+    container.register(FailingService, lifetime=Lifetime.SINGLETON)
+    container.register(WorkingService, lifetime=Lifetime.SINGLETON)
+
+    # Should not raise, just log the error
+    await container.startup()
+
+    # WorkingService should still be available
+    working = await container.resolve(WorkingService)
+    assert working is not None
+
+
+@pytest.mark.asyncio
+async def test_container_shutdown_does_not_raise() -> None:
+    """Test that shutdown() completes without error."""
+    container = DIContainer()
+    container.register(Logger)
+
+    # Should not raise
+    await container.shutdown()

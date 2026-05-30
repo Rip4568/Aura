@@ -8,28 +8,60 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from aura.interceptors.base import Interceptor
+from aura.logging.context import get_current_context
 
 logger = logging.getLogger("aura.access")
 
 
-class LoggingInterceptor(Interceptor):
-    """Logs every request with method, path, status code, and elapsed time.
+class RequestLogInterceptor(Interceptor):
+    """Logs every request with method, path, status code, elapsed time, and context.
+
+    Automatically includes structured fields in JSON logs: method, path, status_code,
+    elapsed_ms, request_id, and user_id (from context variables).
 
     Output goes to the ``aura.access`` logger at INFO level.
 
-    Log format::
+    Log format (plain)::
 
         GET /users/ 200 12.3ms
 
+    Log format (JSON)::
+
+        {
+            "timestamp": "2026-05-29 10:30:45",
+            "level": "INFO",
+            "logger": "aura.access",
+            "message": "GET /users/ 200 12.3ms",
+            "method": "GET",
+            "path": "/users/",
+            "status_code": 200,
+            "elapsed_ms": 12.3,
+            "request_id": "abc123",
+            "user_id": 42
+        }
+
     Args:
-        log_headers: If ``True``, request headers are also logged at DEBUG
-                     level.
+        log_headers: If ``True``, request headers are also logged at DEBUG level.
         log_body: If ``True``, the request body is logged at DEBUG level
                   (only safe for small payloads).
 
-    Example::
+    Note:
+        This interceptor uses the :class:`Interceptor` chain protocol and is
+        **not** wired via ``Aura(middleware=...)``.  For an ASGI middleware that
+        integrates directly with ``Aura``, use
+        :class:`aura.logging.interceptor.RequestLogInterceptor` instead::
 
-        app = Aura(interceptors=[LoggingInterceptor()])
+            from starlette.middleware import Middleware
+            from aura import Aura
+            from aura.logging import RequestLogInterceptor
+
+            app = Aura(middleware=[Middleware(RequestLogInterceptor)])
+
+        To use this interceptor in a custom chain, call ``intercept()``
+        directly::
+
+            interceptor = RequestLogInterceptor()
+            response = await interceptor.intercept(request, handler, call_next)
     """
 
     def __init__(self, log_headers: bool = False, log_body: bool = False) -> None:
@@ -66,12 +98,27 @@ class LoggingInterceptor(Interceptor):
         elapsed_ms = (time.perf_counter() - start) * 1000
         status = getattr(response, "status_code", "?")
 
+        # Get context variables (request_id, user_id, etc.)
+        context = get_current_context()
+
+        # Log with structured fields for JSON parsing
         logger.info(
             "%s %s %s %.1fms",
             method,
             path,
             status,
             elapsed_ms,
+            extra={
+                "method": method,
+                "path": path,
+                "status_code": status,
+                "elapsed_ms": round(elapsed_ms, 1),
+                **context,
+            },
         )
 
         return response
+
+
+# Backward compatibility alias
+LoggingInterceptor = RequestLogInterceptor

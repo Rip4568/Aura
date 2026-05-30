@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import pytest
@@ -38,3 +39,38 @@ async def client(simple_app: Aura) -> AsyncClient:  # type: ignore[misc]
         base_url="http://testserver",
     ) as ac:
         yield ac
+
+
+@pytest.fixture(autouse=True)
+def reset_logging() -> None:
+    """Reset logging configuration before each test.
+
+    This ensures that tests are isolated and logging configuration
+    from one test doesn't affect another.
+    """
+    # Import here to avoid circular imports
+    from aura.logging.logger import Log
+
+    # Reset Log singleton
+    Log._set_instance(None)
+
+    # Reset root logger
+    root_logger = logging.getLogger()
+    original_level = root_logger.level
+    original_handlers = root_logger.handlers[:]
+
+    # Reset aura.app logger
+    aura_logger = logging.getLogger("aura.app")
+    aura_logger.handlers.clear()
+    aura_logger.setLevel(logging.NOTSET)
+
+    yield
+
+    # Cleanup after test
+    root_logger.setLevel(original_level)
+    # Remove added handlers, restore original ones
+    for handler in root_logger.handlers[:]:
+        if handler not in original_handlers:
+            root_logger.removeHandler(handler)
+    Log._set_instance(None)
+    aura_logger.handlers.clear()

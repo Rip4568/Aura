@@ -53,7 +53,7 @@ from aura.schema.base import ResponseSchema, Schema
 
 # ORM (optional — requires aura-web[sqlalchemy])
 try:
-    from aura.orm import AuraModel, DatabaseManager, Page, Repository, db
+    from aura.orm import AuraModel, DatabaseManager, Page, PkType, Repository, db
 except ImportError:
     pass
 
@@ -89,6 +89,12 @@ try:
     )
 except ImportError:
     pass  # Jinja2 not installed — templates disabled
+
+
+# Logging
+from aura.logging import Log, RequestLogInterceptor
+from aura.logging.config import LogConfig
+from aura.logging.context import set_request_id, set_user_id
 
 # Forms (optional — requires aura-web[forms] or just aura.forms)
 try:
@@ -157,10 +163,17 @@ __all__ = [
     "InternalServerException",
     # Config
     "AuraConfig",
+    # Logging
+    "Log",
+    "LogConfig",
+    "RequestLogInterceptor",
+    "set_request_id",
+    "set_user_id",
     # ORM (optional)
     "AuraModel",
     "Repository",
     "Page",
+    "PkType",
     "DatabaseManager",
     "db",
     # Response helpers

@@ -90,6 +90,74 @@ async def test_jwt_wrong_secret_returns_401(jwt_app: Aura) -> None:
     assert r.status_code == 401
 
 
+class TestJWTGuard:
+    """Tests for JWTGuard."""
+
+    @pytest.mark.asyncio
+    async def test_jwt_guard_auto_error_false_missing_token(self) -> None:
+        """Test that auto_error=False allows missing token with user=None."""
+        try:
+            from aura.guards.jwt import JWTGuard
+        except ImportError:
+            pytest.skip("python-jose not installed")
+
+        guard = JWTGuard(secret="test-secret", auto_error=False)
+
+        class TestController:
+            def __init__(self) -> None:
+                pass
+
+            @get("/optional", guards=[guard])
+            async def optional(self, request: Request) -> dict:  # type: ignore[type-arg]
+                user = getattr(request.state, "user", "NOT_SET")
+                return {"user": user}
+
+        @Module(controllers=[TestController], prefix="")
+        class TestModule:
+            pass
+
+        app = Aura(modules=[TestModule])
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as c:
+            r = await c.get("/optional")
+            assert r.status_code == 200
+            assert r.json()["user"] is None
+
+    @pytest.mark.asyncio
+    async def test_jwt_guard_auto_error_false_invalid_token(self) -> None:
+        """Test that auto_error=False allows invalid token with user=None."""
+        try:
+            from aura.guards.jwt import JWTGuard
+        except ImportError:
+            pytest.skip("python-jose not installed")
+
+        guard = JWTGuard(secret="test-secret", auto_error=False)
+
+        class TestController:
+            def __init__(self) -> None:
+                pass
+
+            @get("/optional", guards=[guard])
+            async def optional(self, request: Request) -> dict:  # type: ignore[type-arg]
+                user = getattr(request.state, "user", "NOT_SET")
+                return {"user": user}
+
+        @Module(controllers=[TestController], prefix="")
+        class TestModule:
+            pass
+
+        app = Aura(modules=[TestModule])
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as c:
+            r = await c.get("/optional", headers={"Authorization": "Bearer invalid.token"})
+            assert r.status_code == 200
+            assert r.json()["user"] is None
+
+
 # ---------------------------------------------------------------------------
 # RateLimitGuard fixtures & tests
 # ---------------------------------------------------------------------------
@@ -147,6 +215,122 @@ async def test_rate_limit_only_on_guarded_route(rate_limit_app: Aura) -> None:
         for _ in range(10):
             r = await c.get("/unlimited")
             assert r.status_code == 200
+
+
+class TestRateLimitGuard:
+    """Tests for RateLimitGuard."""
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_guard_isolates_by_custom_key_func(self) -> None:
+        """Test that RateLimitGuard respects custom key_func for isolation."""
+        # Create two guards with different key functions
+        limit_a = RateLimitGuard(
+            max_requests=2,
+            window_seconds=60,
+            key_func=lambda r: "user-a"
+        )
+        limit_b = RateLimitGuard(
+            max_requests=2,
+            window_seconds=60,
+            key_func=lambda r: "user-b"
+        )
+
+        class TestController:
+            def __init__(self) -> None:
+                pass
+
+            @get("/a", guards=[limit_a])
+            async def route_a(self) -> dict:  # type: ignore[type-arg]
+                return {"ok": True}
+
+            @get("/b", guards=[limit_b])
+            async def route_b(self) -> dict:  # type: ignore[type-arg]
+                return {"ok": True}
+
+        @Module(controllers=[TestController], prefix="")
+        class TestModule:
+            pass
+
+        app = Aura(modules=[TestModule])
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as c:
+            # User A should get 2 requests
+            for _ in range(2):
+                r = await c.get("/a")
+                assert r.status_code == 200
+            r = await c.get("/a")
+            assert r.status_code == 429
+
+            # User B should get 2 requests independently
+            for _ in range(2):
+                r = await c.get("/b")
+                assert r.status_code == 200
+            r = await c.get("/b")
+            assert r.status_code == 429
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_guard_respects_key_func(self) -> None:
+        """Test that RateLimitGuard uses custom key_func."""
+        limit = RateLimitGuard(
+            max_requests=2,
+            window_seconds=60,
+            key_func=lambda r: "custom-key"
+        )
+
+        class TestController:
+            def __init__(self) -> None:
+                pass
+
+            @get("/limited", guards=[limit])
+            async def limited(self) -> dict:  # type: ignore[type-arg]
+                return {"ok": True}
+
+        @Module(controllers=[TestController], prefix="")
+        class TestModule:
+            pass
+
+        app = Aura(modules=[TestModule])
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as c:
+            r1 = await c.get("/limited")
+            assert r1.status_code == 200
+            r2 = await c.get("/limited")
+            assert r2.status_code == 200
+            r3 = await c.get("/limited")
+            assert r3.status_code == 429
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_guard_uses_x_forwarded_for_header(self) -> None:
+        """Test that RateLimitGuard falls back to X-Forwarded-For header."""
+        limit = RateLimitGuard(max_requests=1, window_seconds=60)
+
+        class TestController:
+            def __init__(self) -> None:
+                pass
+
+            @get("/limited", guards=[limit])
+            async def limited(self) -> dict:  # type: ignore[type-arg]
+                return {"ok": True}
+
+        @Module(controllers=[TestController], prefix="")
+        class TestModule:
+            pass
+
+        app = Aura(modules=[TestModule])
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as c:
+            # First request succeeds
+            r1 = await c.get("/limited", headers={"X-Forwarded-For": "192.168.1.100"})
+            assert r1.status_code == 200
+            # Second request from same IP (via X-Forwarded-For) is blocked
+            r2 = await c.get("/limited", headers={"X-Forwarded-For": "192.168.1.100"})
+            assert r2.status_code == 429
 
 
 # ---------------------------------------------------------------------------

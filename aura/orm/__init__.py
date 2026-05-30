@@ -3,15 +3,16 @@
 try:
     from aura.orm.aggregates import Avg, Count, Max, Min, Sum
     from aura.orm.base import AuraModel
+    from aura.orm.repository import Page, PkType, Repository
     from aura.orm.expressions import Q
     from aura.orm.query import MultipleObjectsReturnedException, QuerySet
-    from aura.orm.repository import Page, Repository
     from aura.orm.session import DatabaseManager, db
 
     __all__ = [
         "AuraModel",
         "Repository",
         "Page",
+        "PkType",
         "DatabaseManager",
         "db",
         "QuerySet",
