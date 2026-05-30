@@ -212,11 +212,10 @@ class Aura:
         # Automatically append DatabaseMiddleware if SQLAlchemy is available
         # and database is configured
         try:
-            import os
-
             from aura.orm.middleware import DatabaseMiddleware
 
-            db_url = os.environ.get("AURA__DATABASE__URL") or os.environ.get("DATABASE__URL")
+            cfg = self._config_class()
+            db_url = cfg.database.url
             if db_url:
                 result.append(Middleware(DatabaseMiddleware))
                 logger.debug(
@@ -266,8 +265,12 @@ class Aura:
             logger.exception("Failed to initialize logging system")
 
         # Auto-initialise the database.
-        # Priority: AURA__DATABASE__URL → DATABASE__URL (set by .env via _load_dotenv)
-        _db_url = os.environ.get("AURA__DATABASE__URL") or os.environ.get("DATABASE__URL")
+        try:
+            cfg = self.container.resolve(self._config_class)
+            _db_url = cfg.database.url
+        except Exception:
+            _db_url = os.environ.get("AURA__DATABASE__URL") or os.environ.get("DATABASE__URL")
+
         if _db_url:
             try:
                 from aura.orm.session import db as _db

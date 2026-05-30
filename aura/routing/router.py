@@ -238,6 +238,17 @@ class Router:
                 handler.__func__.__aura_binding_plan__ = binding_plan
             
             response_schema = meta.get("response")
+            if response_schema is None:
+                try:
+                    import typing
+                    sig_func = getattr(handler, "__func__", handler)
+                    hints = typing.get_type_hints(sig_func)
+                    return_type = hints.get("return")
+                    if return_type is not None:
+                        response_schema = return_type
+                except Exception:
+                    pass
+
             if response_schema is not None:
                 try:
                     from pydantic import TypeAdapter
@@ -927,14 +938,24 @@ def _coerce(value: str, target_type: Any) -> Any:
 
 
 def _serialize(obj: Any) -> Any:
+    import datetime
+    import decimal
+    import uuid
+
     if hasattr(obj, "model_dump"):
         return obj.model_dump(mode="json")
     if hasattr(obj, "to_dict"):
-        return obj.to_dict()
+        return _serialize(obj.to_dict())
     if isinstance(obj, list):
         return [_serialize(x) for x in obj]
     if isinstance(obj, dict):
         return {k: _serialize(v) for k, v in obj.items()}
+    if isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
+        return obj.isoformat()
+    if isinstance(obj, decimal.Decimal):
+        return float(obj)
+    if isinstance(obj, uuid.UUID):
+        return str(obj)
     return obj
 
 

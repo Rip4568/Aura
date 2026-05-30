@@ -41,11 +41,17 @@ Run:
     aura run --reload        # with hot-reload
     aura run --workers 4     # production-like
 """
-from aura import Aura
+from aura import Aura, QueryCountMiddleware
+from starlette.middleware import Middleware
+from aura.logging import RequestLogInterceptor
 from modules.users.module import UsersModule
 
 app = Aura(
     modules=[UsersModule],
+    middleware=[
+        Middleware(RequestLogInterceptor),
+        Middleware(QueryCountMiddleware),
+    ],
     title="{project_name}",
     version="0.1.0",
     description="Built with Aura Framework",
@@ -310,7 +316,7 @@ def _users_service() -> str:
 from __future__ import annotations
 
 from aura import injectable, NotFoundException, ConflictException, Log
-from .schemas import CreateUserDTO, UpdateUserDTO, UserResponse
+from .models import User
 from .repositories import UserRepository
 
 
@@ -321,31 +327,28 @@ class UserService:
     def __init__(self, user_repository: UserRepository) -> None:
         self.user_repository = user_repository
 
-    async def list_users(self) -> list[UserResponse]:
+    async def list_users(self) -> list[User]:
         Log.info("Fetching all users from database")
-        rows = await self.user_repository.list()
-        return [UserResponse(id=r.id, name=r.name, email=r.email) for r in rows]
+        return await self.user_repository.list()
 
-    async def get_user(self, user_id: int) -> UserResponse:
+    async def get_user(self, user_id: int) -> User:
         Log.info("Fetching user", user_id=user_id)
         user = await self.user_repository.get(user_id)
         if user is None:
             raise NotFoundException(f"User {user_id} not found")
-        return UserResponse(id=user.id, name=user.name, email=user.email)
+        return user
 
-    async def create_user(self, data: CreateUserDTO) -> UserResponse:
+    async def create_user(self, data: CreateUserDTO) -> User:
         Log.info("Creating user in database", email=data.email)
         existing = await self.user_repository.first(email=data.email)
         if existing is not None:
             raise ConflictException(f"Email '{data.email}' already in use")
-        user = await self.user_repository.create(**data.model_dump())
-        return UserResponse(id=user.id, name=user.name, email=user.email)
+        return await self.user_repository.create(**data.model_dump())
 
-    async def update_user(self, user_id: int, data: UpdateUserDTO) -> UserResponse:
+    async def update_user(self, user_id: int, data: UpdateUserDTO) -> User:
         Log.info("Updating user in database", user_id=user_id)
         await self.get_user(user_id)
-        user = await self.user_repository.update(user_id, **data.model_dump(exclude_none=True))
-        return UserResponse(id=user.id, name=user.name, email=user.email)
+        return await self.user_repository.update(user_id, **data.model_dump(exclude_none=True))
 
     async def delete_user(self, user_id: int) -> None:
         Log.info("Deleting user from database", user_id=user_id)
@@ -377,9 +380,28 @@ class UsersController:
 
     @get("/")
     async def list_users(self) -> list[UserResponse]:
-        """List all users."""
+        """List all users.
+        
+        Zero manual mapping boilerplate: returning User ORM model objects directly
+        from the service is automatically mapped to UserResponse list DTOs!
+        """
         Log.info("HTTP request to list users")
         return await self.service.list_users()
+
+
+
+    @get("/interceptor")
+    async def check_interceptor(self) -> dict:
+        """Route demonstrating request log interception.
+        
+        This route shows how RequestLogInterceptor automatically captures
+        incoming HTTP requests, extracts/generates unique request IDs, and
+        associates them with logging contexts. Check your terminal logs!
+        """
+        return {
+            "message": "Request log interceptor is active. Check terminal console output for structured logging and request IDs!",
+            "interceptor": "RequestLogInterceptor"
+        }
 
     @get("/{user_id}")
     async def get_user(
@@ -573,6 +595,7 @@ def _build_files(project_name: str) -> dict[str, str]:
         "main.py":                        _main_py(project_name, snake),
         "aura.toml":                      _aura_toml(project_name, snake),
         "pyproject.toml":                 _pyproject_toml(project_name),
+        ".env":                           _env_example(),
         ".env.example":                   _env_example(),
         "README.md":                      _readme(project_name),
         ".gitignore":                     _gitignore(),

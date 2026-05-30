@@ -53,7 +53,7 @@ from aura.schema.base import ResponseSchema, Schema
 
 # ORM (optional — requires aura-web[sqlalchemy])
 try:
-    from aura.orm import AuraModel, DatabaseManager, Page, PkType, Repository, db
+    from aura.orm import AuraModel, DatabaseManager, Page, PkType, Repository, db, track_queries
 except ImportError:
     pass
 
@@ -71,6 +71,8 @@ try:
     from aura.middleware.session import SessionMiddleware
 except ImportError:
     pass
+
+from aura.middleware.query_count import QueryCountMiddleware
 
 # Templates (optional — requires aura-web[templates])
 try:
@@ -152,6 +154,7 @@ __all__ = [
     "RateLimitGuard",
     "JWTGuard",
     "SessionMiddleware",
+    "QueryCountMiddleware",
     # Exceptions
     "HTTPException",
     "BadRequestException",
@@ -176,6 +179,7 @@ __all__ = [
     "PkType",
     "DatabaseManager",
     "db",
+    "track_queries",
     # Response helpers
     "AuraResponse",
     "ok",

@@ -679,6 +679,54 @@ sanitize_fields = ["password", "token", "cvv", "api_key", "authorization"]
 
 ---
 
+## 📊 Perfilamento de Consultas & Observabilidade de Banco de Dados
+
+O Aura possui ferramentas nativas integradas ao core para auditar, mensurar e otimizar todas as queries SQL executadas contra o banco de dados, auxiliando a detectar problemas clássicos como consultas N+1 de forma automática.
+
+### 🌟 Principais Recursos
+
+- ⏱️ **QueryCountMiddleware**: Middleware ASGI global que intercepta requisições HTTP, contabiliza queries e calcula o tempo total de latência, retornando automaticamente os headers de resposta em desenvolvimento:
+  - `X-Query-Count`: Número de queries executadas no request.
+  - `X-Query-Time-Ms`: Latência acumulada das consultas em milissegundos.
+  - `X-Query-N1-Risk`: Avisos sobre detecções de queries redundantes ou N+1.
+- 🎯 **@track_queries**: Decorador assíncrono para funções de serviço ou controllers que monitora e emite warnings automáticos sobre queries lentas, contagens acima do limite ou duplicações SQL.
+- 🔄 **Auto-conversão de ORM e DTOs (Zero Boilerplate)**: O roteador do Aura inspeciona automaticamente as assinaturas de tipo de retorno das funções dos seus controladores (ex: `list[UserResponse]`). Quando ativado, ele valida e converte objetos SQLAlchemy ou listas de modelos de banco de dados diretamente em DTOs Pydantic nativos, eliminando a necessidade de mapeamentos manuais e tratando tipos complexos (como `datetime`, `Decimal` e `UUID`) automaticamente.
+
+---
+
+### 💻 Como usar
+
+#### 1. Ativando o Middleware Global
+Adicione o `QueryCountMiddleware` ao inicializar seu app para que todas as rotas passem a incluir headers de observabilidade automaticamente em modo debug:
+
+```python
+from aura import Aura, QueryCountMiddleware
+from starlette.middleware import Middleware
+from modules.users.module import UsersModule
+
+app = Aura(
+    modules=[UsersModule],
+    middleware=[
+        Middleware(QueryCountMiddleware),
+    ],
+)
+```
+
+#### 2. Decorador `@track_queries`
+Monitore uma função assíncrona específica emitindo alertas se ela passar de um limite pré-determinado de queries:
+
+```python
+from aura import track_queries
+
+@track_queries(threshold=5)
+async def list_users(self):
+    # Roda as queries SQL do banco de dados
+    # Se o total de queries passar de 5, emite um warning de performance no terminal!
+    return await self.user_repository.list()
+```
+
+---
+
 ## ⛓️ Interceptadores (Interceptors)
 
 > Os **Interceptadores** são uma funcionalidade extremamente poderosa do Aura inspirada no ecossistema NestJS. Eles envolvem a execução de rotas e manipuladores (handlers), permitindo que você execute lógica personalizada **antes** e **depois** do processamento de cada requisição no nível do controller.
