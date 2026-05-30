@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextvars
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Any, TypeVar
@@ -14,6 +15,10 @@ from sqlalchemy.ext.asyncio import (
 )
 
 T = TypeVar("T")
+
+current_session: contextvars.ContextVar[AsyncSession | None] = contextvars.ContextVar(
+    "current_session", default=None
+)
 
 
 class DatabaseManager:

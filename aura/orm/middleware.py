@@ -48,9 +48,17 @@ class DatabaseMiddleware:
             # Store in local state for backwards compatibility
             scope.setdefault("state", {})["db_session"] = session
 
-            if scoped_container is not None:
-                # Dynamically register request's active session inside scoped sub-container
-                scoped_container.register_instance(AsyncSession, session)
-                logger.debug("Registered request-scoped AsyncSession in DI container.")
+            # Option C: Set the active session in the ContextVar for singleton repositories
+            from aura.orm.session import current_session
+            token = current_session.set(session)
 
-            await self.app(scope, receive, send)
+            try:
+                if scoped_container is not None:
+                    # Dynamically register request's active session inside scoped sub-container
+                    scoped_container.register_instance(AsyncSession, session)
+                    logger.debug("Registered request-scoped AsyncSession in DI container.")
+
+                await self.app(scope, receive, send)
+            finally:
+                # Always reset context variable to prevent leakage
+                current_session.reset(token)

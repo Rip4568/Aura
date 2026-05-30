@@ -95,15 +95,7 @@ class ModuleRegistry:
         if meta:
             lifetime = meta["lifetime"]
         else:
-            # Proactively register subclasses of Repository as SCOPED
-            try:
-                from aura.orm.repository import Repository
-                if issubclass(provider_class, Repository):
-                    lifetime = Lifetime.SCOPED
-                else:
-                    lifetime = Lifetime.SINGLETON
-            except (ImportError, TypeError):
-                lifetime = Lifetime.SINGLETON
+            lifetime = Lifetime.SINGLETON
 
         self.container.register(provider_class, lifetime=lifetime)
         logger.debug(

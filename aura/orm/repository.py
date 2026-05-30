@@ -90,38 +90,72 @@ class Repository(Generic[ModelT]):
         class UserRepository(Repository[User]):
             model = User
 
-    The session is **not** injected by the DI container — you must
-    obtain one from :data:`~aura.orm.database.db` and pass it
-    explicitly.  The recommended pattern inside a service is::
+    The repository supports two powerful, boilerplate-free injection paradigms:
 
-        from aura.orm.database import db
+    1. **Dynamic Context Propagation (Default / Recommended)**:
+       When registered as a ``Lifetime.SINGLETON`` (the default), the repository
+       dynamically resolves the active request's transactional session from the
+       context-local async environment (via ``ContextVar``). This allows you to
+       use simple, clean constructor-based injection without manual sessions:
 
-        @injectable
-        class UserService:
-            async def find(self, user_id: int) -> User:
-                async with db.session() as session:
-                    return await UserRepository(session).get_or_raise(user_id)
+       .. code-block:: python
 
-            async def list_active(self) -> list[User]:
-                async with db.session() as session:
-                    return await UserRepository(session).list(active=True)
+           @injectable
+           class UserRepository(Repository[User]):
+               model = User
 
-    The ``async with db.session()`` block automatically commits on
-    success and rolls back on any exception.
+           @injectable
+           class UserService:
+               def __init__(self, repo: UserRepository) -> None:
+                   self.repo = repo  # Injetado como Singleton pelo container
 
-    .. note::
+               async def find(self, user_id: int) -> User:
+                   # Pura lógica de negócios! A transação é gerenciada
+                   # automaticamente pelo DatabaseMiddleware.
+                   return await self.repo.get_or_raise(user_id)
 
-        Constructor-based ``AsyncSession`` injection
-        (``def __init__(self, session: AsyncSession)``) requires a
-        request-scoped DI container that is not yet implemented.
-        Track progress at
-        https://github.com/jonathasdavidd/Aura/issues.
+    2. **Request-Scoped Constructor Injection**:
+       If you prefer to have the database session injected directly into your constructor
+       by the DI container, you can register the repository (and service) as ``Lifetime.SCOPED``.
+       The request's scoped container will automatically inject the active ``AsyncSession``:
+
+       .. code-block:: python
+
+           @injectable(lifetime=Lifetime.SCOPED)
+           class UserRepository(Repository[User]):
+               model = User
+               def __init__(self, session: AsyncSession) -> None:
+                   super().__init__(session)
+
+    For running commands, scripts, or background workers outside the HTTP lifecycle,
+    manually manage the session boundary using ``db.session()``::
+
+        async with db.session() as session:
+            # Passa a sessão isolada para o construtor do repositório
+            repo = UserRepository(session)
+            await repo.create(title="CLI Task", active=True)
     """
 
     model: type[ModelT]
 
-    def __init__(self, session: AsyncSession) -> None:
-        self.session = session
+    def __init__(self, session: AsyncSession | None = None) -> None:
+        self._session = session
+
+    @property
+    def session(self) -> AsyncSession:
+        if self._session is not None:
+            return self._session
+
+        from aura.orm.session import current_session
+        sess = current_session.get()
+        if sess is None:
+            raise RuntimeError(
+                "Repository: No active database session found in current context "
+                f"for '{self.__class__.__name__}'. "
+                "Ensure DatabaseMiddleware is active in your application, or pass a session "
+                "explicitly to the constructor: UserRepository(session)."
+            )
+        return sess
 
     async def get(self, id: PkType) -> ModelT | None:
         """Fetch a single record by primary key.

@@ -146,40 +146,37 @@ from .schemas import CreatePostDTO, UpdatePostDTO
 
 @injectable
 class PostService:
+    def __init__(self, post_repository: PostRepository) -> None:
+        self.repo = post_repository  # Injetado como Singleton pelo container na inicialização
+
     async def list_posts(self, page: int = 1) -> Page[Post]:
-        async with db.session() as session:
-            # Retorna a página contendo objetos ORM diretamente
-            return await PostRepository(session).paginate(
-                page=page, per_page=20, order_by="created_at"
-            )
+        # A sessão ativa do request HTTP é resolvida de forma transparente
+        return await self.repo.paginate(
+            page=page, per_page=20, order_by="created_at"
+        )
 
     async def get_post(self, post_id: int) -> Post:
-        async with db.session() as session:
-            # Retorna o objeto ORM diretamente
-            return await PostRepository(session).get_or_raise(post_id)
+        return await self.repo.get_or_raise(post_id)
 
     async def create_post(self, data: CreatePostDTO) -> Post:
-        async with db.session() as session:
-            # Retorna o objeto ORM criado diretamente
-            return await PostRepository(session).create(**data.model_dump())
+        return await self.repo.create(**data.model_dump())
 
     async def transfer_posts(self, from_id: int, to_id: int) -> None:
         """Garante atomicidade (Tudo ou Nada).
         
-        Abre uma transação única para múltiplos updates. Se qualquer alteração falhar,
-        toda a transação sofre rollback automático garantindo a integridade dos dados.
+        As operações executadas dentro da mesma requisição HTTP compartilham a transação principal
+        gerenciada automaticamente pelo DatabaseMiddleware. Em caso de falha ou erro, o
+        middleware executa o rollback completo garantindo a integridade transacional.
         """
-        async with db.transaction() as session:
-            repo = PostRepository(session)
-            await repo.update(from_id, published=False)
-            await repo.update(to_id, published=True)
+        await self.repo.update(from_id, published=False)
+        await self.repo.update(to_id, published=True)
 
     async def get_dashboard_data(self) -> dict:
         """Busca concorrente em paralelo (equivalente a Promise.all do NodeJS).
         
         O SQLAlchemy impede a execução de múltiplas queries concorrentes usando a MESMA session.
         Para resolver isso, o Aura fornece o helper `db.parallel` que abre sessões
-        independentes e gerencia a execução paralela concorrente através do pool de conexões.
+        independentes e gerencia a execução paralela concorrente de forma isolada e segura.
         """
         recent_posts, total_count = await db.parallel(
             lambda s: PostRepository(s).list(limit=5, order_by="created_at"),
@@ -761,6 +758,7 @@ response = await interceptor.intercept(request, handler, call_next)
 - [x] Injeção automática de `AuraRequest` por type hint (sem marcador)
 - [x] `@Module` com `providers`, `controllers`, `imports`, `exports`, `prefix`, `tags`, `guards`
 - [x] `DIContainer` com lifetimes SINGLETON, SCOPED, TRANSIENT
+- [x] Scoped container por request HTTP/WS e transações implícitas via ContextVar (sem boilerplate manual)
 - [x] `@injectable` (com e sem parênteses)
 - [x] `Schema` e `ResponseSchema` (Pydantic v2)
 - [x] Hierarquia completa de `HTTPException` (400–504)
@@ -863,7 +861,7 @@ response = await interceptor.intercept(request, handler, call_next)
 
 ### DI Container (v0.3.0)
 
-- [ ] **Scoped container por request HTTP** — middleware que cria scope e injeta `AsyncSession` automaticamente via `request.state.container`; habilita `def __init__(self, session: AsyncSession)` sem `async with db.session()` manual
+- [x] **Scoped container por request HTTP/WS** — resolvido com sucesso! Injeção automática de `AsyncSession` e propagação dinâmica via `current_session` ContextVar.
 
 ### Interceptors (v0.3.0)
 
