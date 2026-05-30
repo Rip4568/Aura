@@ -209,6 +209,22 @@ class Aura:
         from aura.middleware.di import DIRequestScopeMiddleware
         result.append(Middleware(DIRequestScopeMiddleware))
 
+        # Automatically append DatabaseMiddleware if SQLAlchemy is available
+        # and database is configured
+        try:
+            import os
+
+            from aura.orm.middleware import DatabaseMiddleware
+
+            db_url = os.environ.get("AURA__DATABASE__URL") or os.environ.get("DATABASE__URL")
+            if db_url:
+                result.append(Middleware(DatabaseMiddleware))
+                logger.debug(
+                    "DatabaseMiddleware automatically registered via environment configuration"
+                )
+        except ImportError:
+            pass
+
         for mw in self._global_middleware:
             if isinstance(mw, Middleware):
                 result.append(mw)
