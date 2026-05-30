@@ -390,8 +390,100 @@ class TestTransaction:
                 await repo.create(title="Should Not Exist", price=9.0)
                 raise ValueError("intentional rollback")
 
-        # verify nothing was persisted
         async with db_manager.session() as session:
             repo = ItemRepository(session)
             items = await repo.list()
         assert len(items) == 0
+
+
+# ---------------------------------------------------------------------------
+# DatabaseMiddleware & Scoped DI
+# ---------------------------------------------------------------------------
+
+class ScopedService:
+    pass
+
+class SingletonService:
+    def __init__(self, scoped: ScopedService) -> None:
+        self.scoped = scoped
+
+
+class TestDatabaseMiddleware:
+    """Tests for the DatabaseMiddleware transaction lifecycle and scoped DI."""
+
+    async def test_middleware_transaction_lifecycle_success(
+        self,
+        db_manager: DatabaseManager,
+    ) -> None:
+        """Test that DatabaseMiddleware commits on successful requests."""
+        from sqlalchemy.ext.asyncio import AsyncSession
+        from starlette.types import Receive, Scope, Send
+
+        from aura.di.container import DIContainer
+        from aura.middleware.di import DIRequestScopeMiddleware
+        from aura.orm.middleware import DatabaseMiddleware
+        from aura.orm.session import db
+
+        # Initialize the global db so that DatabaseMiddleware doesn't bypass it
+        db.init("sqlite+aiosqlite:///:memory:", echo=False)
+        await db.create_all(AuraModel)
+
+        try:
+            # 1. Setup app and container
+            container = DIContainer()
+            class MockApp:
+                class State:
+                    pass
+                state = State()
+            mock_app = MockApp()
+            mock_app.state.container = container
+
+            # 2. Mock handler and middleware chain
+            async def mock_endpoint(scope: Scope, receive: Receive, send: Send) -> None:
+                # Inside the request scope, resolve the session from the container
+                scoped_container = scope["state"]["container"]
+                session = await scoped_container.resolve(AsyncSession)
+                assert session is not None
+                repo = ItemRepository(session)
+                await repo.create(title="Auto Persisted", price=42.0)
+
+            # Build middleware chain: DI scoping -> DB session -> Endpoint
+            db_mw = DatabaseMiddleware(mock_endpoint)
+            di_mw = DIRequestScopeMiddleware(db_mw)
+
+            # 3. Trigger simulated ASGI request
+            scope: Scope = {
+                "type": "http",
+                "app": mock_app,
+                "method": "POST",
+                "path": "/test",
+                "state": {},
+            }
+            async def dummy_receive() -> dict: return {}
+            async def dummy_send(event: dict) -> None: pass
+
+            # Run the request
+            await di_mw(scope, dummy_receive, dummy_send)
+
+            # 4. Verify in a separate session that transaction committed successfully
+            async with db.session() as s:
+                repo = ItemRepository(s)
+                items = await repo.list()
+            assert len(items) == 1
+            assert items[0].price == 42.0
+        finally:
+            await db.close()
+
+    async def test_captive_dependency_protection(self) -> None:
+        """Test captive dependency protection error."""
+        from aura.di.container import DIContainer, Lifetime
+
+        container = DIContainer()
+        container.register(ScopedService, lifetime=Lifetime.SCOPED)
+        container.register(SingletonService, lifetime=Lifetime.SINGLETON)
+
+        # Resolving the SingletonService should raise a captive dependency error
+        with pytest.raises(RuntimeError, match="Captive dependency detected"):
+            await container.resolve(SingletonService)
+
+

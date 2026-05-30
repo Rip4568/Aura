@@ -204,6 +204,11 @@ class Aura:
             List of :class:`~starlette.middleware.Middleware` descriptors.
         """
         result: list[Middleware] = []
+
+        # Automatically prepend request DI container scoping middleware
+        from aura.middleware.di import DIRequestScopeMiddleware
+        result.append(Middleware(DIRequestScopeMiddleware))
+
         for mw in self._global_middleware:
             if isinstance(mw, Middleware):
                 result.append(mw)

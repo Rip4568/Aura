@@ -275,14 +275,17 @@ def _users_service() -> str:
 """UserService — business logic layer.
 
 Uses an in-memory store so the app works immediately without a database.
-To switch to a database, replace _store with a Repository:
+To switch to a database, register UserRepository in UsersModule providers,
+and inject it directly:
 
-    from aura import db
     from .repositories import UserRepository
 
-    async def list_users(self) -> list[UserResponse]:
-        async with db.session() as session:
-            rows = await UserRepository(session).list()
+    class UserService:
+        def __init__(self, repo: UserRepository) -> None:
+            self.repo = repo
+
+        async def list_users(self) -> list[UserResponse]:
+            rows = await self.repo.list()
             return [UserResponse.model_validate(r.to_dict()) for r in rows]
 """
 from __future__ import annotations

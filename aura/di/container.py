@@ -93,7 +93,7 @@ class DIContainer:
             lifetime: How long the created instance should live.
         """
         impl = implementation or service_type
-        factory = self._make_factory(impl)
+        factory = self._make_factory(impl, lifetime=lifetime)
         self._set_provider(service_type, factory, lifetime)
         logger.debug(
             "Registered %s as %s (%s)", _type_name(impl), _type_name(service_type), lifetime
@@ -252,22 +252,28 @@ class DIContainer:
             provider = TransientProvider(factory)
         self._providers[service_type] = provider
 
-    def _make_factory(self, impl: type) -> Callable[[], Any]:
+    def _make_factory(
+        self, impl: type, lifetime: Lifetime = Lifetime.SINGLETON
+    ) -> Callable[..., Any]:
         """Build an async factory that auto-resolves constructor dependencies.
 
         Args:
             impl: The concrete class to instantiate.
+            lifetime: The Lifetime of the registered service.
 
         Returns:
-            An async zero-argument callable that resolves all constructor
+            An async callable that resolves all constructor
             dependencies and returns a new *impl* instance.
         """
         container_ref = self
 
-        async def factory() -> Any:
+        async def factory(container: DIContainer | None = None) -> Any:
             kwargs: dict[str, Any] = {}
             hints = _get_init_type_hints(impl)
             sig = inspect.signature(impl)
+
+            # Retrieve active container resolving context
+            active_c = container or container_ref
 
             for param_name, param_type in hints.items():
                 if param_name == "return":
@@ -278,8 +284,25 @@ class DIContainer:
                 param_obj = sig.parameters.get(param_name)
                 has_default = param_obj and param_obj.default is not inspect.Parameter.empty
 
+                # Captive dependency check:
+                # If impl is SINGLETON but the parameter is registered as SCOPED, raise error
+                dep_provider = container_ref._providers.get(param_type)
+                if dep_provider is not None and lifetime == Lifetime.SINGLETON:
+                    from aura.di.providers import ScopedProvider
+                    if isinstance(dep_provider, ScopedProvider):
+                        raise RuntimeError(
+                            f"DIContainer: Captive dependency detected! "
+                            f"Singleton '{_type_name(impl)}' depends on "
+                            f"Scoped service '{_type_name(param_type)}'. "
+                            f"This will cause the request-scoped instance "
+                            f"to be captured by the singleton, causing "
+                            f"database transaction leakage. Please decorate "
+                            f"'{_type_name(impl)}' with "
+                            f"@injectable(lifetime=Lifetime.SCOPED)."
+                        )
+
                 # Try to resolve the dependency
-                dep = await container_ref.resolve_optional(param_type)
+                dep = await active_c.resolve_optional(param_type)
 
                 if dep is not None:
                     kwargs[param_name] = dep

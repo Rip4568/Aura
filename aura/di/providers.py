@@ -121,16 +121,23 @@ class ScopedProvider(Provider[T]):
 
 
 async def _call(factory: Callable[..., Any], container: Any) -> Any:
-    """Invoke *factory* with zero arguments, awaiting it if it is a coroutine.
+    """Invoke *factory*, passing the container if it accepts parameters.
 
     Args:
         factory: Callable to invoke.
-        container: The container (not currently forwarded to bare factories).
+        container: The active DIContainer.
 
     Returns:
-        The result of calling *factory*.
+        The resolved instance.
     """
-    result = factory()
+    import inspect
+
+    sig = inspect.signature(factory)
+    if len(sig.parameters) > 0:
+        result = factory(container)
+    else:
+        result = factory()
+
     if asyncio.iscoroutine(result):
         return await result
     return result

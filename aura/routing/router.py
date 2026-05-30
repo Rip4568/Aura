@@ -334,17 +334,18 @@ async def _run_guards(guards: list[Any], request: Any) -> None:
 
 async def _resolve_handler_instance(
     handler: Callable[..., Any],
-    app_state: Any,
+    connection: Any,
 ) -> Callable[..., Any]:
     """Resolve handler instance if it's a controller method via DI.
 
     If handler is a class method (has __aura_controller_class__),
-    resolve the controller instance via the DI container and return
-    the bound method. Otherwise, return the handler as-is.
+    resolve the controller instance via the DI container (request scope if
+    available, fallback to global) and return the bound method. Otherwise,
+    return the handler as-is.
 
     Args:
         handler: The original handler function or method.
-        app_state: The Starlette app state object.
+        connection: The Starlette Request or WebSocket object.
 
     Returns:
         The handler (possibly bound to a resolved controller instance).
@@ -353,7 +354,15 @@ async def _resolve_handler_instance(
     if cls is None:
         return handler
 
-    container = getattr(app_state, "container", None)
+    # 1. Retrieve the request-scoped container from connection state
+    container = getattr(getattr(connection, "state", None), "container", None)
+
+    # 2. Fallback to global application container
+    if container is None:
+        app = getattr(connection, "app", None)
+        if app is not None:
+            container = getattr(app.state, "container", None)
+
     if container is not None:
         controller_instance = await container.resolve(cls)
     else:
@@ -388,7 +397,7 @@ def _wrap_http_handler(
             await _run_guards(guards, request)
 
             # Resolve handler instance via DI (F-07)
-            actual_handler = await _resolve_handler_instance(handler, request.app.state)
+            actual_handler = await _resolve_handler_instance(handler, request)
 
             # Resolve handler parameters
             kwargs = await _resolve_params(actual_handler, request)
@@ -448,7 +457,7 @@ def _wrap_html_handler(
             await _run_guards(guards, request)
 
             # Resolve handler instance via DI (F-07)
-            actual_handler = await _resolve_handler_instance(handler, request.app.state)
+            actual_handler = await _resolve_handler_instance(handler, request)
 
             kwargs = await _resolve_params(actual_handler, request)
 
@@ -488,7 +497,7 @@ def _wrap_sse_handler(
             await _run_guards(guards, request)
 
             # Resolve handler instance via DI (F-07)
-            actual_handler = await _resolve_handler_instance(handler, request.app.state)
+            actual_handler = await _resolve_handler_instance(handler, request)
 
             kwargs = await _resolve_params(actual_handler, request)
 
@@ -737,7 +746,7 @@ def _wrap_ws_handler(
             return
 
         # Resolve handler instance via DI (F-07)
-        actual_handler = await _resolve_handler_instance(handler, websocket.app.state)
+        actual_handler = await _resolve_handler_instance(handler, websocket)
 
         result = actual_handler(websocket)
         if inspect.iscoroutine(result):

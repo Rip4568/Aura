@@ -75,7 +75,7 @@ class ModuleRegistry:
         from aura.di.container import Lifetime
         for controller_class in meta.controllers:
             if not self.container.is_registered(controller_class):
-                self.container.register(controller_class, lifetime=Lifetime.SINGLETON)
+                self.container.register(controller_class, lifetime=Lifetime.SCOPED)
 
         self._modules.append(module_class)
         logger.debug("Module registered: %s", module_class.__name__)
@@ -92,7 +92,19 @@ class ModuleRegistry:
         from aura.di.container import Lifetime
 
         meta = getattr(provider_class, "__aura_injectable__", None)
-        lifetime = meta["lifetime"] if meta else Lifetime.SINGLETON
+        if meta:
+            lifetime = meta["lifetime"]
+        else:
+            # Proactively register subclasses of Repository as SCOPED
+            try:
+                from aura.orm.repository import Repository
+                if issubclass(provider_class, Repository):
+                    lifetime = Lifetime.SCOPED
+                else:
+                    lifetime = Lifetime.SINGLETON
+            except (ImportError, TypeError):
+                lifetime = Lifetime.SINGLETON
+
         self.container.register(provider_class, lifetime=lifetime)
         logger.debug(
             "Provider registered: %s (%s)", provider_class.__name__, lifetime

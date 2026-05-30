@@ -100,7 +100,7 @@
 
 ### DI Container
 
-- [ ] **Scoped container por request HTTP** — middleware que cria scope e injeta `AsyncSession`
+- [x] **Scoped container por request HTTP** — middleware que cria scope e injeta `AsyncSession`
   automaticamente via `request.state.container`; habilita `def __init__(self, session: AsyncSession)`
   sem `async with db.session()` manual
 

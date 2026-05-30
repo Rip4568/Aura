@@ -158,15 +158,17 @@ class {p}Service:
     """Business logic for {p} operations.
 
     Uses an in-memory store by default.
-    To switch to a database, replace _store with a Repository:
+    To switch to a database, register {p}Repository in the module's providers,
+    and inject it:
 
-        from aura import db
         from .repositories import {p}Repository
 
+        def __init__(self, repo: {p}Repository) -> None:
+            self.repo = repo
+
         async def list_{pl}(self) -> list[{p}Response]:
-            async with db.session() as session:
-                rows = await {p}Repository(session).list()
-                return [{p}Response.model_validate(r.to_dict()) for r in rows]
+            rows = await self.repo.list()
+            return [{p}Response.model_validate(r.to_dict()) for r in rows]
     """
 
     def __init__(self) -> None:

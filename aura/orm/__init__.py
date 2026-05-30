@@ -4,6 +4,7 @@ try:
     from aura.orm.aggregates import Avg, Count, Max, Min, Sum
     from aura.orm.base import AuraModel
     from aura.orm.expressions import Q
+    from aura.orm.middleware import DatabaseMiddleware
     from aura.orm.query import MultipleObjectsReturnedException, QuerySet
     from aura.orm.repository import Page, PkType, Repository
     from aura.orm.session import DatabaseManager, db
@@ -23,6 +24,7 @@ try:
         "Avg",
         "Min",
         "Max",
+        "DatabaseMiddleware",
     ]
 except ImportError:
     __all__ = []
