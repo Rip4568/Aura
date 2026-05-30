@@ -188,8 +188,8 @@ aura run --reload
 │       ├── controller.py    # Route handlers
 │       ├── service.py       # Business logic (@injectable)
 │       ├── schemas.py       # Pydantic DTOs (the Spec)
-│       ├── models.py        # ORM model (commented — uncomment for DB)
-│       └── repositories.py  # Repository (commented — uncomment for DB)
+│       ├── models.py        # ORM database model
+│       └── repositories.py  # Database Repository
 └── tests/
     └── test_users.py        # Integration tests
 ```
@@ -238,43 +238,37 @@ build/
 
 def _users_models() -> str:
     return '''\
-"""ORM model for the Users module.
+"""ORM model for the Users module."""
 
-Uncomment when adding database persistence.
-Requires: pip install "aura-web[sqlalchemy]"
-"""
 from __future__ import annotations
 
-# from aura import AuraModel
-# from sqlalchemy.orm import Mapped, mapped_column
-#
-#
-# class User(AuraModel):
-#     __tablename__ = "users"
-#
-#     name: Mapped[str]
-#     email: Mapped[str] = mapped_column(unique=True)
+from aura import AuraModel
+from sqlalchemy.orm import Mapped, mapped_column
+
+
+class User(AuraModel):
+    __tablename__ = "users"
+
+    name: Mapped[str]
+    email: Mapped[str] = mapped_column(unique=True)
 '''
 
 def _users_repositories() -> str:
     return '''\
-"""Repository for the Users module.
+"""Repository for the Users module."""
 
-Uncomment when adding database persistence.
-Configure the ORM model in models.py first.
-"""
 from __future__ import annotations
 
-# from aura import Repository
-# from .models import User
-#
-#
-# class UserRepository(Repository[User]):
-#     model = User
-#
-#     # Add custom queries here, e.g.:
-#     # async def find_by_email(self, email: str) -> User | None:
-#     #     return await self.first(email=email)
+from aura import Repository
+from .models import User
+
+
+class UserRepository(Repository[User]):
+    model = User
+
+    # Add custom queries here, e.g.:
+    async def find_by_email(self, email: str) -> User | None:
+        return await self.first(email=email)
 '''
 
 def _users_schemas() -> str:
@@ -311,68 +305,52 @@ class UserResponse(Schema):
 
 def _users_service() -> str:
     return '''\
-"""UserService — business logic layer.
+"""UserService — business logic layer."""
 
-Uses an in-memory store so the app works immediately without a database.
-To switch to a database, register UserRepository in UsersModule providers,
-and inject it directly:
-
-    from .repositories import UserRepository
-
-    class UserService:
-        def __init__(self, repo: UserRepository) -> None:
-            self.repo = repo
-
-        async def list_users(self) -> list[UserResponse]:
-            rows = await self.repo.list()
-            return [UserResponse.model_validate(r.to_dict()) for r in rows]
-"""
 from __future__ import annotations
 
 from aura import injectable, NotFoundException, ConflictException, Log
 from .schemas import CreateUserDTO, UpdateUserDTO, UserResponse
+from .repositories import UserRepository
 
 
 @injectable
 class UserService:
     """Handles all business logic for the Users feature."""
 
-    def __init__(self) -> None:
-        self._store: dict[int, UserResponse] = {
-            1: UserResponse(id=1, name="Alice", email="alice@example.com"),
-            2: UserResponse(id=2, name="Bob",   email="bob@example.com"),
-        }
-        self._next_id = 3
+    def __init__(self, user_repository: UserRepository) -> None:
+        self.user_repository = user_repository
 
     async def list_users(self) -> list[UserResponse]:
-        Log.info("Fetching all users from store")
-        return list(self._store.values())
+        Log.info("Fetching all users from database")
+        rows = await self.user_repository.list()
+        return [UserResponse(id=r.id, name=r.name, email=r.email) for r in rows]
 
     async def get_user(self, user_id: int) -> UserResponse:
         Log.info("Fetching user", user_id=user_id)
-        user = self._store.get(user_id)
+        user = await self.user_repository.get(user_id)
         if user is None:
             raise NotFoundException(f"User {user_id} not found")
-        return user
+        return UserResponse(id=user.id, name=user.name, email=user.email)
 
     async def create_user(self, data: CreateUserDTO) -> UserResponse:
-        for existing in self._store.values():
-            if existing.email == data.email:
-                raise ConflictException(f"Email \'{data.email}\' already in use")
-        user = UserResponse(id=self._next_id, **data.model_dump())
-        self._store[self._next_id] = user
-        self._next_id += 1
-        return user
+        Log.info("Creating user in database", email=data.email)
+        existing = await self.user_repository.first(email=data.email)
+        if existing is not None:
+            raise ConflictException(f"Email '{data.email}' already in use")
+        user = await self.user_repository.create(**data.model_dump())
+        return UserResponse(id=user.id, name=user.name, email=user.email)
 
     async def update_user(self, user_id: int, data: UpdateUserDTO) -> UserResponse:
-        user = await self.get_user(user_id)
-        updated = user.model_copy(update=data.model_dump(exclude_none=True))
-        self._store[user_id] = updated
-        return updated
+        Log.info("Updating user in database", user_id=user_id)
+        await self.get_user(user_id)
+        user = await self.user_repository.update(user_id, **data.model_dump(exclude_none=True))
+        return UserResponse(id=user.id, name=user.name, email=user.email)
 
     async def delete_user(self, user_id: int) -> None:
+        Log.info("Deleting user from database", user_id=user_id)
         await self.get_user(user_id)
-        del self._store[user_id]
+        await self.user_repository.delete(user_id)
 '''
 
 def _users_controller() -> str:
@@ -451,10 +429,11 @@ UsersModule — encapsulates the entire Users feature.
 from aura import Module
 from .controller import UsersController
 from .service import UserService
+from .repositories import UserRepository
 
 
 @Module(
-    providers=[UserService],
+    providers=[UserService, UserRepository],
     controllers=[UsersController],
     prefix="/users",
     tags=["Users"],
@@ -473,19 +452,42 @@ def _conftest(project_name: str) -> str:
 """Pytest fixtures for {project_name}."""
 from __future__ import annotations
 
+import os
 import pytest
-from httpx import AsyncClient, ASGITransport
 
+# Ensure we use an isolated in-memory SQLite database for all test cases
+os.environ["AURA__DATABASE__URL"] = "sqlite+aiosqlite:///file:test_aura?mode=memory&cache=shared"
+
+from aura.orm import db, AuraModel
+from aura.testing.client import AuraTestClient
 from main import app
+
+
+@pytest.fixture(autouse=True)
+async def setup_database():
+    """Setup a clean database schema and seed mock data before each test."""
+    if db._engine is None:
+        db.init(os.environ["AURA__DATABASE__URL"])
+    await db.create_all(AuraModel)
+
+    # Seed initial test users
+    async with db.session() as session:
+        from modules.users.models import User
+        session.add_all([
+            User(id=1, name="Alice", email="alice@example.com"),
+            User(id=2, name="Bob", email="bob@example.com"),
+        ])
+        await session.commit()
+
+    yield
+
+    await db.drop_all(AuraModel)
 
 
 @pytest.fixture
 async def client():
-    """HTTP test client wired directly to the ASGI app — no server needed."""
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as c:
+    """HTTP test client using native AuraTestClient."""
+    async with AuraTestClient(app) as c:
         yield c
 '''
 

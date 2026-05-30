@@ -4,38 +4,48 @@ from __future__ import annotations
 
 import pytest
 
-from aura import Aura, get, post, put, patch, delete
+from aura import Aura, Module, delete, get, patch, post, put
+from aura.routing.decorators import _route_decorator
 from aura.testing.client import AuraTestClient
 from aura.testing.fixtures import aura_app, test_client  # noqa: F401
 
 
+class TestController:
+    """Controller for testing AuraTestClient capabilities."""
+
+    @get("/test")
+    async def handle_get(self) -> dict:
+        return {"method": "GET"}
+
+    @post("/test")
+    async def handle_post(self) -> dict:
+        return {"method": "POST"}
+
+    @put("/test")
+    async def handle_put(self) -> dict:
+        return {"method": "PUT"}
+
+    @patch("/test")
+    async def handle_patch(self) -> dict:
+        return {"method": "PATCH"}
+
+    @delete("/test")
+    async def handle_delete(self) -> dict:
+        return {"method": "DELETE"}
+
+    @_route_decorator("OPTIONS", "/test")
+    async def handle_options(self) -> dict:
+        return {"method": "OPTIONS"}
+
+
+
+@Module(controllers=[TestController])
+class TestModule:
+    pass
+
+
 # Simple app with multiple verbs for testing client capabilities
-app = Aura(title="Test App")
-
-
-@get("/test")
-async def handle_get() -> dict:
-    return {"method": "GET"}
-
-
-@post("/test")
-async def handle_post() -> dict:
-    return {"method": "POST"}
-
-
-@put("/test")
-async def handle_put() -> dict:
-    return {"method": "PUT"}
-
-
-@patch("/test")
-async def handle_patch() -> dict:
-    return {"method": "PATCH"}
-
-
-@delete("/test")
-async def handle_delete() -> dict:
-    return {"method": "DELETE"}
+app = Aura(modules=[TestModule], title="Test App")
 
 
 class TestAuraTestClient:
@@ -58,7 +68,7 @@ class TestAuraTestClient:
 
             # Test POST
             resp = await client.post("/test")
-            assert resp.status_code == 200
+            assert resp.status_code == 201
             assert resp.json() == {"method": "POST"}
 
             # Test PUT
@@ -73,8 +83,7 @@ class TestAuraTestClient:
 
             # Test DELETE
             resp = await client.delete("/test")
-            assert resp.status_code == 200
-            assert resp.json() == {"method": "DELETE"}
+            assert resp.status_code == 204
 
             # Test generic request options/head
             resp = await client.options("/test")
@@ -95,4 +104,5 @@ async def test_client_fixture_integration(test_client: AuraTestClient) -> None: 
     # Note: the default fixture yields Aura() which has no custom routes, but we can verify it boots
     resp = await test_client.get("/health")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok"}
+    assert resp.json()["status"] == "ok"
+

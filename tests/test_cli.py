@@ -85,8 +85,8 @@ class TestNewCommand:
     def test_conftest_uses_asgi_transport(self, tmp_path: Path) -> None:
         runner.invoke(app, ["new", "--dir", str(tmp_path), "testapp"])
         conftest = (tmp_path / "testapp" / "tests" / "conftest.py").read_text()
-        assert "AsyncClient" in conftest
-        assert "ASGITransport" in conftest
+        assert "AuraTestClient" in conftest
+
 
 
 # ---------------------------------------------------------------------------
