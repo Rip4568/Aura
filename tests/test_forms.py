@@ -23,12 +23,14 @@ from aura.forms import (
     ChoiceField,
     DateField,
     DateTimeField,
+    DecimalField,
     EmailField,
     FieldValidationError,
     ForeignKeyField,
     FormValidationError,
     IntField,
     ManyToManyField,
+    MultipleChoiceField,
     UUIDField,
     validate_email,
     validate_max_length,
@@ -222,16 +224,11 @@ class TestBoolField:
         assert result is False
 
     def test_none_required_true_raises(self) -> None:
-        """BoolField required=True + raw=None: validate() overridden, no 'required' error.
-
-        BoolField.validate() skips the required check because absent → False.
-        The field simply returns False even when required=True.
-        """
+        """BoolField required=True + raw=None raises FieldValidationError."""
         field = BoolField(required=True)
-        # BoolField converts None → False; validate() does NOT raise for required
-        # because it skips the None check entirely.
-        result = field.run(None)
-        assert result is False
+        with pytest.raises(FieldValidationError) as exc_info:
+            field.run(None)
+        assert exc_info.value.code == "required"
 
     def test_python_booleans_pass_through(self) -> None:
         field = BoolField()
@@ -583,3 +580,60 @@ class TestUUIDField:
         with pytest.raises(FieldValidationError) as exc_info:
             field.run("not-a-uuid")
         assert exc_info.value.code == "invalid_uuid"
+
+
+# TestFormsFixes (Newly added to cover our fixes)
+# ---------------------------------------------------------------------------
+
+class TestFormsFixes:
+    def test_decimal_quantization_safety(self) -> None:
+        # DecimalField quantization should raise FieldValidationError, not crash.
+        field = DecimalField(decimal_places=2)
+        with pytest.raises(FieldValidationError) as exc:
+            field.run("abc")
+        assert exc.value.code == "invalid_decimal"
+
+    def test_multiple_choice_empty_string_submission(self) -> None:
+        field = MultipleChoiceField(choices=["a", "b"], required=False)
+        result = field.run("")
+        assert result == []
+
+    async def test_form_clean_field_retains_no_invalid_cleaned_data(self) -> None:
+        class BuggyCleanFieldForm(AuraForm):
+            name = CharField(max_length=30)
+
+            def clean_name(self) -> str:
+                raise FieldValidationError("Incorreto.")
+
+        form = BuggyCleanFieldForm(raw_data={"name": "Alice"})
+        assert await form.is_valid() is False
+        assert "name" not in form.cleaned_data  # Should be removed!
+
+    async def test_form_sync_clean_hook_supported(self) -> None:
+        class SyncCleanForm(AuraForm):
+            name = CharField()
+
+            def clean(self) -> None:
+                if self.cleaned_data.get("name") == "invalid":
+                    raise FieldValidationError("Nome inválido.")
+
+        form = SyncCleanForm(raw_data={"name": "invalid"})
+        assert await form.is_valid() is False
+        assert "__all__" in form.errors
+
+    async def test_relational_bypass_when_passed_instance(
+        self, forms_session: AsyncSession
+    ) -> None:
+        author = FKAuthor(name="Author Instance")
+        forms_session.add(author)
+        await forms_session.commit()
+        await forms_session.refresh(author)
+
+        # ForeignKeyField and ManyToManyField should return raw instances directly if passed as-is
+        fk_field = ForeignKeyField(FKAuthor)
+        res_fk = await fk_field.to_python_with_session(author, forms_session)
+        assert res_fk is author
+
+        m2m_field = ManyToManyField(FKAuthor)
+        res_m2m = await m2m_field.to_python_with_session([author], forms_session)
+        assert res_m2m == [author]

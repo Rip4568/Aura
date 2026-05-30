@@ -306,6 +306,11 @@ class QuerySet(Generic[ModelT]):
         if self._offset_val:
             stmt = stmt.offset(self._offset_val)
 
+        if self._distinct_flag:
+            stmt = stmt.distinct()
+        if self._for_update_flag:
+            stmt = stmt.with_for_update()
+
         result = await self._get_session().execute(stmt)
         if fields:
             return [dict(zip(fields, row)) for row in result.all()]
@@ -343,6 +348,11 @@ class QuerySet(Generic[ModelT]):
         if self._offset_val:
             stmt = stmt.offset(self._offset_val)
 
+        if self._distinct_flag:
+            stmt = stmt.distinct()
+        if self._for_update_flag:
+            stmt = stmt.with_for_update()
+
         result = await self._get_session().execute(stmt)
         rows = result.all()
         if flat:
@@ -351,6 +361,10 @@ class QuerySet(Generic[ModelT]):
 
     async def delete(self) -> int:
         """Delete all matching records. Returns count deleted."""
+        if self._limit_val is not None or self._offset_val or self._order_by_clauses:
+            raise ValueError(
+                "Bulk delete is not supported on limited, offset, or ordered QuerySets."
+            )
         from sqlalchemy import delete as _delete
         stmt = _delete(self._model)
         all_conditions = self._filters + self._excludes
@@ -362,6 +376,10 @@ class QuerySet(Generic[ModelT]):
 
     async def update(self, **data: Any) -> int:
         """Update all matching records. Returns count updated."""
+        if self._limit_val is not None or self._offset_val or self._order_by_clauses:
+            raise ValueError(
+                "Bulk update is not supported on limited, offset, or ordered QuerySets."
+            )
         from sqlalchemy import update as _update
         stmt = _update(self._model)
         all_conditions = self._filters + self._excludes
@@ -496,9 +514,17 @@ def _build_loader(model: type[Any], rel_path: str, strategy: str = "selectin") -
             )
 
         if loader is None:
-            loader = selectinload(rel_attr) if strategy == "selectin" else joinedload(rel_attr)
+            loader = (
+                selectinload(rel_attr)
+                if strategy == "selectin"
+                else joinedload(rel_attr)
+            )
         else:
-            loader = loader.selectinload(rel_attr)
+            loader = (
+                loader.selectinload(rel_attr)
+                if strategy == "selectin"
+                else loader.joinedload(rel_attr)
+            )
 
         # Advance to the next model in the chain
         try:

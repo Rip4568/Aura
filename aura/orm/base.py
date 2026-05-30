@@ -94,7 +94,15 @@ class AuraModel(_AuraRegistry, QueryMixin):
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise all table columns to a plain Python dictionary."""
-        return {col.name: getattr(self, col.name) for col in self.__table__.columns}
+        from sqlalchemy import inspect as sa_inspect
+
+        ins = sa_inspect(self)
+        # Avoid triggering lazy-loading on deferred or unloaded columns to prevent errors.
+        return {
+            col.name: getattr(self, col.name)
+            for col in self.__table__.columns
+            if col.name not in ins.unloaded
+        }
 
     def __repr__(self) -> str:
         pk = getattr(self, "id", "?")

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import func
+from sqlalchemy import extract, func
 
 LOOKUPS: dict[str, Any] = {
     "exact":       lambda col, v: col == v,
@@ -22,9 +22,9 @@ LOOKUPS: dict[str, Any] = {
     "not_in":      lambda col, v: col.not_in(v),
     "is_null":     lambda col, v: col.is_(None) if v else col.is_not(None),
     "range":       lambda col, v: col.between(v[0], v[1]),
-    "year":        lambda col, v: func.strftime("%Y", col) == str(v),
-    "month":       lambda col, v: func.strftime("%m", col) == f"{v:02d}",
-    "day":         lambda col, v: func.strftime("%d", col) == f"{v:02d}",
+    "year":        lambda col, v: extract("year", col) == int(v),
+    "month":       lambda col, v: extract("month", col) == int(v),
+    "day":         lambda col, v: extract("day", col) == int(v),
 }
 
 

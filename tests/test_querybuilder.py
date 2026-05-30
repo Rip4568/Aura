@@ -737,6 +737,42 @@ class TestValues:
         with pytest.raises(ValueError, match="exactly one field"):
             await QBPost.objects.using(session).values_list("title", "view_count", flat=True)
 
-    async def test_values_list_no_fields_raises(self, session: AsyncSession) -> None:
+    async def test_values_list_no_fields_raises(self) -> None:
         with pytest.raises(ValueError, match="at least one field"):
-            await QBPost.objects.using(session).values_list()
+            await QBPost.objects.values_list()
+
+
+# ---------------------------------------------------------------------------
+# TestQueryBuilderFixes (Newly added to cover our fixes)
+# ---------------------------------------------------------------------------
+
+class TestQueryBuilderFixes:
+    async def test_bulk_delete_with_limit_raises_value_error(self, session: AsyncSession) -> None:
+        with pytest.raises(ValueError, match="limited, offset, or ordered"):
+            await QBPost.objects.using(session).limit(2).delete()
+
+    async def test_bulk_update_with_limit_raises_value_error(self, session: AsyncSession) -> None:
+        with pytest.raises(ValueError, match="limited, offset, or ordered"):
+            await QBPost.objects.using(session).limit(2).update(active=False)
+
+    async def test_values_distinct(self, session: AsyncSession) -> None:
+        await _create_post(session, "Dup", view_count=10)
+        await _create_post(session, "Dup", view_count=10)
+        rows = await (
+            QBPost.objects.using(session)
+            .filter(title="Dup")
+            .distinct()
+            .values("title")
+        )
+        assert len(rows) == 1
+
+    async def test_values_list_distinct(self, session: AsyncSession) -> None:
+        await _create_post(session, "Dup", view_count=10)
+        await _create_post(session, "Dup", view_count=10)
+        rows = await (
+            QBPost.objects.using(session)
+            .filter(title="Dup")
+            .distinct()
+            .values_list("title", flat=True)
+        )
+        assert len(rows) == 1

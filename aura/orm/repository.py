@@ -278,12 +278,12 @@ class Repository(Generic[ModelT]):
         Returns:
             List of newly created model instances.
         """
-        objects = [self.model(**item) for item in items]
-        self.session.add_all(objects)
-        await self.session.flush()
-        for obj in objects:
-            await self.session.refresh(obj)
-        return objects
+        if not items:
+            return []
+        from sqlalchemy import insert
+        stmt = insert(self.model).returning(self.model)
+        result = await self.session.scalars(stmt, items)
+        return list(result.all())
 
     async def bulk_update(
         self,
@@ -327,7 +327,9 @@ class Repository(Generic[ModelT]):
             .execution_options(synchronize_session=False)
         )
         # Expire stale identity-map entries so the SELECT below reads fresh data.
-        self.session.expire_all()
+        for obj in list(self.session.identity_map.values()):
+            if isinstance(obj, self.model) and getattr(obj, "id", None) in unique_ids:
+                self.session.expire(obj)
 
         result = await self.session.execute(
             select(self.model).where(self.model.id.in_(unique_ids))
