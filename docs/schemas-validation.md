@@ -249,7 +249,7 @@ Content-Type: application/json
 ## Usando schemas no controller
 
 ```python
-from aura.routing.params import Body, Query, Param, Header
+from aura import Body, Query, Header
 
 class UserController:
     
@@ -258,8 +258,8 @@ class UserController:
         self,
         body: Body[CreateUserSchema],   # valida o JSON body
     ) -> UserResponseSchema:
-        user = await self.service.create(body)
-        return UserResponseSchema.model_validate(user)
+        # O Aura serializa o ORM retornado automaticamente para UserResponseSchema!
+        return await self.service.create(body)
 
     @get("/users")
     async def list_users(
@@ -273,20 +273,18 @@ class UserController:
     @get("/users/{user_id}")
     async def get_user(
         self,
-        user_id: Param[int],            # /users/42 — converte "42" para int
+        user_id: int,                   # /users/42 — detectado e convertido para int de forma implícita!
     ) -> UserResponseSchema:
-        user = await self.service.get(user_id)
-        return UserResponseSchema.model_validate(user)
+        return await self.service.get(user_id)
     
     @put("/users/{user_id}")
     async def update_user(
         self,
-        user_id: Param[int],
+        user_id: int,
         body: Body[UpdateUserSchema],
         auth: Header[str],              # Authorization header
     ) -> UserResponseSchema:
-        user = await self.service.update(user_id, body)
-        return UserResponseSchema.model_validate(user)
+        return await self.service.update(user_id, body)
 ```
 
 ---
@@ -346,12 +344,14 @@ class PaginatedResponseSchema(ResponseSchema):
 @get("/users")
 async def list_users(self, page: Query[int] = 1) -> PaginatedResponseSchema:
     users, total = await self.service.list_paginated(page=page)
+    # O Aura serializa os objetos ORM recursivamente de forma ultra-rápida!
     return PaginatedResponseSchema(
-        items=[UserSchema.model_validate(u) for u in users],
+        items=users,
         total=total,
         page=page,
         pages=(total + 19) // 20,
     )
+
 ```
 
 ---

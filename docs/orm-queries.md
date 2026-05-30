@@ -182,27 +182,25 @@ class UserService:
     def __init__(self, session: AsyncSession) -> None:
         self.repo = UserRepository(session)
 
-    async def list_users(self, page: int = 1, page_size: int = 20) -> list[UserResponse]:
+    async def list_users(self, page: int = 1, page_size: int = 20) -> list[User]:
+        # Retorna a lista contendo objetos ORM diretamente
         offset = (page - 1) * page_size
-        users = await self.repo.list(limit=page_size, offset=offset, active=True)
-        return [UserResponse.model_validate(u, from_attributes=True) for u in users]
+        return await self.repo.list(limit=page_size, offset=offset, active=True)
 
-    async def get_user(self, user_id: int) -> UserResponse:
-        user = await self.repo.get_or_raise(user_id)  # 404 automático
-        return UserResponse.model_validate(user, from_attributes=True)
+    async def get_user(self, user_id: int) -> User:
+        # Retorna o objeto ORM diretamente — NotFoundException (404) disparada automaticamente se não existir
+        return await self.repo.get_or_raise(user_id)
 
-    async def create_user(self, data: CreateUserDTO) -> UserResponse:
+    async def create_user(self, data: CreateUserDTO) -> User:
         # Verificar duplicata antes de criar
         if await self.repo.exists(email=data.email):
             from aura import ConflictException
             raise ConflictException(f"Email {data.email} already in use")
         
-        user = await self.repo.create(**data.model_dump())
-        return UserResponse.model_validate(user, from_attributes=True)
+        return await self.repo.create(**data.model_dump())
 
-    async def update_user(self, user_id: int, data: dict) -> UserResponse:
-        user = await self.repo.update(user_id, **data)
-        return UserResponse.model_validate(user, from_attributes=True)
+    async def update_user(self, user_id: int, data: dict) -> User:
+        return await self.repo.update(user_id, **data)
 
     async def delete_user(self, user_id: int) -> None:
         deleted = await self.repo.delete(user_id)
@@ -211,8 +209,7 @@ class UserService:
             raise NotFoundException(f"User {user_id} not found")
 
 # controller.py
-from aura import get, post, put, delete, Param, Body
-from typing import Annotated
+from aura import get, post, put, delete, Body
 from .service import UserService
 from .schemas import CreateUserDTO, UserResponse
 
@@ -222,28 +219,22 @@ class UserController:
 
     @get("/users")
     async def list_users(self) -> list[UserResponse]:
+        # O Aura serializa list[User] para list[UserResponse] de forma ultra-rápida via TypeAdapter!
         return await self.service.list_users()
 
     @get("/users/{id}")
-    async def get_user(
-        self,
-        id: Annotated[int, Param()],
-    ) -> UserResponse:
+    async def get_user(self, id: int) -> UserResponse:
+        # 'id' é inferido automaticamente como path parameter a partir da rota
         return await self.service.get_user(id)
 
     @post("/users", status=201)
-    async def create_user(
-        self,
-        body: Annotated[CreateUserDTO, Body()],
-    ) -> UserResponse:
+    async def create_user(self, body: Body[CreateUserDTO]) -> UserResponse:
         return await self.service.create_user(body)
 
     @delete("/users/{id}", status=204)
-    async def delete_user(
-        self,
-        id: Annotated[int, Param()],
-    ) -> None:
+    async def delete_user(self, id: int) -> None:
         await self.service.delete_user(id)
+
 ```
 
 ---

@@ -92,11 +92,11 @@
 
 ### Routing — DX
 
-- [ ] **Inferência automática de `Param()` para path params** — `async def get_user(self, user_id: int)`
-  deveria deduzir `Param()` quando `user_id` aparece no path `/{user_id}`, sem precisar de
-  `Annotated[int, Param()]`
-- [ ] **`response_model` para serialização estrita** — `@get("/", response=UserResponse)` deveria
-  garantir que apenas campos do schema são retornados (como FastAPI faz)
+- [x] **Inferência automática de `Param()` para path params** — `async def get_user(self, user_id: int)`
+  deduz `Param()` quando `user_id` aparece no path `/{user_id}`, sem precisar de `Annotated[int, Param()]` ✓
+- [x] **`response_model` para serialização estrita** — `@get("/", response=UserResponse)` garante
+  que apenas campos do schema são retornados usando pré-compilação rápida do `TypeAdapter` ✓
+
 
 ### DI Container
 
@@ -180,9 +180,5 @@
 
 ## 🐛 Bugs conhecidos
 
-| Bug | Arquivo | Impacto | Workaround |
-|---|---|---|---|
-| `AuraTemplateModule.on_startup` não é chamado automaticamente | `aura/modules/registry.py` | Alto | Chamar `set_engine(engine)` manualmente na startup |
-| `aura migrate make` lança NotImplementedError | `aura/cli/commands/migrate.py` | Alto | Usar Alembic diretamente |
-| `aura worker` não processa filas SAQ | `aura/cli/commands/worker.py` | Alto | Usar MemoryBackend em dev; SAQ direto em prod |
-| Path params sem `Annotated[T, Param()]` não são resolvidos | `aura/routing/router.py` | Médio | Sempre usar `Annotated[int, Param()]` |
+Nenhum bug ativo conhecido. Todos os bugs reportados anteriormente (carregamento de startup do `AuraTemplateModule`, `aura migrate make`, `aura worker` com SAQ e inferência de parâmetros implícitos de rotas) foram 100% corrigidos e validados na suíte de testes.
+

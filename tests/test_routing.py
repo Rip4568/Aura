@@ -418,3 +418,64 @@ async def test_cookie_binding() -> None:
         assert r.status_code == 200
         data = r.json()
         assert data["session"] == "abc"
+
+
+@pytest.mark.asyncio
+async def test_high_performance_serialization() -> None:
+    """Test that response schemas automatically serialize ORM-like objects at C-speed."""
+    from httpx import ASGITransport, AsyncClient
+
+    from aura.core.app import Aura
+    from aura.modules.base import Module
+    from aura.orm.repository import Page
+    from aura.schema.base import Schema
+
+    class MockUser:
+        def __init__(self, id: int, name: str) -> None:
+            self.id = id
+            self.name = name
+
+    class UserResponse(Schema):
+        id: int
+        name: str
+
+    class SerializationController:
+        @get("/users", response=list[UserResponse])
+        async def list_users(self) -> list[MockUser]:
+            # Return raw ORM-like objects, they will be serialized at Rust speed!
+            return [MockUser(1, "Alice"), MockUser(2, "Bob")]
+
+        @get("/users/paginated", response=Page[UserResponse])
+        async def paginate_users(self) -> Page[MockUser]:
+            return Page(
+                items=[MockUser(1, "Alice"), MockUser(2, "Bob")],
+                total=2,
+                page=1,
+                per_page=10,
+                has_next=False,
+            )
+
+    @Module(controllers=[SerializationController], prefix="")
+    class SerializationModule:
+        pass
+
+    app = Aura(modules=[SerializationModule])
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as c:
+        # Test List serialization
+        r1 = await c.get("/users")
+        assert r1.status_code == 200
+        data1 = r1.json()
+        assert len(data1) == 2
+        assert data1[0]["id"] == 1
+        assert data1[0]["name"] == "Alice"
+
+        # Test Page serialization
+        r2 = await c.get("/users/paginated")
+        assert r2.status_code == 200
+        data2 = r2.json()
+        assert data2["total"] == 2
+        assert len(data2["items"]) == 2
+        assert data2["items"][0]["name"] == "Alice"

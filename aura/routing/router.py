@@ -236,6 +236,18 @@ class Router:
             handler.__aura_binding_plan__ = binding_plan
             if hasattr(handler, "__func__"):
                 handler.__func__.__aura_binding_plan__ = binding_plan
+            
+            response_schema = meta.get("response")
+            if response_schema is not None:
+                try:
+                    from pydantic import TypeAdapter
+                    adapter = TypeAdapter(response_schema)
+                    handler.__aura_response_adapter__ = adapter
+                    if hasattr(handler, "__func__"):
+                        handler.__func__.__aura_response_adapter__ = adapter
+                except Exception:
+                    pass
+
             openapi_meta = _extract_openapi_metadata(handler)
 
             if method == "WS":
@@ -388,7 +400,12 @@ def _wrap_http_handler(
 
             # Convert result to response
             route_meta = getattr(actual_handler, "__aura_route__", {})
-            return _to_response(result, route_meta.get("status", 200))
+            adapter = getattr(actual_handler, "__aura_response_adapter__", None)
+            if adapter is None:
+                func = getattr(actual_handler, "__func__", actual_handler)
+                adapter = getattr(func, "__aura_response_adapter__", None)
+
+            return _to_response(result, route_meta.get("status", 200), adapter=adapter)
 
         except Exception as exc:  # noqa: BLE001
             return _handle_exception(exc)
@@ -903,6 +920,8 @@ def _coerce(value: str, target_type: Any) -> Any:
 def _serialize(obj: Any) -> Any:
     if hasattr(obj, "model_dump"):
         return obj.model_dump(mode="json")
+    if hasattr(obj, "to_dict"):
+        return obj.to_dict()
     if isinstance(obj, list):
         return [_serialize(x) for x in obj]
     if isinstance(obj, dict):
@@ -910,7 +929,7 @@ def _serialize(obj: Any) -> Any:
     return obj
 
 
-def _to_response(result: Any, status: int) -> Response:
+def _to_response(result: Any, status: int, adapter: Any | None = None) -> Response:
     """Convert a handler return value into a Starlette :class:`~starlette.responses.Response`.
 
     - ``None`` → :class:`~starlette.responses.Response` with the given *status*.
@@ -921,6 +940,7 @@ def _to_response(result: Any, status: int) -> Response:
     Args:
         result: The value returned by the route handler.
         status: HTTP status code to use when building a new response.
+        adapter: Optional pre-compiled response TypeAdapter.
 
     Returns:
         A Starlette response object.
@@ -932,6 +952,14 @@ def _to_response(result: Any, status: int) -> Response:
 
     if isinstance(result, Response):
         return result
+
+    if adapter is not None:
+        try:
+            validated = adapter.validate_python(result, from_attributes=True)
+            content = adapter.dump_python(validated, mode="json")
+            return JSONResponse(content=content, status_code=status)
+        except Exception:
+            pass
 
     if hasattr(result, "model_dump"):
         return JSONResponse(content=result.model_dump(mode="json"), status_code=status)

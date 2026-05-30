@@ -307,7 +307,7 @@ class UserModule:
 
 # Guard em controller específico
 @post("/admin/users", guards=[AdminGuard, JWTGuard])
-async def create_admin_user(body: Annotated[CreateUserDTO, Body()]) -> UserResponse:
+async def create_admin_user(body: Body[CreateUserDTO]) -> UserResponse:
     ...
 
 # Guard global (toda a aplicação)
@@ -356,31 +356,30 @@ class AuthService:
         token = create_jwt(user.id, expires_in=3600)
         return TokenResponse(access_token=token, expires_in=3600)
 
-    async def register(self, data: RegisterDTO) -> UserResponse:
+    async def register(self, data: RegisterDTO) -> User:
         if await self.repo.exists(email=data.email):
             raise ConflictException(f"Email {data.email} already registered")
         
-        user = await self.repo.create(
+        # Retorna o objeto ORM diretamente, que será serializado pelo router
+        return await self.repo.create(
             name=data.name,
             email=data.email,
             hashed_password=hash_password(data.password),
         )
-        return UserResponse.model_validate(user, from_attributes=True)
 
 # auth/controller.py
 from aura import post, Body
-from typing import Annotated
 
 class AuthController:
     def __init__(self, service: AuthService) -> None:
         self.service = service
 
     @post("/login")
-    async def login(self, body: Annotated[LoginDTO, Body()]) -> TokenResponse:
+    async def login(self, body: Body[LoginDTO]) -> TokenResponse:
         return await self.service.login(body.email, body.password)
 
     @post("/register", status=201)
-    async def register(self, body: Annotated[RegisterDTO, Body()]) -> UserResponse:
+    async def register(self, body: Body[RegisterDTO]) -> UserResponse:
         return await self.service.register(body)
 
 # auth/module.py

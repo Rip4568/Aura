@@ -142,32 +142,26 @@ from aura import injectable, NotFoundException
 from aura.orm import db, Page
 from .models import Post
 from .repository import PostRepository
-from .schemas import CreatePostDTO, UpdatePostDTO, PostResponse
+from .schemas import CreatePostDTO, UpdatePostDTO
 
 @injectable
 class PostService:
-    async def list_posts(self, page: int = 1) -> Page[PostResponse]:
+    async def list_posts(self, page: int = 1) -> Page[Post]:
         async with db.session() as session:
-            result = await PostRepository(session).paginate(
+            # Retorna a página contendo objetos ORM diretamente
+            return await PostRepository(session).paginate(
                 page=page, per_page=20, order_by="created_at"
             )
-            return Page(
-                items=[PostResponse.model_validate(p) for p in result.items],
-                total=result.total,
-                page=result.page,
-                per_page=result.per_page,
-                has_next=result.has_next,
-            )
 
-    async def get_post(self, post_id: int) -> PostResponse:
+    async def get_post(self, post_id: int) -> Post:
         async with db.session() as session:
-            post = await PostRepository(session).get_or_raise(post_id)
-            return PostResponse.model_validate(post)
+            # Retorna o objeto ORM diretamente
+            return await PostRepository(session).get_or_raise(post_id)
 
-    async def create_post(self, data: CreatePostDTO) -> PostResponse:
+    async def create_post(self, data: CreatePostDTO) -> Post:
         async with db.session() as session:
-            post = await PostRepository(session).create(**data.model_dump())
-            return PostResponse.model_validate(post)
+            # Retorna o objeto ORM criado diretamente
+            return await PostRepository(session).create(**data.model_dump())
 
     async def transfer_posts(self, from_id: int, to_id: int) -> None:
         """Múltiplos repos na mesma transação."""
@@ -176,12 +170,12 @@ class PostService:
             await repo.update(from_id, published=False)
             await repo.update(to_id, published=True)
             # rollback automático se qualquer linha lançar exceção
+
 ```
 
 ```python
 # modules/posts/controller.py
-from typing import Annotated
-from aura import get, post, put, delete, Body, Param
+from aura import get, post, put, delete, Body, Query
 from aura.orm import Page
 from .schemas import CreatePostDTO, UpdatePostDTO, PostResponse
 from .service import PostService
@@ -191,28 +185,31 @@ class PostsController:
         self.service = service
 
     @get("/")
-    async def list_posts(self, page: Annotated[int, Query()] = 1) -> Page[PostResponse]:
+    async def list_posts(self, page: Query[int] = 1) -> Page[PostResponse]:
+        # O Aura serializa Page[Post] para Page[PostResponse] de forma ultra-rápida via TypeAdapter!
         return await self.service.list_posts(page)
 
     @get("/{post_id}")
-    async def get_post(self, post_id: Annotated[int, Param()]) -> PostResponse:
+    async def get_post(self, post_id: int) -> PostResponse:
+        # post_id é inferido e convertido para int de forma implícita a partir do path!
         return await self.service.get_post(post_id)
 
     @post("/", status=201)
-    async def create_post(self, body: Annotated[CreatePostDTO, Body()]) -> PostResponse:
+    async def create_post(self, body: Body[CreatePostDTO]) -> PostResponse:
         return await self.service.create_post(body)
 
     @put("/{post_id}")
     async def update_post(
         self,
-        post_id: Annotated[int, Param()],
-        body:    Annotated[UpdatePostDTO, Body()],
+        post_id: int,
+        body: Body[UpdatePostDTO],
     ) -> PostResponse:
         return await self.service.update_post(post_id, body)
 
     @delete("/{post_id}", status=204)
-    async def delete_post(self, post_id: Annotated[int, Param()]) -> None:
+    async def delete_post(self, post_id: int) -> None:
         await self.service.delete_post(post_id)
+
 ```
 
 ```python
@@ -290,12 +287,12 @@ jwt = JWTGuard(
 ### RateLimitGuard — proteção por rota
 
 ```python
-from aura import post, Module
+from aura import post, Module, Body
 from aura.guards import RateLimitGuard
 
 class AuthController:
     @post("/login", guards=[RateLimitGuard(max_requests=5, window=60)])
-    async def login(self, body: Annotated[LoginDTO, Body()]) -> TokenResponse:
+    async def login(self, body: Body[LoginDTO]) -> TokenResponse:
         # Máximo 5 tentativas por minuto por IP
         ...
 ```
@@ -314,13 +311,16 @@ app = Aura(
 )
 
 # Em qualquer controller:
+from aura import Body
+
 class CartController:
     @post("/add")
-    async def add_item(self, request: AuraRequest, body: Annotated[ItemDTO, Body()]) -> dict:
+    async def add_item(self, request: AuraRequest, body: Body[ItemDTO]) -> dict:
         cart = request.state.session.get("cart", [])
         cart.append(body.product_id)
         request.state.session["cart"] = cart
         return {"items": len(cart)}
+
 ```
 
 ### Guard personalizado
@@ -393,7 +393,7 @@ class PostsWebController:
     @html("/{post_id}")
     async def detail_page(
         self,
-        post_id: Annotated[int, Param()],
+        post_id: int,
         request: AuraRequest,
     ) -> HTMLResponse:
         post = await self.service.get_post(post_id)
@@ -838,8 +838,9 @@ response = await interceptor.intercept(request, handler, call_next)
 
 ### Routing — DX (v0.3.0)
 
-- [ ] **Inferência automática de `Param()`** — `async def get_user(self, user_id: int)` deveria inferir `Param()` quando `user_id` aparece no path `/{user_id}`, sem precisar de `Annotated[int, Param()]`
-- [ ] **`response_model` para serialização estrita** — `@get("/", response=UserResponse)` garante que apenas campos do schema são retornados
+- [x] **Inferência automática de `Param()`** — `async def get_user(self, user_id: int)` inferido de forma inteligente a partir do path template `/{user_id}` (sem precisar de `Annotated[int, Param()]`)
+- [x] **Serialização de alta performance com `TypeAdapter`** — `@get("/", response=Page[PostResponse])` compila e valida as respostas em nível de rota usando Pydantic v2 a velocidades nativas (C/Rust)
+- [x] **Auto-conversão de ORM e DTOs** — Serialização transparente de objetos/listas de ORM para schemas de resposta DTO sem loops de validação lentos em Python
 
 ### DI Container (v0.3.0)
 
@@ -869,9 +870,9 @@ response = await interceptor.intercept(request, handler, call_next)
 
 | Limitação                                                  | Impacto                        | Workaround                               |
 | ---------------------------------------------------------- | ------------------------------ | ---------------------------------------- |
-| Path params sem `Annotated[T, Param()]` não são resolvidos | Médio — mais verboso que ideal | Sempre usar `Annotated[int, Param()]`    |
 | `static()` em templates retorna `/static/{path}` hardcoded | Baixo                          | Usar Starlette `StaticFiles` diretamente |
 | `aura run --reload` reinicia o processo inteiro            | Baixo em dev                   | Comportamento normal do uvicorn          |
+
 
 ---
 

@@ -344,7 +344,7 @@ class TaskController:
         return response
 
     @delete("/tasks/{id}")
-    async def delete(self, id: Annotated[int, Param()]) -> HtmlResponse:
+    async def delete(self, id: int) -> HtmlResponse:
         await self.service.delete(id)
         return HtmlResponse("")  # htmx remove o elemento do DOM
 ```
@@ -517,10 +517,7 @@ class NotificationController:
             }
 
     @sse("/events/export-progress/{job_id}")
-    async def export_progress(
-        self,
-        job_id: Annotated[str, Param()],
-    ):
+    async def export_progress(self, job_id: str):
         """Progresso de uma exportação longa."""
         while True:
             progress = await job_tracker.get_progress(job_id)
