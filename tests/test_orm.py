@@ -92,6 +92,25 @@ class TestDatabaseManager:
         # Should not raise when called again on an already-closed manager
         await manager.close()
 
+    async def test_parallel_execution(self, db_manager: DatabaseManager) -> None:
+        """Test that db.parallel executes multiple callables concurrently in separate sessions."""
+        # Insert some items first
+        async with db_manager.session() as s:
+            repo = ItemRepository(s)
+            await repo.create(title="Item A", price=10.0)
+            await repo.create(title="Item B", price=20.0)
+
+        # Execute parallel queries
+        res_a, res_b = await db_manager.parallel(
+            lambda s: ItemRepository(s).first(title="Item A"),
+            lambda s: ItemRepository(s).first(title="Item B"),
+        )
+        assert res_a is not None
+        assert res_a.title == "Item A"
+        assert res_b is not None
+        assert res_b.title == "Item B"
+
+
 
 # ---------------------------------------------------------------------------
 # AuraModel

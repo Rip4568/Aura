@@ -341,6 +341,32 @@ class UserRepository(Repository[User]):
 
 ---
 
+## Consultas Paralelas (Concorrentes)
+
+Assim como o `Promise.all` no NodeJS, você pode querer disparar múltiplas buscas ou atualizações no banco de dados de forma paralela para otimizar o tempo de resposta do servidor.
+
+No entanto, **o SQLAlchemy impede consultas concorrentes usando a MESMA sessão/conexão** (disparando erros de concorrência ou de estado inválido caso você tente usar `asyncio.gather` com o mesmo objeto de sessão).
+
+Para contornar isso e fornecer a melhor DX possível, o Aura oferece o helper `db.parallel`. Ele recebe uma lista de funções executáveis, abre sessões e conexões independentes de forma assíncrona diretamente a partir do pool, executa-as em paralelo de forma transparente e retorna os resultados na ordem especificada:
+
+### Exemplo de uso:
+
+```python
+async def get_dashboard_data(self) -> dict:
+    # Executa ambas as buscas em paralelo usando o pool de conexões de forma segura
+    recent_users, total_users = await db.parallel(
+        lambda s: UserRepository(s).list(limit=5, order_by="created_at"),
+        lambda s: UserRepository(s).count()
+    )
+    return {
+        "users": recent_users,
+        "total": total_users
+    }
+```
+
+---
+
+
 ## Configurando o Banco de Dados
 
 ```python

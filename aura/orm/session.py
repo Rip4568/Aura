@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, TypeVar
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -12,6 +12,8 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+
+T = TypeVar("T")
 
 
 class DatabaseManager:
@@ -112,6 +114,34 @@ class DatabaseManager:
         """
         async with self.session() as s:
             yield s
+
+    async def parallel(self, *callables: Callable[[AsyncSession], Awaitable[T]]) -> list[T]:
+        """Execute multiple database queries or functions concurrently in parallel.
+
+        Each callable is executed within its own isolated, transactional database
+        session, allowing secure parallel query execution via the connection pool.
+
+        Args:
+            *callables: Coroutines or functions accepting an
+                        :class:`AsyncSession` as their sole argument.
+
+        Returns:
+            A list containing the gathered results in the same order as the callables.
+
+        Example::
+
+            users, posts = await db.parallel(
+                lambda s: UserRepository(s).list(),
+                lambda s: PostRepository(s).list(),
+            )
+        """
+        import asyncio
+
+        async def run_one(cb: Callable[[AsyncSession], Awaitable[T]]) -> T:
+            async with self.session() as session:
+                return await cb(session)
+
+        return list(await asyncio.gather(*(run_one(cb) for cb in callables)))
 
     async def create_all(self, base: Any) -> None:
         """Create all tables defined in *base*.metadata.

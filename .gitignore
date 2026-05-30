@@ -76,3 +76,6 @@ logs/
 # Ruff
 .ruff_cache/
 .ignore/*
+
+#testing generates projects
+novo_projeto_test

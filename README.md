@@ -164,14 +164,33 @@ class PostService:
             return await PostRepository(session).create(**data.model_dump())
 
     async def transfer_posts(self, from_id: int, to_id: int) -> None:
-        """Múltiplos repos na mesma transação."""
+        """Garante atomicidade (Tudo ou Nada).
+        
+        Abre uma transação única para múltiplos updates. Se qualquer alteração falhar,
+        toda a transação sofre rollback automático garantindo a integridade dos dados.
+        """
         async with db.transaction() as session:
             repo = PostRepository(session)
             await repo.update(from_id, published=False)
             await repo.update(to_id, published=True)
-            # rollback automático se qualquer linha lançar exceção
 
+    async def get_dashboard_data(self) -> dict:
+        """Busca concorrente em paralelo (equivalente a Promise.all do NodeJS).
+        
+        O SQLAlchemy impede a execução de múltiplas queries concorrentes usando a MESMA session.
+        Para resolver isso, o Aura fornece o helper `db.parallel` que abre sessões
+        independentes e gerencia a execução paralela concorrente através do pool de conexões.
+        """
+        recent_posts, total_count = await db.parallel(
+            lambda s: PostRepository(s).list(limit=5, order_by="created_at"),
+            lambda s: PostRepository(s).count()
+        )
+        return {
+            "recent": recent_posts,
+            "total": total_count
+        }
 ```
+
 
 ```python
 # modules/posts/controller.py
