@@ -62,6 +62,7 @@ def run_migrations_offline(target_metadata: Any, url: str) -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        render_as_batch=True,
     )
     with alembic_context.begin_transaction():
         alembic_context.run_migrations()
@@ -86,6 +87,7 @@ async def run_migrations_online(target_metadata: Any, engine: Any) -> None:
             lambda sync_conn: alembic_context.configure(
                 connection=sync_conn,
                 target_metadata=target_metadata,
+                render_as_batch=True,
             )
         )
         async with connection.begin():
@@ -146,6 +148,10 @@ from logging.config import fileConfig
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from alembic import context
+from aura.orm.migrations import (
+    run_migrations_offline as aura_offline,
+    run_migrations_online as aura_online,
+)
 
 {import_block}
 
@@ -156,37 +162,16 @@ if config.config_file_name:
 
 def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
-    context.configure(
-        url=url,
-        target_metadata=target_metadata,
-        literal_binds=True,
-        dialect_opts={{"paramstyle": "named"}},
-        render_as_batch=True,
-    )
-    with context.begin_transaction():
-        context.run_migrations()
-
-
-def do_run_migrations(connection):
-    context.configure(
-        connection=connection,
-        target_metadata=target_metadata,
-        render_as_batch=True,
-    )
-    with context.begin_transaction():
-        context.run_migrations()
-
-
-async def run_async_migrations() -> None:
-    url = config.get_main_option("sqlalchemy.url")
-    engine = create_async_engine(url)
-    async with engine.connect() as connection:
-        await connection.run_sync(do_run_migrations)
-    await engine.dispose()
+    aura_offline(target_metadata, url)
 
 
 def run_migrations_online() -> None:
-    asyncio.run(run_async_migrations())
+    url = config.get_main_option("sqlalchemy.url")
+    engine = create_async_engine(url)
+    try:
+        asyncio.run(aura_online(target_metadata, engine))
+    finally:
+        asyncio.run(engine.dispose())
 
 
 if context.is_offline_mode():

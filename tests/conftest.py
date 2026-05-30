@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
-from httpx import ASGITransport, AsyncClient
 
 from aura import Aura
+from aura.testing.client import AuraTestClient
 
 
 @pytest.fixture
@@ -32,12 +33,9 @@ def simple_app() -> Aura:
 
 
 @pytest.fixture
-async def client(simple_app: Aura) -> AsyncClient:  # type: ignore[misc]
-    """An httpx AsyncClient targeting the ``simple_app`` fixture."""
-    async with AsyncClient(
-        transport=ASGITransport(app=simple_app),
-        base_url="http://testserver",
-    ) as ac:
+async def client(simple_app: Aura) -> AsyncIterator[AuraTestClient]:
+    """An AuraTestClient targeting the ``simple_app`` fixture."""
+    async with AuraTestClient(simple_app) as ac:
         yield ac
 
 
