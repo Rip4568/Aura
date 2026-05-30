@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import builtins
 import uuid
+
+# ruff: noqa: UP006, UP035
 from dataclasses import dataclass
-from typing import Any, Generic, TypeAlias, TypeVar, cast
+from typing import Any, Generic, List, TypeAlias, TypeVar, cast
 
 from sqlalchemy import func, select
 from sqlalchemy.engine import CursorResult
@@ -23,7 +24,7 @@ PkType: TypeAlias = int | str | uuid.UUID
 class Page(Generic[T]):
     """Result of a paginated query."""
 
-    items: builtins.list[T]
+    items: List[T]
     total: int
     page: int
     per_page: int
@@ -158,7 +159,7 @@ class Repository(Generic[ModelT]):
         offset: int = 0,
         order_by: str | None = None,
         **filters: Any,
-    ) -> list[ModelT]:
+    ) -> List[ModelT]:
         """Fetch a paginated list of records with optional column filters.
 
         Args:
@@ -272,7 +273,7 @@ class Repository(Generic[ModelT]):
         result = await self.session.execute(stmt)
         return result.scalars().first()
 
-    async def bulk_create(self, items: builtins.list[dict[str, Any]]) -> builtins.list[ModelT]:
+    async def bulk_create(self, items: List[dict[str, Any]]) -> List[ModelT]:
         """Insert multiple records in a single flush.
 
         Args:
@@ -290,9 +291,9 @@ class Repository(Generic[ModelT]):
 
     async def bulk_update(
         self,
-        ids: builtins.list[PkType],
+        ids: List[PkType],
         **data: Any,
-    ) -> builtins.list[ModelT]:
+    ) -> List[ModelT]:
         """Update the same set of fields on multiple records at once.
 
         Executes a single UPDATE … WHERE id IN (…) instead of N individual
@@ -339,7 +340,7 @@ class Repository(Generic[ModelT]):
         )
         return list(result.scalars().all())
 
-    async def bulk_delete(self, ids: builtins.list[PkType]) -> int:
+    async def bulk_delete(self, ids: List[PkType]) -> int:
         """Delete multiple records by primary key in a single query.
 
         Executes a single DELETE … WHERE id IN (…) instead of N individual

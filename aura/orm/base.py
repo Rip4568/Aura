@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from sqlalchemy import MetaData, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+if TYPE_CHECKING:
+    from aura.orm.query import QuerySet
 
 NAMING_CONVENTION = {
     "ix": "ix_%(column_0_label)s",
@@ -27,7 +30,7 @@ class _AuraRegistry(DeclarativeBase):
 class _QuerySetDescriptor:
     """Descriptor that returns a fresh QuerySet when accessed as a class attribute."""
 
-    def __get__(self, obj: Any, objtype: type[Any] | None = None) -> Any:
+    def __get__(self, obj: Any, objtype: type[Any] | None = None) -> QuerySet[Any]:
         from aura.orm.query import QuerySet
         if objtype is None:
             objtype = type(obj)
@@ -37,7 +40,7 @@ class _QuerySetDescriptor:
 class QueryMixin:
     """Adds .objects class attribute to AuraModel for fluent queries."""
 
-    objects: ClassVar[Any] = _QuerySetDescriptor()
+    objects: ClassVar[QuerySet[Any]] = _QuerySetDescriptor()  # type: ignore[assignment]
 
 
 class AuraModel(_AuraRegistry, QueryMixin):
