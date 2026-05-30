@@ -149,7 +149,7 @@ def _service(name: str) -> str:
 """Service layer for the {p} module."""
 from __future__ import annotations
 
-from aura import injectable, NotFoundException, ConflictException
+from aura import injectable, NotFoundException, ConflictException, Log
 from .schemas import Create{p}DTO, Update{p}DTO, {p}Response
 
 
@@ -160,7 +160,7 @@ class {p}Service:
     Uses an in-memory store by default.
     To switch to a database, replace _store with a Repository:
 
-        from aura.orm.database import db
+        from aura import db
         from .repositories import {p}Repository
 
         async def list_{pl}(self) -> list[{p}Response]:
@@ -174,9 +174,11 @@ class {p}Service:
         self._next_id = 1
 
     async def list_{pl}(self) -> list[{p}Response]:
+        Log.info("Listing {pl} from store")
         return list(self._store.values())
 
     async def get_{s}(self, {s}_id: int) -> {p}Response:
+        Log.info("Fetching {s}", {s}_id={s}_id)
         obj = self._store.get({s}_id)
         if obj is None:
             raise NotFoundException(f"{p} {{{s}_id}} not found")
@@ -206,9 +208,7 @@ def _controller(name: str) -> str:
 """Controller for the {p} module."""
 from __future__ import annotations
 
-from typing import Annotated
-
-from aura import get, post, put, delete, Body, Param
+from aura import get, post, put, delete, Body, Param, Log
 from .schemas import Create{p}DTO, Update{p}DTO, {p}Response
 from .service import {p}Service
 
@@ -222,12 +222,13 @@ class {p}Controller:
     @get("/")
     async def list_{pl}(self) -> list[{p}Response]:
         """List all {pl}."""
+        Log.info("HTTP request to list {pl}")
         return await self.service.list_{pl}()
 
     @get("/{{{s}_id}}")
     async def get_{s}(
         self,
-        {s}_id: Annotated[int, Param()],
+        {s}_id: int,
     ) -> {p}Response:
         """Get a {s} by ID."""
         return await self.service.get_{s}({s}_id)
@@ -235,7 +236,7 @@ class {p}Controller:
     @post("/", status=201)
     async def create_{s}(
         self,
-        body: Annotated[Create{p}DTO, Body()],
+        body: Body[Create{p}DTO],
     ) -> {p}Response:
         """Create a new {s}."""
         return await self.service.create_{s}(body)
@@ -243,8 +244,8 @@ class {p}Controller:
     @put("/{{{s}_id}}")
     async def update_{s}(
         self,
-        {s}_id: Annotated[int, Param()],
-        body:   Annotated[Update{p}DTO, Body()],
+        {s}_id: int,
+        body:   Body[Update{p}DTO],
     ) -> {p}Response:
         """Update a {s}."""
         return await self.service.update_{s}({s}_id, body)
@@ -252,7 +253,7 @@ class {p}Controller:
     @delete("/{{{s}_id}}", status=204)
     async def delete_{s}(
         self,
-        {s}_id: Annotated[int, Param()],
+        {s}_id: int,
     ) -> None:
         """Delete a {s}."""
         await self.service.delete_{s}({s}_id)

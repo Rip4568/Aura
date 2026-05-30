@@ -206,7 +206,7 @@ Requires: pip install "aura-web[sqlalchemy]"
 """
 from __future__ import annotations
 
-# from aura.orm import AuraModel
+# from aura import AuraModel
 # from sqlalchemy.orm import Mapped, mapped_column
 #
 #
@@ -226,7 +226,7 @@ Configure the ORM model in models.py first.
 """
 from __future__ import annotations
 
-# from aura.orm import Repository
+# from aura import Repository
 # from .models import User
 #
 #
@@ -277,7 +277,7 @@ def _users_service() -> str:
 Uses an in-memory store so the app works immediately without a database.
 To switch to a database, replace _store with a Repository:
 
-    from aura.orm.database import db
+    from aura import db
     from .repositories import UserRepository
 
     async def list_users(self) -> list[UserResponse]:
@@ -287,7 +287,7 @@ To switch to a database, replace _store with a Repository:
 """
 from __future__ import annotations
 
-from aura import injectable, NotFoundException, ConflictException
+from aura import injectable, NotFoundException, ConflictException, Log
 from .schemas import CreateUserDTO, UpdateUserDTO, UserResponse
 
 
@@ -303,9 +303,11 @@ class UserService:
         self._next_id = 3
 
     async def list_users(self) -> list[UserResponse]:
+        Log.info("Fetching all users from store")
         return list(self._store.values())
 
     async def get_user(self, user_id: int) -> UserResponse:
+        Log.info("Fetching user", user_id=user_id)
         user = self._store.get(user_id)
         if user is None:
             raise NotFoundException(f"User {user_id} not found")
@@ -341,9 +343,7 @@ and return the result. Business logic lives in UserService.
 """
 from __future__ import annotations
 
-from typing import Annotated
-
-from aura import get, post, put, delete, Body, Param
+from aura import get, post, put, delete, Body, Param, Log
 from .schemas import CreateUserDTO, UpdateUserDTO, UserResponse
 from .service import UserService
 
@@ -358,12 +358,13 @@ class UsersController:
     @get("/")
     async def list_users(self) -> list[UserResponse]:
         """List all users."""
+        Log.info("HTTP request to list users")
         return await self.service.list_users()
 
     @get("/{user_id}")
     async def get_user(
         self,
-        user_id: Annotated[int, Param()],
+        user_id: int,
     ) -> UserResponse:
         """Get a user by ID. Returns 404 if not found."""
         return await self.service.get_user(user_id)
@@ -371,7 +372,7 @@ class UsersController:
     @post("/", status=201)
     async def create_user(
         self,
-        body: Annotated[CreateUserDTO, Body()],
+        body: Body[CreateUserDTO],
     ) -> UserResponse:
         """Create a new user. Returns 409 if email is already taken."""
         return await self.service.create_user(body)
@@ -379,8 +380,8 @@ class UsersController:
     @put("/{user_id}")
     async def update_user(
         self,
-        user_id: Annotated[int, Param()],
-        body:    Annotated[UpdateUserDTO, Body()],
+        user_id: int,
+        body:    Body[UpdateUserDTO],
     ) -> UserResponse:
         """Partially update a user."""
         return await self.service.update_user(user_id, body)
@@ -388,7 +389,7 @@ class UsersController:
     @delete("/{user_id}", status=204)
     async def delete_user(
         self,
-        user_id: Annotated[int, Param()],
+        user_id: int,
     ) -> None:
         """Delete a user. Returns 404 if not found."""
         await self.service.delete_user(user_id)

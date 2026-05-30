@@ -24,7 +24,10 @@ logger = logging.getLogger("aura.routing")
 
 
 # F-06: Pre-computed binding plan
-def _compute_binding_plan(handler: Callable[..., Any]) -> dict[str, Any]:
+def _compute_binding_plan(
+    handler: Callable[..., Any],
+    path_params: list[str] | None = None,
+) -> dict[str, Any]:
     """Compute handler parameter binding plan once per route build."""
     import typing
     plan: dict[str, Any] = {}
@@ -50,6 +53,13 @@ def _compute_binding_plan(handler: Callable[..., Any]) -> dict[str, Any]:
                 BodyMarker, QueryMarker, ParamMarker, HeaderMarker, CookieMarker))),
             None
         )  # FormDataMarker handled separately
+
+        # Implicit Path Parameter Inference:
+        # If no marker is explicitly specified, and the parameter name matches
+        # one of the route's path parameters, treat it as a ParamMarker automatically.
+        if marker is None and path_params and param_name in path_params:
+            marker = ParamMarker()
+
         has_default = param.default is not inspect.Parameter.empty
         plan[param_name] = {
             'marker': marker,
@@ -220,7 +230,9 @@ class Router:
             response_type = meta.get("response_type", "json")
 
             # F-06 + F-01: Pre-compute binding plan and extract OpenAPI metadata
-            binding_plan = _compute_binding_plan(handler)
+            import re
+            path_params = re.findall(r"\{([a-zA-Z0-9_]+)(?::[a-zA-Z0-9_]+)?\}", path)
+            binding_plan = _compute_binding_plan(handler, path_params=path_params)
             handler.__aura_binding_plan__ = binding_plan
             if hasattr(handler, "__func__"):
                 handler.__func__.__aura_binding_plan__ = binding_plan
@@ -737,8 +749,6 @@ async def _resolve_params(
     Returns:
         Dictionary mapping parameter name → resolved value.
     """
-    import typing
-
     kwargs: dict[str, Any] = {}
 
     # F-06: Use pre-computed binding plan if available
@@ -747,27 +757,15 @@ async def _resolve_params(
         func = getattr(handler, '__func__', handler)
         binding_plan = getattr(func, '__aura_binding_plan__', None)
 
-    sig = inspect.signature(handler)
+    if binding_plan is None:
+        binding_plan = _compute_binding_plan(handler)
 
-    try:
-        hints = typing.get_type_hints(handler, include_extras=True)
-    except Exception:
-        hints = {}
-
-    for param_name, param in sig.parameters.items():
-        hint = hints.get(param_name)
-        if hint is None:
-            continue
-
-        # Unwrap Annotated
-        origin = typing.get_origin(hint)
-        if origin is typing.Annotated:
-            args = typing.get_args(hint)
-            inner_type = args[0]
-            markers = args[1:]
-        else:
-            inner_type = hint
-            markers = ()
+    for param_name, plan in binding_plan.items():
+        marker = plan['marker']
+        inner_type = plan['inner_type']
+        has_default = plan['has_default']
+        param_default = plan['param_default']
+        required = plan['required']
 
         # Inject AuraRequest / starlette Request by type — no marker required
         if inspect.isclass(inner_type):
@@ -791,14 +789,6 @@ async def _resolve_params(
                         kwargs[param_name] = request
                 continue
 
-        marker = next(
-            (m for m in markers if isinstance(m, (
-                BodyMarker, QueryMarker, ParamMarker, HeaderMarker, CookieMarker,
-                FormDataMarker,
-            ))),
-            None,
-        )
-
         if isinstance(marker, BodyMarker):
             body_bytes = await request.body()
             if body_bytes:
@@ -808,20 +798,20 @@ async def _resolve_params(
                     kwargs[param_name] = inner_type.model_validate(body_data)
                 else:
                     kwargs[param_name] = body_data
-            elif param.default is not inspect.Parameter.empty:
-                kwargs[param_name] = param.default
+            elif has_default:
+                kwargs[param_name] = param_default
 
         elif isinstance(marker, QueryMarker):
             alias = marker.alias or param_name
             value = request.query_params.get(alias)
             if value is not None:
                 kwargs[param_name] = _coerce(value, inner_type)
-            elif marker.required:
+            elif required:
                 # F-09: Enforce QueryMarker.required
                 from aura.exceptions.http import UnprocessableEntityException
                 raise UnprocessableEntityException(f"Query parameter '{alias}' is required")
-            elif param.default is not inspect.Parameter.empty:
-                kwargs[param_name] = param.default
+            elif has_default:
+                kwargs[param_name] = param_default
             elif marker.default is not None:
                 kwargs[param_name] = marker.default
 
@@ -838,16 +828,16 @@ async def _resolve_params(
             value = request.headers.get(alias)
             if value is not None:
                 kwargs[param_name] = _coerce(value, inner_type)
-            elif param.default is not inspect.Parameter.empty:
-                kwargs[param_name] = param.default
+            elif has_default:
+                kwargs[param_name] = param_default
 
         elif isinstance(marker, CookieMarker):
             alias = marker.alias or param_name
             value = request.cookies.get(alias)
             if value is not None:
                 kwargs[param_name] = _coerce(value, inner_type)
-            elif param.default is not inspect.Parameter.empty:
-                kwargs[param_name] = param.default
+            elif has_default:
+                kwargs[param_name] = param_default
 
         elif isinstance(marker, FormDataMarker):
             try:

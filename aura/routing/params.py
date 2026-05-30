@@ -123,6 +123,9 @@ class _AnnotatedAlias(Generic[T]):
     def __getitem__(self, item: Any) -> Any:
         return Annotated[item, self._marker_cls()]
 
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self._marker_cls(*args, **kwargs)
+
 
 Body: _AnnotatedAlias[Any] = _AnnotatedAlias(BodyMarker)
 """Type alias helper — ``Body[T]`` → ``Annotated[T, BodyMarker()]``."""
