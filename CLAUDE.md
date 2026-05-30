@@ -8,26 +8,26 @@
 ## O Projeto
 
 **Aura** é um framework Python web NestJS-inspired: async-first, type-safe, Spec-Driven.  
-Resolve as dores reais do Django (ORM síncrono, sem DI real) e do FastAPI (sem estrutura, DI amarrado ao HTTP).  
+Resolve as dores reais do Django (ORM síncrono, sem DI real) e do FastAPI (sem estrutura, DI amarrado ao HTTP).
 
 **PyPI:** `pip install aura-web`  
-**Versão atual:** 0.3.0  
-**Testes:** 445 passando · mypy strict 0 erros · ruff clean  
+**Versão atual:** 0.4.9  
+**Testes:** 445 passando · mypy strict 0 erros · ruff clean
 
 ---
 
 ## Stack e Versões
 
-| Componente | Versão | Uso |
-|---|---|---|
-| Python | 3.10+ | target mínimo |
-| Starlette | latest | ASGI core |
-| Pydantic | v2.x | validação em todo o framework |
-| SQLAlchemy | 2.x async | ORM |
-| Alembic | latest | migrations |
-| SAQ | latest | jobs async (Redis) |
-| Jinja2 | 3.x | templates |
-| pytest-asyncio | latest | testes |
+| Componente     | Versão    | Uso                           |
+| -------------- | --------- | ----------------------------- |
+| Python         | 3.10+     | target mínimo                 |
+| Starlette      | latest    | ASGI core                     |
+| Pydantic       | v2.x      | validação em todo o framework |
+| SQLAlchemy     | 2.x async | ORM                           |
+| Alembic        | latest    | migrations                    |
+| SAQ            | latest    | jobs async (Redis)            |
+| Jinja2         | 3.x       | templates                     |
+| pytest-asyncio | latest    | testes                        |
 
 ---
 
@@ -61,13 +61,13 @@ docs/
 
 **Você (Claude Code — líder)** orquestra, toma decisões finais, valida entregas dos subagentes, e executa tarefas simples diretamente. Não delegue o que você mesmo pode fazer em 2 minutos.
 
-| Agente | Ative quando... | NÃO use para... |
-|---|---|---|
-| `po-pm` | "Vale a pena construir isso?", priorização, critérios de aceite, análise de roadmap | Qualquer código |
-| `arquiteto` | "Como estruturar isso?", review de API pública, ADRs, identificar acoplamento | Implementação de código |
-| `engenheiro` | Implementar feature aprovada, corrigir bug, escrever testes, fix lint/mypy | Decisões arquiteturais |
-| `research` | "Como outros frameworks fazem X?", verificar docs, pesquisar boas práticas | Implementação |
-| `qa` | "Isso está correto e bem feito?", auditoria de módulo, busca por bugs, código duplicado/morto, cobertura de testes | Escrever código de correção |
+| Agente       | Ative quando...                                                                                                    | NÃO use para...             |
+| ------------ | ------------------------------------------------------------------------------------------------------------------ | --------------------------- |
+| `po-pm`      | "Vale a pena construir isso?", priorização, critérios de aceite, análise de roadmap                                | Qualquer código             |
+| `arquiteto`  | "Como estruturar isso?", review de API pública, ADRs, identificar acoplamento                                      | Implementação de código     |
+| `engenheiro` | Implementar feature aprovada, corrigir bug, escrever testes, fix lint/mypy                                         | Decisões arquiteturais      |
+| `research`   | "Como outros frameworks fazem X?", verificar docs, pesquisar boas práticas                                         | Implementação               |
+| `qa`         | "Isso está correto e bem feito?", auditoria de módulo, busca por bugs, código duplicado/morto, cobertura de testes | Escrever código de correção |
 
 ### Fluxo correto para uma feature nova
 
@@ -84,25 +84,32 @@ docs/
 ## Princípios Inegociáveis
 
 ### 1. Leia antes de mexer
+
 Nenhum arquivo é editado sem ser lido primeiro na sessão atual. Isso vale para você e para todos os agentes.
 
 ### 2. Verifique antes de marcar como feito
+
 Após qualquer implementação de subagente, antes de atualizar `docs/pending.md`:
+
 ```bash
 grep -n "def nome_do_metodo\|class NomeDaClasse" aura/modulo.py
 python3 -m pytest tests/test_modulo.py -q --tb=no
 ```
+
 Se não aparecer → **não está feito**. Independente do que o subagente relatou.
 
 ### 3. Escopo estrito
+
 Uma sessão = uma tarefa ou um módulo. Agentes não "melhoram" código fora do escopo definido.  
 Se um agente encontrar algo errado fora do escopo → **reporta, não corrige**.
 
 ### 4. API pública é contrato
+
 Itens em `__all__` de qualquer módulo são contratos com quem usa o Aura.  
 Mudanças breaking → revisão obrigatória do Arquiteto + nota no changelog.
 
 ### 5. Zero tolerância para degradação de qualidade
+
 ```bash
 # Esses três comandos DEVEM passar antes de qualquer commit:
 python3 -m pytest tests/ -q --tb=short
@@ -111,6 +118,7 @@ python3 -m ruff check aura/ tests/
 ```
 
 ### 6. Extras opcionais não poluem o core
+
 `[sqlalchemy]`, `[jwt]`, `[session]`, `[templates]` são opcionais.  
 Imports deles em `aura/__init__.py` e `aura/core/` são sempre dentro de `try/except ImportError`.
 
@@ -158,7 +166,8 @@ Ao final de cada sessão produtiva, atualize:
 
 ## Segurança — CRÍTICO
 
-**Tokens PyPI do projeto `aura-web` foram expostos em sessões anteriores.**  
+**Tokens PyPI do projeto `aura-web` foram expostos em sessões anteriores.**
+
 - Revogar em: https://pypi.org/manage/account/tokens/
 - Para publicar: `PYPI_TOKEN=pypi-... python3 build_to_pypi.py` (lê `.env` automaticamente)
 - **Nunca** passar token como `--password` ou `--token` na linha de comando

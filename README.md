@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square&logo=python" />
     <img src="https://img.shields.io/badge/pydantic-v2-orange?style=flat-square" />
     <img src="https://img.shields.io/badge/pypi-aura--web-purple?style=flat-square" />
-    <img src="https://img.shields.io/badge/version-0.3.0-blue?style=flat-square" />
+    <img src="https://img.shields.io/badge/version-0.4.9-blue?style=flat-square" />
     <img src="https://img.shields.io/badge/tests-347%20passing-brightgreen?style=flat-square" />
     <img src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square" />
     <img src="https://img.shields.io/badge/status-alpha-red?style=flat-square" />
@@ -25,18 +25,18 @@
 
 ## ✨ Por que Aura?
 
-| Problema real | Como outros resolvem | Como Aura resolve |
-|---|---|---|
-| `settings.py` com 500 linhas | Django: um arquivo global | `aura.toml` modular + config type-safe por seção |
-| ORM síncrono em stack async | Django: `sync_to_async()` em todo lugar | SQLAlchemy 2.x async genuíno desde o core |
-| Serializers fazem tudo (DRF) | ViewSet + Serializer + Permissions misturados | Schemas (DTOs) separados de Services e Controllers |
-| Celery complexo, sem async | Celery 5: ainda sem `async def` nativo | `@task(queue="emails")` — async de verdade |
-| DI só funciona no HTTP | FastAPI: `Depends()` não roda em jobs/CLI | `DIContainer` funciona em qualquer contexto |
-| Typing quebra com mypy | Django: metaclass magic quebra o type checker | Pydantic v2 em todo o framework, mypy strict |
-| Sem estrutura de projeto | FastAPI: 82+ boilerplates diferentes | `@Module` NestJS-inspired com DI encapsulado |
-| N+1 queries em produção | DRF: serializers aninhados sem select_related | `Repository[T]` com métodos otimizados |
-| Context dict não tipado | Django templates: `render(request, "tmpl.html", {"key": val})` | `TemplateContext` (Pydantic) — validado antes de renderizar |
-| Auth manual em cada projeto | FastAPI: `Depends(get_current_user)` por conta própria | `JWTGuard` + `RateLimitGuard` + `SessionMiddleware` built-in |
+| Problema real                | Como outros resolvem                                           | Como Aura resolve                                            |
+| ---------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------ |
+| `settings.py` com 500 linhas | Django: um arquivo global                                      | `aura.toml` modular + config type-safe por seção             |
+| ORM síncrono em stack async  | Django: `sync_to_async()` em todo lugar                        | SQLAlchemy 2.x async genuíno desde o core                    |
+| Serializers fazem tudo (DRF) | ViewSet + Serializer + Permissions misturados                  | Schemas (DTOs) separados de Services e Controllers           |
+| Celery complexo, sem async   | Celery 5: ainda sem `async def` nativo                         | `@task(queue="emails")` — async de verdade                   |
+| DI só funciona no HTTP       | FastAPI: `Depends()` não roda em jobs/CLI                      | `DIContainer` funciona em qualquer contexto                  |
+| Typing quebra com mypy       | Django: metaclass magic quebra o type checker                  | Pydantic v2 em todo o framework, mypy strict                 |
+| Sem estrutura de projeto     | FastAPI: 82+ boilerplates diferentes                           | `@Module` NestJS-inspired com DI encapsulado                 |
+| N+1 queries em produção      | DRF: serializers aninhados sem select_related                  | `Repository[T]` com métodos otimizados                       |
+| Context dict não tipado      | Django templates: `render(request, "tmpl.html", {"key": val})` | `TemplateContext` (Pydantic) — validado antes de renderizar  |
+| Auth manual em cada projeto  | FastAPI: `Depends(get_current_user)` por conta própria         | `JWTGuard` + `RateLimitGuard` + `SessionMiddleware` built-in |
 
 ---
 
@@ -71,6 +71,7 @@ aura run --reload
 ```
 
 Isso gera a estrutura completa:
+
 ```
 meu_projeto/
 ├── main.py                      # app = Aura(modules=[UsersModule])
@@ -556,18 +557,20 @@ aura worker
 > Aura resolve isso de forma elegante com o **AuraLogSystem v1.0**, um sistema de logs estruturado, assíncrono e altamente otimizado para o ciclo de vida de aplicações modernas.
 
 ### 🌟 Principais Recursos
-* 🚀 **I/O Não-Bloqueante (Async-Safe)**: Integração nativa com `QueueHandler` e `QueueListener` da biblioteca padrão para delegar a escrita de logs em arquivo para uma thread em background. O Event Loop fica 100% livre e performático.
-* 🧩 **Propagação de Contexto Automática**: Rastreamento automático de `request_id`, `user_id` e variáveis contextuais personalizadas em tarefas assíncronas e background jobs usando `contextvars`.
-* 🛡️ **Sanitização de Dados Sensíveis**: Redação automática de senhas, tokens de API, cartões de crédito e outras informações confidenciais (`***REDACTED***`).
-* 📁 **Daily Rotating File Handler**: Rotação diária e baseada em contagem de linhas automática, com detecção inteligente e avisos em ambientes multiprocesso.
-* 💅 **Formatadores Flexíveis**: Suporte nativo a formato **Plain Text** (legível em desenvolvimento) e **JSON** estruturado (perfeito para Kibana, Grafana Loki, Datadog ou AWS CloudWatch).
-* 🎛️ **Configuração Simplificada via `aura.toml` ou Env**: Níveis de log, rotações, filtros e destinos de forma declarativa.
+
+- 🚀 **I/O Não-Bloqueante (Async-Safe)**: Integração nativa com `QueueHandler` e `QueueListener` da biblioteca padrão para delegar a escrita de logs em arquivo para uma thread em background. O Event Loop fica 100% livre e performático.
+- 🧩 **Propagação de Contexto Automática**: Rastreamento automático de `request_id`, `user_id` e variáveis contextuais personalizadas em tarefas assíncronas e background jobs usando `contextvars`.
+- 🛡️ **Sanitização de Dados Sensíveis**: Redação automática de senhas, tokens de API, cartões de crédito e outras informações confidenciais (`***REDACTED***`).
+- 📁 **Daily Rotating File Handler**: Rotação diária e baseada em contagem de linhas automática, com detecção inteligente e avisos em ambientes multiprocesso.
+- 💅 **Formatadores Flexíveis**: Suporte nativo a formato **Plain Text** (legível em desenvolvimento) e **JSON** estruturado (perfeito para Kibana, Grafana Loki, Datadog ou AWS CloudWatch).
+- 🎛️ **Configuração Simplificada via `aura.toml` ou Env**: Níveis de log, rotações, filtros e destinos de forma declarativa.
 
 ---
 
 ### 💻 Como usar
 
 #### 1. Usando a Facade `Log`
+
 Você não precisa instanciar ou buscar loggers manualmente. Use a facade estática `Log` em qualquer lugar da sua aplicação:
 
 ```python
@@ -578,8 +581,8 @@ Log.info("Serviço de pagamento inicializado")
 
 # Logs estruturados com campos extras
 Log.warning(
-    "Tentativa de login malsucedida", 
-    username="jon_doe", 
+    "Tentativa de login malsucedida",
+    username="jon_doe",
     ip_address="192.168.1.100"
 )
 
@@ -591,6 +594,7 @@ except Exception as e:
 ```
 
 #### 2. Propagação de Contexto (Contextvars)
+
 O Aura gerencia e propaga contextos de log automaticamente. Se você rodar tarefas em segundo plano e quiser manter o mesmo `request_id` ou `user_id` nos logs da tarefa:
 
 ```python
@@ -604,12 +608,13 @@ async def background_task(user_id: int):
 # Em seu controller ou service:
 async def handle_request():
     context = {"request_id": "req-9872134", "user_id": 42}
-    
+
     # Executa a coroutine propagando o contexto
     await run_with_context(background_task(42), context)
 ```
 
 #### 3. Interceptor de Requisições HTTP
+
 Para que todas as requisições HTTP tenham um `request_id` único e gerem logs automáticos de acesso, basta usar o `RequestLogInterceptor` como middleware ASGI em seu `main.py`:
 
 ```python
@@ -629,6 +634,7 @@ app = Aura(
 ```
 
 #### 4. Sanitização Automática
+
 Campos confidenciais são limpos dos seus logs estruturados antes de serem exibidos ou gravados:
 
 ```python
@@ -641,6 +647,7 @@ Log.info("Requisição recebida", payload={
 ```
 
 #### 5. Configuração
+
 Personalize o comportamento do sistema de logs no seu arquivo de configurações `aura.toml` ou via variáveis de ambiente com o prefixo `AURA__LOGGING__` ou `LOG_`:
 
 ```toml
@@ -663,10 +670,11 @@ sanitize_fields = ["password", "token", "cvv", "api_key", "authorization"]
 Diferente dos middlewares tradicionais do ASGI (que rodam no nível da requisição bruta HTTP), os interceptadores rodam no ciclo de vida de resolução de rotas do framework, fornecendo acesso direto a contextos de execução assíncronos.
 
 ### 🌟 O que eles podem fazer?
-* ⏱️ **Métricas de Performance**: Medir tempo exato de processamento de controladores.
-* 📝 **Logs de Acesso**: Gerar auditorias estruturadas de requisições.
-* 📦 **Transformação de Respostas**: Envolver ou mutar o retorno de um endpoint.
-* 💾 **Caching**: Interceptar a requisição e retornar um valor cacheado antes do handler rodar.
+
+- ⏱️ **Métricas de Performance**: Medir tempo exato de processamento de controladores.
+- 📝 **Logs de Acesso**: Gerar auditorias estruturadas de requisições.
+- 📦 **Transformação de Respostas**: Envolver ou mutar o retorno de um endpoint.
+- 💾 **Caching**: Interceptar a requisição e retornar um valor cacheado antes do handler rodar.
 
 ---
 
@@ -675,6 +683,7 @@ Diferente dos middlewares tradicionais do ASGI (que rodam no nível da requisiç
 O Aura já vem com dois interceptadores prontos para uso em `aura.interceptors`:
 
 #### 1. `TimingInterceptor`
+
 Adiciona automaticamente o cabeçalho `X-Process-Time` (com precisão de microssegundos) na resposta de qualquer rota interceptada.
 
 ```python
@@ -684,6 +693,7 @@ from aura.interceptors import TimingInterceptor
 ```
 
 #### 2. `RequestLogInterceptor` (ou `LoggingInterceptor`)
+
 Grava logs de acesso estruturados a nível de rota no logger `aura.access`. Ele captura: método, URL de acesso, status da resposta, e tempo decorrido em milissegundos (`elapsed_ms`), integrando de forma limpa as variáveis de contexto (`request_id`, `user_id`, etc.).
 
 ---
@@ -701,19 +711,20 @@ class SimpleAuditInterceptor(Interceptor):
     async def intercept(self, request: Any, handler: Any, call_next: Any) -> Any:
         # 1. Executa lógica ANTES do handler rodar
         print(f"Auditoria: Rota {request.url.path} foi chamada!")
-        
+
         # 2. Chama o próximo passo (próximo interceptador ou o handler em si)
         start_time = time.perf_counter()
         response = await call_next(request)
-        
+
         # 3. Executa lógica DEPOIS do handler rodar
         duration = time.perf_counter() - start_time
         print(f"Auditoria: Rota respondeu com status {response.status_code} em {duration:.4f}s")
-        
+
         return response
 ```
 
 Para usar o interceptador em sua rota, basta chamá-lo encadeando o protocolo de execução no pipeline desejado:
+
 ```python
 interceptor = SimpleAuditInterceptor()
 response = await interceptor.intercept(request, handler, call_next)
@@ -724,6 +735,7 @@ response = await interceptor.intercept(request, handler, call_next)
 ## ✅ O que já está pronto
 
 ### Core
+
 - [x] App ASGI (Starlette core)
 - [x] Routing: `@get`, `@post`, `@put`, `@delete`, `@patch`, `@ws`
 - [x] Parameter binding: `Body`, `Query`, `Param`, `Header`, `Cookie`
@@ -739,6 +751,7 @@ response = await interceptor.intercept(request, handler, call_next)
 - [x] Response helpers: `ok()`, `created()`, `no_content()`, `redirect()`
 
 ### ORM
+
 - [x] `AuraModel` com `id`, `created_at`, `updated_at`
 - [x] `Repository[T]`: `get`, `get_or_raise`, `list`, `create`, `update`, `delete`, `exists`, `count`, `first`
 - [x] `Repository[T]`: `bulk_create`, `bulk_update`, `bulk_delete`
@@ -750,6 +763,7 @@ response = await interceptor.intercept(request, handler, call_next)
 - [x] SQLAlchemy 2.x async
 
 ### Auth & Segurança
+
 - [x] `JWTGuard` — valida `Authorization: Bearer`, popula `request.state.user` (requer `aura-web[jwt]`)
 - [x] `RateLimitGuard` — rate limit por rota (sliding window, só stdlib)
 - [x] `SessionMiddleware` — sessões assinadas em cookie (requer `aura-web[session]`)
@@ -758,6 +772,7 @@ response = await interceptor.intercept(request, handler, call_next)
 - [x] `CompressionMiddleware`
 
 ### Jobs
+
 - [x] `@task` e `@periodic` decorators
 - [x] `MemoryBackend` (dev/test — sem dependências externas)
 - [x] `SAQBackend` — Redis via SAQ (requer `aura-web[saq]`)
@@ -765,8 +780,9 @@ response = await interceptor.intercept(request, handler, call_next)
 - [x] `aura worker` funcional com SAQ native worker e TaskRegistry
 
 ### Templates (HTML server-rendered)
+
 - [x] `TemplateContext` — Pydantic model como spec do template
-- [x] `HtmlResponse` com suporte a headers HX-*
+- [x] `HtmlResponse` com suporte a headers HX-\*
 - [x] `AuraTemplateEngine` — Jinja2 com async nativo
 - [x] `Component` — classes Python com `Props` tipadas
 - [x] `HtmxInfo` — detecta requests htmx via headers
@@ -780,12 +796,14 @@ response = await interceptor.intercept(request, handler, call_next)
 - [x] `url_for(name, **params)` global em todos os templates
 
 ### OpenAPI / Docs
+
 - [x] OpenAPI 3.1 auto-gerado
 - [x] Swagger UI embutido em `/docs`
 - [x] ReDoc embutido em `/redoc`
 - [x] `/health` automático
 
 ### CLI
+
 - [x] `aura version`
 - [x] `aura new <name>` — scaffolding completo com módulo Users funcional
 - [x] `aura generate module/resource/controller/service/schema/guard`
@@ -795,6 +813,7 @@ response = await interceptor.intercept(request, handler, call_next)
 - [x] `aura worker` — SAQ nativo em produção, MemoryBackend em dev
 
 ### Observabilidade & Logging (AuraLogSystem v1.0)
+
 - [x] **Facade `Log`** — métodos estáticos convenientes (`Log.info()`, `Log.debug()`, etc.) com merging automático de contexto.
 - [x] **I/O Não-Bloqueante** — fila de logs (`QueueHandler` e `QueueListener` nativos) para evitar travar o event loop assíncrono.
 - [x] **Propagação de Contexto** — suporte automático via `contextvars` para manter `request_id`, `user_id` e dados customizados correlacionados.
@@ -806,6 +825,7 @@ response = await interceptor.intercept(request, handler, call_next)
 - [x] **Suíte de Testes Robusta** — cobertura abrangente de toda a infraestrutura de observabilidade com 39 testes dedicados.
 
 ### Qualidade
+
 - [x] 347 testes passando
 - [x] mypy strict (0 erros em 86 arquivos)
 - [x] ruff (0 warnings)
@@ -847,11 +867,11 @@ response = await interceptor.intercept(request, handler, call_next)
 
 ## ⚠️ Limitações conhecidas
 
-| Limitação | Impacto | Workaround |
-|---|---|---|
-| Path params sem `Annotated[T, Param()]` não são resolvidos | Médio — mais verboso que ideal | Sempre usar `Annotated[int, Param()]` |
-| `static()` em templates retorna `/static/{path}` hardcoded | Baixo | Usar Starlette `StaticFiles` diretamente |
-| `aura run --reload` reinicia o processo inteiro | Baixo em dev | Comportamento normal do uvicorn |
+| Limitação                                                  | Impacto                        | Workaround                               |
+| ---------------------------------------------------------- | ------------------------------ | ---------------------------------------- |
+| Path params sem `Annotated[T, Param()]` não são resolvidos | Médio — mais verboso que ideal | Sempre usar `Annotated[int, Param()]`    |
+| `static()` em templates retorna `/static/{path}` hardcoded | Baixo                          | Usar Starlette `StaticFiles` diretamente |
+| `aura run --reload` reinicia o processo inteiro            | Baixo em dev                   | Comportamento normal do uvicorn          |
 
 ---
 
