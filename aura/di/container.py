@@ -95,7 +95,9 @@ class DIContainer:
         impl = implementation or service_type
         factory = self._make_factory(impl)
         self._set_provider(service_type, factory, lifetime)
-        logger.debug("Registered %s as %s (%s)", impl.__name__, service_type.__name__, lifetime)
+        logger.debug(
+            "Registered %s as %s (%s)", _type_name(impl), _type_name(service_type), lifetime
+        )
 
     def register_factory(
         self,
@@ -114,7 +116,7 @@ class DIContainer:
         """
         self._set_provider(service_type, factory, lifetime)
         logger.debug(
-            "Registered factory for %s (%s)", service_type.__name__, lifetime
+            "Registered factory for %s (%s)", _type_name(service_type), lifetime
         )
 
     def register_instance(self, service_type: type[T], instance: T) -> None:
@@ -128,7 +130,7 @@ class DIContainer:
             return instance
 
         self._providers[service_type] = SingletonProvider(_factory)
-        logger.debug("Registered instance for %s", service_type.__name__)
+        logger.debug("Registered instance for %s", _type_name(service_type))
 
     # ------------------------------------------------------------------
     # Resolution
@@ -157,7 +159,7 @@ class DIContainer:
         provider = self._providers.get(service_type)
         if provider is None:
             raise KeyError(
-                f"No provider registered for '{service_type.__name__}'. "
+                f"No provider registered for '{_type_name(service_type)}'. "
                 "Did you forget to add it to the module's providers list?"
             )
 
@@ -220,9 +222,9 @@ class DIContainer:
             if isinstance(provider, SingletonProvider):
                 try:
                     await provider.get(self)
-                    logger.debug("Warmed up singleton: %s", service_type.__name__)
+                    logger.debug("Warmed up singleton: %s", _type_name(service_type))
                 except Exception:
-                    logger.exception("Failed to warm up singleton: %s", service_type.__name__)
+                    logger.exception("Failed to warm up singleton: %s", _type_name(service_type))
 
     async def shutdown(self) -> None:
         """Release resources held by providers (no-op for now).
@@ -284,7 +286,7 @@ class DIContainer:
                 elif not is_optional and not has_default:
                     # Required dependency not registered and no default
                     raise RuntimeError(
-                        f"DIContainer: '{impl.__name__}' depends on "
+                        f"DIContainer: '{_type_name(impl)}' depends on "
                         f"'{_type_name(param_type)}' which is not registered. "
                         f"Add it to the module's providers list."
                     )
@@ -297,7 +299,7 @@ class DIContainer:
 def _is_optional_type(type_hint: Any) -> bool:
     """Check if a type hint represents an optional type.
 
-    A type is optional if it is Union[X, None] or Optional[X].
+    A type is optional if it is Union[X, None], Optional[X], or X | None.
 
     Args:
         type_hint: The type hint to check.
@@ -305,6 +307,15 @@ def _is_optional_type(type_hint: Any) -> bool:
     Returns:
         True if the type is optional, False otherwise.
     """
+    # Check new Python 3.10+ UnionType (e.g. Logger | None)
+    try:
+        import types
+        if hasattr(types, "UnionType") and isinstance(type_hint, types.UnionType):
+            args = getattr(type_hint, "__args__", ())
+            return type(None) in args
+    except AttributeError:
+        pass
+
     # Get the origin (Union, Optional, etc.)
     origin = getattr(type_hint, "__origin__", None)
 

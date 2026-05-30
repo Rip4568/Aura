@@ -56,6 +56,12 @@ class DatabaseManager:
             expire_on_commit=False,
             autoflush=False,
         )
+        try:
+            from aura.orm.profiling import setup_query_profiling
+
+            setup_query_profiling(self._engine)
+        except Exception:  # pragma: no cover
+            pass
 
     @property
     def engine(self) -> AsyncEngine:

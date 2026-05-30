@@ -138,3 +138,25 @@ Header: _AnnotatedAlias[Any] = _AnnotatedAlias(HeaderMarker)
 
 Cookie: _AnnotatedAlias[Any] = _AnnotatedAlias(CookieMarker)
 """Type alias helper — ``Cookie[T]`` → ``Annotated[T, CookieMarker()]``."""
+
+
+@dataclass(frozen=True)
+class FormDataMarker:
+    """Marker para injetar AuraForm preenchido com dados do request.
+
+    Aceita JSON, multipart/form-data e x-www-form-urlencoded.
+    Session SQLAlchemy é obtida de request.state.db_session se disponível.
+
+    Attach via ``Annotated``::
+
+        async def create_user(
+            form: Annotated[UserForm, FormDataMarker()],
+        ) -> ...:
+            ...
+    """
+
+    pass
+
+
+FormData: _AnnotatedAlias[Any] = _AnnotatedAlias(FormDataMarker)
+"""Type alias helper — ``FormData[T]`` → ``Annotated[T, FormDataMarker()]``."""

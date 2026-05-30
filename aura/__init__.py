@@ -47,7 +47,7 @@ from aura.exceptions.http import (
 from aura.guards.base import Guard
 from aura.modules.base import Module
 from aura.routing.decorators import delete, get, patch, post, put, ws
-from aura.routing.params import Body, Cookie, Header, Param, Query
+from aura.routing.params import Body, Cookie, FormData, Header, Param, Query
 from aura.routing.router import Router
 from aura.schema.base import ResponseSchema, Schema
 
@@ -90,6 +90,27 @@ try:
 except ImportError:
     pass  # Jinja2 not installed — templates disabled
 
+# Forms (optional — requires aura-web[forms] or just aura.forms)
+try:
+    from aura.forms import (
+        AuraForm,
+        BoolField,
+        CharField,
+        ChoiceField,
+        DateField,
+        DateTimeField,
+        EmailField,
+        FieldValidationError,
+        FloatField,
+        ForeignKeyField,
+        FormValidationError,
+        IntField,
+        ManyToManyField,
+        TextField,
+    )
+except ImportError:
+    pass
+
 __version__ = "0.3.1"
 
 __all__ = [
@@ -111,6 +132,7 @@ __all__ = [
     "Query",
     "Header",
     "Cookie",
+    "FormData",
     # Schemas
     "Schema",
     "ResponseSchema",
@@ -149,4 +171,19 @@ __all__ = [
     "redirect",
     # Request
     "AuraRequest",
+    # Forms (optional)
+    "AuraForm",
+    "FormValidationError",
+    "FieldValidationError",
+    "CharField",
+    "TextField",
+    "IntField",
+    "FloatField",
+    "BoolField",
+    "EmailField",
+    "DateField",
+    "DateTimeField",
+    "ChoiceField",
+    "ForeignKeyField",
+    "ManyToManyField",
 ]

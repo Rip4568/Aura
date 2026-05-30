@@ -14,6 +14,7 @@ from starlette.websockets import WebSocket
 from aura.routing.params import (
     BodyMarker,
     CookieMarker,
+    FormDataMarker,
     HeaderMarker,
     ParamMarker,
     QueryMarker,
@@ -792,7 +793,8 @@ async def _resolve_params(
 
         marker = next(
             (m for m in markers if isinstance(m, (
-                BodyMarker, QueryMarker, ParamMarker, HeaderMarker, CookieMarker
+                BodyMarker, QueryMarker, ParamMarker, HeaderMarker, CookieMarker,
+                FormDataMarker,
             ))),
             None,
         )
@@ -846,6 +848,42 @@ async def _resolve_params(
                 kwargs[param_name] = _coerce(value, inner_type)
             elif param.default is not inspect.Parameter.empty:
                 kwargs[param_name] = param.default
+
+        elif isinstance(marker, FormDataMarker):
+            try:
+                from aura.forms.base import AuraForm as _AuraForm
+            except ImportError as err:
+                raise RuntimeError(
+                    "FormDataMarker requer aura.forms. "
+                    "O módulo de forms não está disponível."
+                ) from err
+
+            import inspect as _inspect
+            if not (_inspect.isclass(inner_type) and issubclass(inner_type, _AuraForm)):
+                raise TypeError(
+                    f"FormDataMarker requer subclasse de AuraForm, recebeu: {inner_type}"
+                )
+
+            content_type = request.headers.get("content-type", "")
+            if "application/json" in content_type:
+                raw: dict[str, Any] = await request.json()
+            elif (
+                "multipart/form-data" in content_type
+                or "application/x-www-form-urlencoded" in content_type
+            ):
+                form_data = await request.form()
+                raw = {}
+                for key in form_data.keys():
+                    values = form_data.getlist(key)
+                    raw[key] = values[0] if len(values) == 1 else values
+            else:
+                raw = {}
+
+            # Session: tenta request.state.db_session
+            # (injetado por DatabaseMiddleware se disponível)
+            session = getattr(getattr(request, "state", None), "db_session", None)
+
+            kwargs[param_name] = inner_type(raw_data=raw, session=session)
 
     return kwargs
 
