@@ -242,14 +242,14 @@ class DecimalField(Field[Decimal]):
             return cast("Decimal | None", self.default)
         try:
             value = Decimal(str(raw))
-        except InvalidOperation as exc:
+            if self.decimal_places is not None:
+                quantize_str = "1." + "0" * self.decimal_places
+                value = value.quantize(Decimal(quantize_str))
+            return value
+        except (InvalidOperation, ValueError, TypeError) as exc:
             raise FieldValidationError(
                 "Informe um valor decimal válido.", code="invalid_decimal"
             ) from exc
-        if self.decimal_places is not None:
-            quantize_str = "1." + "0" * self.decimal_places
-            value = value.quantize(Decimal(quantize_str))
-        return value
 
     def validate(self, value: Decimal | None) -> None:
         super().validate(value)
@@ -298,6 +298,10 @@ class BoolField(Field[bool]):
 
     def validate(self, value: bool | None) -> None:  # noqa: FBT001
         # BoolField never has a "missing" value — absent raw → False
+        if self.required and not value:
+            raise FieldValidationError(
+                "Este campo é obrigatório.", code="required"
+            )
         for validator in self.validators:
             validator(value)
 
@@ -534,8 +538,8 @@ class MultipleChoiceField(Field[list[str]]):
                 self._valid_values.add(choice)
 
     def to_python(self, raw: Any) -> list[str] | None:
-        if raw is None:
-            return cast("list[str] | None", self.default)
+        if self._is_empty(raw):
+            return []
         if isinstance(raw, list):
             return [str(v) for v in raw]
         # Single value submitted as string
@@ -668,13 +672,24 @@ class ForeignKeyField(Field[Any]):
         if self._is_empty(raw):
             return self.default
 
+        # Check if raw is already a model instance
+        if isinstance(raw, self.model):
+            return raw
+
         pk = raw
         try:
             from sqlalchemy import select as sa_select
 
-            stmt = sa_select(self.model).where(
-                getattr(self.model, self.to_field) == pk
-            )
+            if self.queryset is not None:
+                stmt = (
+                    self.queryset._build_stmt()
+                    if hasattr(self.queryset, "_build_stmt")
+                    else self.queryset
+                )
+            else:
+                stmt = sa_select(self.model)
+
+            stmt = stmt.where(getattr(self.model, self.to_field) == pk)
             result = await session.execute(stmt)
             instance = result.scalars().first()
         except Exception as exc:
@@ -734,31 +749,45 @@ class ManyToManyField(Field[list[Any]]):
         if raw is None:
             return []
 
+        # Check if raw already contains model instances
+        if isinstance(raw, list) and all(isinstance(x, self.model) for x in raw):
+            return raw
+        if isinstance(raw, self.model):
+            return [raw]
+
         pks: list[Any] = raw if isinstance(raw, list) else [raw]
-        instances: list[Any] = []
+        if not pks:
+            return []
 
         try:
             from sqlalchemy import select as sa_select
 
-            for pk in pks:
-                stmt = sa_select(self.model).where(
-                    getattr(self.model, self.to_field) == pk
+            if self.queryset is not None:
+                stmt = (
+                    self.queryset._build_stmt()
+                    if hasattr(self.queryset, "_build_stmt")
+                    else self.queryset
                 )
-                result = await session.execute(stmt)
-                instance = result.scalars().first()
-                if instance is None:
-                    raise FieldValidationError(
-                        f"{self.model.__name__} com id {pk} não encontrado.",
-                        code="not_found",
-                    )
-                instances.append(instance)
-        except FieldValidationError:
-            raise
+            else:
+                stmt = sa_select(self.model)
+
+            stmt = stmt.where(getattr(self.model, self.to_field).in_(pks))
+            result = await session.execute(stmt)
+            instances = list(result.scalars().all())
         except Exception as exc:
             raise FieldValidationError(
                 f"Erro ao buscar {self.model.__name__}: {exc}",
                 code="db_error",
             ) from exc
+
+        # Verify that all requested primary keys were found
+        fetched_pks = {getattr(inst, self.to_field) for inst in instances}
+        for pk in pks:
+            if pk not in fetched_pks:
+                raise FieldValidationError(
+                    f"{self.model.__name__} com id {pk} não encontrado.",
+                    code="not_found",
+                )
 
         return instances
 

@@ -12,7 +12,7 @@ Resolve as dores reais do Django (ORM síncrono, sem DI real) e do FastAPI (sem 
 
 **PyPI:** `pip install aura-web`  
 **Versão atual:** 0.3.0  
-**Testes:** 247 passando · mypy strict 0 erros · ruff clean  
+**Testes:** 445 passando · mypy strict 0 erros · ruff clean  
 
 ---
 
