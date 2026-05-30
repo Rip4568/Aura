@@ -2,7 +2,7 @@
 
 > Lista completa e atualizada de itens pendentes no Aura Framework.  
 > Atualizado em 2026-05-29. Organizado por prioridade e área.
-> **298 testes passando · ruff clean · mypy strict 86 arquivos**
+> **347 testes passando · ruff clean · mypy strict 86 arquivos**
 
 ---
 
