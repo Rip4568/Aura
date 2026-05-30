@@ -57,32 +57,71 @@ def _env_example() -> str:
 # Copy this file to .env and fill in the values.
 # Aura reads nested config with __ as separator.
 
+# App Config
+AURA__APP_NAME="Aura App"
+AURA__DEBUG=true
+AURA__SECRET_KEY="change-me-in-production-32chars!!"
+
 # Server
 AURA__SERVER__HOST=127.0.0.1
 AURA__SERVER__PORT=8000
+AURA__SERVER__WORKERS=1
 AURA__SERVER__RELOAD=true
 
-# Database (SQLite by default — change to PostgreSQL in production)
+# Database
 AURA__DATABASE__URL=sqlite+aiosqlite:///./dev.db
-# AURA__DATABASE__URL=postgresql+asyncpg://user:pass@localhost/mydb
+# AURA__DATABASE__URL=postgresql+asyncpg://user:pass@localhost:5432/dbname
+AURA__DATABASE__POOL_SIZE=5
+AURA__DATABASE__MAX_OVERFLOW=10
+AURA__DATABASE__ECHO=false
 
-# Jobs (comment out to use in-memory queue)
+# Jobs
+AURA__JOBS__BACKEND=memory
+# AURA__JOBS__BACKEND=saq
 # AURA__JOBS__BROKER_URL=redis://localhost:6379/0
+
+# Logging
+AURA__LOGGING__LEVEL=INFO
+AURA__LOGGING__DIR=storage/logs
+AURA__LOGGING__FORMAT=plain
+AURA__LOGGING__CONSOLE=true
+AURA__LOGGING__FILE=true
 """
 
 def _aura_toml(project_name: str, snake: str) -> str:
     return f"""\
-[app]
-name = "{project_name}"
+# General settings
+app_name = "{project_name}"
 debug = true
+secret_key = "change-me-in-production-32chars!!"
 
 [server]
 host = "127.0.0.1"
 port = 8000
-reload = false
+workers = 1
+reload = true
 
 [database]
 url = "sqlite+aiosqlite:///./{snake}.db"
+pool_size = 5
+max_overflow = 10
+echo = false
+
+[jobs]
+backend = "memory"
+broker_url = "redis://localhost:6379"
+default_queue = "default"
+max_workers = 4
+
+[logging]
+level = "INFO"
+dir = "storage/logs"
+format = "plain"
+console = true
+file = true
+sanitize_fields = ["password", "token", "secret", "authorization", "cookie"]
+include_request_body = false
+include_response_body = false
 """
 
 def _pyproject_toml(project_name: str) -> str:

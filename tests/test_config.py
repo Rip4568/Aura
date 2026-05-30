@@ -66,9 +66,9 @@ def test_aura_config_has_nested_configs() -> None:
 
 
 def test_aura_config_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("APP_NAME", "TestApp")
-    monkeypatch.setenv("DEBUG", "true")
-    monkeypatch.setenv("SECRET_KEY", "a" * 32)
+    monkeypatch.setenv("AURA__APP_NAME", "TestApp")
+    monkeypatch.setenv("AURA__DEBUG", "true")
+    monkeypatch.setenv("AURA__SECRET_KEY", "a" * 32)
 
     cfg = AuraConfig()
     assert cfg.app_name == "TestApp"
