@@ -266,6 +266,51 @@ aura run --reload
 # GET  /health         → { "status": "ok", "version": "1.0.0" }
 ```
 
+### Database Seeders
+
+O Aura possui suporte nativo para seeding de banco de dados assíncrono com injeção de dependências e proteção para produção.
+
+#### Exemplo de Seeder:
+
+```python
+# database/seeders/user_seeder.py
+from aura.orm import Seeder
+from modules.users.models import User
+
+class UserSeeder(Seeder):
+    async def run(self) -> None:
+        user = User(name="John Doe", email="john@example.com")
+        await self.save(user)  # Salva transparentemente na transação ativa
+```
+
+Você pode encadear seeders de forma hierárquica chamando outros sub-seeders recursivamente:
+
+```python
+# database/seeders/main_seeder.py
+from aura.orm import Seeder
+from .user_seeder import UserSeeder
+
+class DatabaseSeeder(Seeder):
+    async def run(self) -> None:
+        # Executa múltiplos sub-seeders resolvidos via DI
+        await self.call([UserSeeder])
+```
+
+Para executar seus seeders via CLI:
+
+```bash
+# Executa o seeder principal (DatabaseSeeder por padrão)
+aura db seed
+
+# Executa um seeder específico
+aura db seed --class UserSeeder
+
+# Executa de forma idempotente (pula seeders já registrados em _aura_seeded)
+aura db seed --once
+```
+
+Confira a [Documentação de Seeders](docs/seeders.md) para detalhes completos de DI, transações e segurança em produção.
+
 ---
 
 ## 🔐 Auth, Guards e Segurança
@@ -864,6 +909,7 @@ Confira a [Documentação Detalhada do Aura Tinker](docs/tinker.md) para ver exe
 - [x] `DatabaseManager` — auto-init via `AURA__DATABASE__URL` na startup do app
 - [x] `AuraModel.__abstract__ = True` — suporte a modelos abstratos intermediários
 - [x] SQLAlchemy 2.x async
+- [x] Sistema de Database Seeders com suporte a DI, idempotência e proteção de Produção
 
 ### Auth & Segurança
 
