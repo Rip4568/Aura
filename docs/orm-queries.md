@@ -13,16 +13,15 @@ Controller → Service → Repository[Model] → AsyncSession → PostgreSQL/SQL
 ## Definindo um Model
 
 ```python
-from sqlalchemy import String, Boolean, ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from aura.orm.base import AuraModel
+from aura.orm import AuraModel, CharField, EmailField, BooleanField, relationship
+from sqlalchemy.orm import Mapped
 
 class User(AuraModel):
     __tablename__ = "users"
 
-    name:    Mapped[str]  = mapped_column(String(100))
-    email:   Mapped[str]  = mapped_column(String(200), unique=True, index=True)
-    active:  Mapped[bool] = mapped_column(Boolean, default=True)
+    name:    Mapped[str]  = CharField(max_length=100)
+    email:   Mapped[str]  = EmailField(max_length=200, unique=True, index=True)
+    active:  Mapped[bool] = BooleanField(default=True)
 
     # Relacionamento
     posts:   Mapped[list["Post"]] = relationship("Post", back_populates="author")
@@ -239,51 +238,41 @@ class UserController:
 
 ---
 
-## Queries Avançadas com SQLAlchemy Direto
+## Queries Avançadas com AuraQL e SQLAlchemy
 
-O `Repository` cobre 80% dos casos. Para queries complexas, acesse o `session` diretamente:
+O `Repository` do Aura e o manager `.objects` (AuraQL) cobrem a grande maioria dos casos de forma limpa. Para queries customizadas ou relações de eager loading, o AuraQL fornece uma interface fluente estilo Django. Caso precise de controle total de baixo nível, você também pode usar o SQLAlchemy `select()` ou SQL puro.
 
 ```python
 from sqlalchemy import select, and_, or_, func, text
-from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm import selectinload
+from aura.orm import Q
 
 class UserRepository(Repository[User]):
     model = User
 
-    # Query customizada com JOIN e filtros complexos
+    # 1. Recomendado: Query fluente e expressiva com AuraQL
     async def search(
         self,
         query: str,
         active: bool = True,
         role: str | None = None,
     ) -> list[User]:
-        stmt = (
-            select(User)
-            .where(
-                and_(
-                    User.active == active,
-                    or_(
-                        User.name.ilike(f"%{query}%"),
-                        User.email.ilike(f"%{query}%"),
-                    )
-                )
-            )
+        # Suporta Q objects para queries complexas com OR
+        qs = User.objects.filter(
+            Q(name__icontains=query) | Q(email__icontains=query),
+            active=active,
         )
         if role:
-            stmt = stmt.where(User.role == role)
-        
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+            qs = qs.filter(role=role)
+        return await qs.all()
 
-    # Eager loading de relacionamentos (evita N+1)
+    # 2. Eager loading simplificado de relacionamentos (evita N+1)
     async def get_with_posts(self, user_id: int) -> User | None:
-        stmt = (
-            select(User)
-            .options(selectinload(User.posts))  # carrega posts em 1 query
-            .where(User.id == user_id)
+        return await (
+            User.objects
+            .include("posts")  # Eager loading nativo estilo Django/Prisma
+            .get_or_none(id=user_id)
         )
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
 
     # Agregações
     async def stats(self) -> dict:

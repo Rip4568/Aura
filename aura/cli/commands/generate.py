@@ -74,16 +74,15 @@ Requires: pip install "aura-web[sqlalchemy]"
 """
 from __future__ import annotations
 
-# from aura.orm import AuraModel
-# from sqlalchemy.orm import Mapped, mapped_column
+# from aura.orm import AuraModel, CharField, EmailField
+# from sqlalchemy.orm import Mapped
 #
 #
 # class {p}(AuraModel):
-#     __tablename__ = "{pl}"
+#     # __tablename__ = "{pl}"
 #
-#     name: Mapped[str]
-#     # email: Mapped[str] = mapped_column(unique=True)
-#     # description: Mapped[str | None] = None
+#     # name: Mapped[str] = CharField(max_length=150)
+#     # email: Mapped[str | None] = EmailField(required=False, unique=True)
 '''
 
 
@@ -116,15 +115,14 @@ def _models_with_db(name: str) -> str:
 """ORM model for the {p} module."""
 from __future__ import annotations
 
-from sqlalchemy.orm import Mapped, mapped_column
-
-from aura.orm import AuraModel
+from aura.orm import AuraModel, CharField
+from sqlalchemy.orm import Mapped
 
 
 class {p}(AuraModel):
     __tablename__ = "{pl}"
 
-    name: Mapped[str]
+    name: Mapped[str] = CharField(max_length=150)
 '''
 
 

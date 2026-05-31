@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar
 
-from sqlalchemy import MetaData, func
+from sqlalchemy import Integer, MetaData, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 if TYPE_CHECKING:
@@ -20,10 +20,24 @@ NAMING_CONVENTION = {
 }
 
 
+str_255 = Annotated[str, "str_255"]
+email_type = Annotated[str, "email_type"]
+text_long = Annotated[str, "text_long"]
+pk_int = Annotated[int, "pk_int"]
+
+
 class _AuraRegistry(DeclarativeBase):
     """Internal SQLAlchemy registry. Never subclass this directly — use AuraModel."""
 
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
+
+    type_annotation_map = {
+        str_255: String(255),
+        email_type: String(254),
+        text_long: Text(),
+        pk_int: Integer(),
+    }
+
 
 
 

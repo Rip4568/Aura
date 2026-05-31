@@ -248,15 +248,15 @@ def _users_models() -> str:
 
 from __future__ import annotations
 
-from aura import AuraModel
-from sqlalchemy.orm import Mapped, mapped_column
+from aura.orm import AuraModel, CharField, EmailField
+from sqlalchemy.orm import Mapped
 
 
 class User(AuraModel):
     __tablename__ = "users"
 
-    name: Mapped[str]
-    email: Mapped[str] = mapped_column(unique=True)
+    name: Mapped[str] = CharField(max_length=150)
+    email: Mapped[str] = EmailField(unique=True)
 '''
 
 def _users_repositories() -> str:
