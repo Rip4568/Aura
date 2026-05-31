@@ -83,6 +83,8 @@ meu_projeto/
 │       ├── schemas.py           # CreateUserDTO, UpdateUserDTO, UserResponse
 │       ├── service.py           # @injectable UserService (in-memory, pronto pra usar)
 │       ├── controller.py        # CRUD completo: @get @post @put @delete
+│       ├── repository.py        # metodos builtins como: create,update, delete, list, bulk_create, bulk_update, bulk_delete
+│       ├── model.py             # Definição dos modelos de estrutra de dados do backend.
 │       └── module.py            # @Module(providers, controllers, prefix)
 └── tests/
     ├── conftest.py              # AsyncClient via ASGITransport
@@ -125,14 +127,14 @@ class PostRepository(Repository[Post]):
     # exists, count, first, bulk_create, bulk_update, bulk_delete, paginate
 
     async def list_published(self, *, limit: int = 20) -> list[Post]:
-        stmt = (
-            select(Post)
-            .where(Post.published == True)
-            .order_by(Post.created_at.desc())
+        # Recomendado: query fluente estilo Django do Aura (AuraQL)
+        return await (
+            Post.objects
+            .filter(published=True)
+            .order_by("-created_at")
             .limit(limit)
+            .all()
         )
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
 ```
 
 ```python
