@@ -265,11 +265,10 @@ class Aura:
             logger.exception("Failed to initialize logging system")
 
         # Auto-initialise the database.
-        try:
-            cfg = self.container.resolve(self._config_class)
-            _db_url = cfg.database.url
-        except Exception:
-            _db_url = os.environ.get("AURA__DATABASE__URL") or os.environ.get("DATABASE__URL")
+        _db_url: str | None = (
+            os.environ.get("AURA__DATABASE__URL")
+            or os.environ.get("DATABASE__URL")
+        )
 
         if _db_url:
             try:
