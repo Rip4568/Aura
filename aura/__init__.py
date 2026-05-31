@@ -56,9 +56,11 @@ try:
     from aura.orm import (
         AuraModel,
         DatabaseManager,
+        Factory,
         Page,
         PkType,
         Repository,
+        SubFactory,
         db,
         email_type,
         pk_int,
@@ -196,6 +198,8 @@ __all__ = [
     "email_type",
     "text_long",
     "pk_int",
+    "Factory",
+    "SubFactory",
     # Response helpers
     "AuraResponse",
     "ok",
