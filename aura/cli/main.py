@@ -28,13 +28,21 @@ def version() -> None:
 # ---------------------------------------------------------------------------
 # Register sub-command groups
 # ---------------------------------------------------------------------------
-from aura.cli.commands import generate, migrate, new, run, tinker, worker  # noqa: E402
+from aura.cli.commands import generate, migrate, new, run, seed, tinker, worker  # noqa: E402
+
+db_app = typer.Typer(
+    name="db",
+    help="Database commands group.",
+    no_args_is_help=True,
+)
+db_app.add_typer(seed.app, name="seed", help="Run database seeders.")
 
 app.add_typer(new.app, name="new", help="Scaffold a new Aura project or resource.")
 app.add_typer(generate.app, name="generate", help="Generate modules, schemas, guards, etc.")
 app.command("run")(run.run_command)
 app.command("worker")(worker.worker_command)
 app.add_typer(migrate.app, name="migrate", help="Database migration commands.")
+app.add_typer(db_app, name="db", help="Database commands.")
 app.add_typer(
     tinker.app,
     name="tinker",
