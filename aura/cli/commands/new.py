@@ -41,14 +41,16 @@ Run:
     aura run --reload        # with hot-reload
     aura run --workers 4     # production-like
 """
-from aura import Aura, QueryCountMiddleware
+from aura import Aura, QueryCountMiddleware, SessionMiddleware
 from starlette.middleware import Middleware
 from aura.logging import RequestLogInterceptor
+from aura.admin import AdminModule
 from modules.users.module import UsersModule
 
 app = Aura(
-    modules=[UsersModule],
+    modules=[UsersModule, AdminModule],
     middleware=[
+        Middleware(SessionMiddleware, secret_key="change-me-in-production-32chars!!"),
         Middleware(RequestLogInterceptor),
         Middleware(QueryCountMiddleware),
     ],
@@ -67,6 +69,8 @@ def _env_example() -> str:
 AURA__APP_NAME="Aura App"
 AURA__DEBUG=true
 AURA__SECRET_KEY="change-me-in-production-32chars!!"
+AURA_ADMIN_PASSWORD="minha-senha-secreta"
+
 
 # Server
 AURA__SERVER__HOST=127.0.0.1
