@@ -218,3 +218,86 @@ class TestAdminPanel:
         assert "<html" not in htmx_response.text
         assert "HTMX Widget" in htmx_response.text
         assert "<table" in htmx_response.text
+
+
+class TestAdminPasswordSecurity:
+    """Test suite validating admin panel password-only authentication and session lifecycle."""
+
+    @pytest.fixture
+    async def secure_app(self, monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[Aura, None]:
+        # Set the admin password env variable
+        monkeypatch.setenv("AURA_ADMIN_PASSWORD", "super-secret-key")
+
+        # Initialize SQLite memory database
+        db.init("sqlite+aiosqlite:///:memory:", echo=False)
+        await db.create_all(AuraModel)
+
+        from aura import SessionMiddleware
+
+        @Module(
+            controllers=[],
+            imports=[AdminModule],
+            providers=[],
+        )
+        class TestRootModule:
+            pass
+
+        from starlette.middleware import Middleware
+        app = Aura(
+            modules=[TestRootModule],
+            middleware=[
+                Middleware(SessionMiddleware, secret_key="test-session-secret"),
+                DatabaseMiddleware,
+            ]
+        )
+        yield app
+
+        await db.drop_all(AuraModel)
+        await db.close()
+
+    @pytest.fixture
+    async def secure_client(self, secure_app: Aura) -> AsyncGenerator[AuraTestClient, None]:
+        async with AuraTestClient(secure_app) as client:
+            yield client
+
+    async def test_requires_auth_redirects_to_login(self, secure_client: AuraTestClient) -> None:
+        """Accessing the admin dashboard when password is set redirects to /admin/login."""
+        res = await secure_client.get("/admin", follow_redirects=False)
+        assert res.status_code == 307
+        assert res.headers["location"] == "/admin/login"
+
+        # Check rendering of the login page
+        login_res = await secure_client.get("/admin/login")
+        assert login_res.status_code == 200
+        assert "Painel Administrativo" in login_res.text
+        assert "Chave de Acesso" in login_res.text
+
+    async def test_failed_login_shows_error(self, secure_client: AuraTestClient) -> None:
+        """Submitting an invalid password re-renders login with error message."""
+        res = await secure_client.post("/admin/login", data={"password": "wrong-password"})
+        assert res.status_code == 200
+        assert "Chave de acesso incorreta" in res.text
+
+    async def test_successful_login_session_flow(self, secure_client: AuraTestClient) -> None:
+        """Submitting correct password authenticates user, redirects to admin, and allows access."""
+        # Login successfully
+        login_res = await secure_client.post("/admin/login", data={"password": "super-secret-key"})
+        assert login_res.status_code == 307
+        assert login_res.headers["location"] == "/admin"
+
+        # We should now be authenticated and able to get the dashboard
+        dashboard_res = await secure_client.get("/admin")
+        assert dashboard_res.status_code == 200
+        assert "Dashboard" in dashboard_res.text
+        assert "Sair" in dashboard_res.text
+
+        # Logout should clear session and redirect back to login
+        logout_res = await secure_client.get("/admin/logout", follow_redirects=False)
+        assert logout_res.status_code == 307
+        assert logout_res.headers["location"] == "/admin/login"
+
+        # Subsequent access to admin should be blocked again
+        blocked_res = await secure_client.get("/admin", follow_redirects=False)
+        assert blocked_res.status_code == 307
+        assert blocked_res.headers["location"] == "/admin/login"
+

@@ -39,6 +39,10 @@ async def render_admin(template_name: str, context: dict[str, Any]) -> HtmlRespo
         "bool": bool,
         "datetime": datetime,
         "date": date,
+        "has_password": bool(
+            os.getenv("AURA_ADMIN_PASSWORD")
+            or os.getenv("AURA__ADMIN__PASSWORD")
+        ),
         **context,
     }
 
@@ -68,6 +72,81 @@ class AdminController:
             if model.__name__.lower() == model_name.lower():
                 return model, admin
         raise NotFoundException(f"Model '{model_name}' not found in registry.")
+
+    def check_auth(self, request: AuraRequest) -> Any | None:
+        """Check if password security is active and the user is authenticated.
+
+        Returns a RedirectResponse if redirect is needed, otherwise None.
+        """
+        password = os.getenv("AURA_ADMIN_PASSWORD") or os.getenv("AURA__ADMIN__PASSWORD")
+        if not password:
+            return None
+
+        sess = getattr(request.state, "session", None)
+        if sess is None:
+            raise RuntimeError(
+                "SessionMiddleware is required for Aura Admin password security. "
+                "Please add SessionMiddleware to your application's middleware list in main.py."
+            )
+
+        if not sess.get("admin_authenticated"):
+            from aura.core.response import redirect
+            return redirect("/admin/login")
+
+        return None
+
+    @get("/admin/login")
+    async def auth_login_get(self, request: AuraRequest) -> Any:
+        """Render the admin login page."""
+        password = os.getenv("AURA_ADMIN_PASSWORD") or os.getenv("AURA__ADMIN__PASSWORD")
+        if not password:
+            from aura.core.response import redirect
+            return redirect("/admin")
+
+        sess = getattr(request.state, "session", None)
+        if sess is not None and sess.get("admin_authenticated"):
+            from aura.core.response import redirect
+            return redirect("/admin")
+
+        return await render_admin("login.html", {"error": None})
+
+    @post("/admin/login")
+    async def auth_login_post(self, request: AuraRequest) -> Any:
+        """Process the admin login submission."""
+        password = os.getenv("AURA_ADMIN_PASSWORD") or os.getenv("AURA__ADMIN__PASSWORD")
+        if not password:
+            from aura.core.response import redirect
+            return redirect("/admin")
+
+        sess = getattr(request.state, "session", None)
+        if sess is None:
+            raise RuntimeError(
+                "SessionMiddleware is required for Aura Admin password security. "
+                "Please add SessionMiddleware to your application's middleware list in main.py."
+            )
+
+        form_data = await request.form()
+        submitted = form_data.get("password")
+
+        if submitted == password:
+            sess["admin_authenticated"] = True
+            from aura.core.response import redirect
+            return redirect("/admin")
+
+        return await render_admin(
+            "login.html",
+            {"error": "Chave de acesso incorreta. Tente novamente."},
+        )
+
+    @get("/admin/logout")
+    async def auth_logout(self, request: AuraRequest) -> Any:
+        """Log out from the administrative panel."""
+        sess = getattr(request.state, "session", None)
+        if sess is not None:
+            sess.pop("admin_authenticated", None)
+
+        from aura.core.response import redirect
+        return redirect("/admin/login")
 
     def apply_filters_and_search(
         self, stmt: Any, model: type[AuraModel], admin: ModelAdmin, query_params: Any
@@ -111,8 +190,12 @@ class AdminController:
         return stmt
 
     @get("/admin")
-    async def dashboard(self, request: AuraRequest) -> HtmlResponse:
+    async def dashboard(self, request: AuraRequest) -> Any:
         """Dashboard home displaying registered models and row counts."""
+        auth_res = self.check_auth(request)
+        if auth_res:
+            return auth_res
+
         from sqlalchemy import func, select
 
         counts: dict[str, int] = {}
@@ -126,8 +209,12 @@ class AdminController:
         })
 
     @get("/admin/{model_name}")
-    async def list_records(self, request: AuraRequest, model_name: str) -> HtmlResponse:
+    async def list_records(self, request: AuraRequest, model_name: str) -> Any:
         """Paginated, searchable table of records for a given model."""
+        auth_res = self.check_auth(request)
+        if auth_res:
+            return auth_res
+
         from sqlalchemy import func, select
 
         model, admin = self.get_model_and_admin(model_name)
@@ -215,8 +302,12 @@ class AdminController:
         return await render_admin("list.html", context)
 
     @get("/admin/{model_name}/create")
-    async def create_form(self, request: AuraRequest, model_name: str) -> HtmlResponse:
+    async def create_form(self, request: AuraRequest, model_name: str) -> Any:
         """Display creation form with columns inspected and mapped to field types."""
+        auth_res = self.check_auth(request)
+        if auth_res:
+            return auth_res
+
         model, admin = self.get_model_and_admin(model_name)
 
         from sqlalchemy.sql.sqltypes import Boolean, Date, DateTime, Float, Integer, String, Text
@@ -267,6 +358,10 @@ class AdminController:
     @post("/admin/{model_name}/create")
     async def create_record(self, request: AuraRequest, model_name: str) -> Any:
         """Validate form data, persist creation, and redirect."""
+        auth_res = self.check_auth(request)
+        if auth_res:
+            return auth_res
+
         model, admin = self.get_model_and_admin(model_name)
         form_data = await request.form()
 
@@ -381,8 +476,12 @@ class AdminController:
     @get("/admin/{model_name}/{record_id}/edit")
     async def edit_form(
         self, request: AuraRequest, model_name: str, record_id: int
-    ) -> HtmlResponse:
+    ) -> Any:
         """Display edit form populated with current database values."""
+        auth_res = self.check_auth(request)
+        if auth_res:
+            return auth_res
+
         from sqlalchemy import select
         model, admin = self.get_model_and_admin(model_name)
 
@@ -448,6 +547,10 @@ class AdminController:
     @post("/admin/{model_name}/{record_id}/edit")
     async def edit_record(self, request: AuraRequest, model_name: str, record_id: int) -> Any:
         """Validate edit form, update record attributes, flush, commit, and redirect."""
+        auth_res = self.check_auth(request)
+        if auth_res:
+            return auth_res
+
         from sqlalchemy import select
         model, admin = self.get_model_and_admin(model_name)
 
@@ -585,6 +688,10 @@ class AdminController:
 
     async def perform_delete(self, request: AuraRequest, model_name: str, record_id: int) -> Any:
         """Internal helper logic to execute record deletion."""
+        auth_res = self.check_auth(request)
+        if auth_res:
+            return auth_res
+
         from sqlalchemy import select
         model, admin = self.get_model_and_admin(model_name)
 
