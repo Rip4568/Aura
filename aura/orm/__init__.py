@@ -4,6 +4,7 @@ try:
     from aura.orm.aggregates import Avg, Count, Max, Min, Sum
     from aura.orm.base import AuraModel, email_type, pk_int, str_255, text_long
     from aura.orm.expressions import Q
+    from aura.orm.factories import Factory, SubFactory
     from aura.orm.fields import (
         BooleanField,
         CharField,
@@ -55,6 +56,8 @@ try:
         "ForeignKeyField",
         "ManyToManyField",
         "relationship",
+        "Factory",
+        "SubFactory",
     ]
 except ImportError:
     __all__ = []
