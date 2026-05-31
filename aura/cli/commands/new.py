@@ -400,10 +400,10 @@ class UsersController:
         """
         return {
             "message": (
-                "Request log interceptor is active. "
-                "Check terminal console output for structured logging and request IDs!"
+                "Request log interceptor is active. Check terminal console "
+                "output for structured logging and request IDs!"
             ),
-            "interceptor": "RequestLogInterceptor"
+            "interceptor": "RequestLogInterceptor",
         }
 
     @get("/{user_id}")

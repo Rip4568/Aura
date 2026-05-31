@@ -534,6 +534,11 @@ aura worker                               # processa todas as filas (MemoryBacke
 aura worker --queue emails --queue push   # filas específicas
 aura worker --broker-url redis://...      # SAQ com Redis em produção
 aura worker --concurrency 8              # workers paralelos
+
+# Shell interativo (Aura Tinker REPL)
+aura tinker                               # inicia o shell interativo assíncrono (IPython)
+aura tinker --repl bpython                # usa bpython se instalado
+aura tinker --no-db                       # inicia sem conectar ao banco de dados
 ```
 
 ---
@@ -797,6 +802,38 @@ response = await interceptor.intercept(request, handler, call_next)
 
 ---
 
+## 🌌 Shell Interativo — Aura Tinker (REPL)
+
+> Escreva código assíncrono e execute queries no banco sem importar nada manualmente.
+> O `aura tinker` localiza e carrega todos os Models, Repositories, Services e Schemas do projeto em menos de 1 segundo.
+
+O Aura Tinker inicializa um ambiente REPL interativo inteligente pré-carregado com os recursos da sua aplicação.
+
+### 🌟 Principais Recursos:
+- 🔍 **Auto-Discovery**: Varredura automática recursiva que detecta e importa todos os componentes do seu projeto (Models, Services, Repositories e Schemas) no namespace global.
+- ⚡ **Top-Level Await**: Suporte nativo a comandos assíncronos diretos (com `await`) utilizando IPython.
+- 🔄 **Injeção de Dependências**: Inicialização automática do container de DI (`container`) e do banco de dados (`db`) no escopo do shell.
+- 🛠️ **Helper `sync(...)`**: Execução simples de funções assíncronas em shells de fallback (`bpython` e `python` padrão).
+
+```bash
+# Inicializa o REPL (IPython por padrão)
+aura tinker
+
+# Abre o shell sem conectar ao banco de dados
+aura tinker --no-db
+
+# Especifica o shell de backend
+aura tinker --repl bpython
+```
+
+### 🗄️ Gerenciamento de Sessão no Shell:
+- **Opção 1 (Padrão Recomendado):** Usando o gerenciador de contexto `async with db.session() as session:` (gerencia commits e fechamentos de forma automática e segura).
+- **Opção 2 (Testes Rápidos no REPL):** Usando a factory direta `session = db._session_factory()` (ideal para escrever comandos em linha única sem recuo/indentação no terminal, exigindo chamar `await session.commit()` e `await session.close()` de forma manual ao final).
+
+Confira a [Documentação Detalhada do Aura Tinker](docs/tinker.md) para ver exemplos práticos e entender a arquitetura de auto-discovery do shell.
+
+---
+
 ## ✅ O que já está pronto
 
 ### Core
@@ -877,6 +914,7 @@ response = await interceptor.intercept(request, handler, call_next)
 - [x] `aura run` (uvicorn/granian)
 - [x] `aura migrate init/make/up/down/stamp/status/reset` — Alembic com UX melhorada (spinners, cores)
 - [x] `aura worker` — SAQ nativo em produção, MemoryBackend em dev
+- [x] `aura tinker` — shell REPL interativo com auto-discovery assíncrono e top-level await
 
 ### Observabilidade & Logging (AuraLogSystem v1.0)
 
