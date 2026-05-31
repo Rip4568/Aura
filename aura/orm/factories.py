@@ -123,7 +123,6 @@ class Factory(Generic[ModelT]):
                 instance = self.get_model_class()(**resolved_attrs)
                 session.add(instance)
                 await session.flush()
-                await session.commit()
                 await session.refresh(instance)
                 return instance
             finally:
@@ -142,7 +141,6 @@ class Factory(Generic[ModelT]):
                 for _ in range(count):
                     inst = await self.create(**overrides)
                     results.append(inst)
-                await session.commit()
                 for inst in results:
                     await session.refresh(inst)
                 return results
