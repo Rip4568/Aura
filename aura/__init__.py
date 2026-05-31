@@ -131,6 +131,17 @@ try:
 except ImportError:
     pass
 
+# Admin
+try:
+    from aura.admin import (
+        AdminModule,
+        ModelAdmin,
+        register,
+        register_model,
+    )
+except ImportError:
+    pass
+
 __version__ = "0.3.1"
 
 __all__ = [
@@ -219,4 +230,9 @@ __all__ = [
     "ChoiceField",
     "ForeignKeyField",
     "ManyToManyField",
+    # Admin
+    "AdminModule",
+    "ModelAdmin",
+    "register",
+    "register_model",
 ]

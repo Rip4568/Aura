@@ -23,6 +23,12 @@ try:
     from aura.orm.repository import Page, PkType, Repository
     from aura.orm.session import DatabaseManager, db
 
+    try:
+        from aura.admin.base import ModelAdmin, register, register_model
+        _admin_available = True
+    except ImportError:
+        _admin_available = False
+
     __all__ = [
         "AuraModel",
         "Repository",
@@ -56,6 +62,8 @@ try:
         "ManyToManyField",
         "relationship",
     ]
+    if _admin_available:
+        __all__ += ["ModelAdmin", "register", "register_model"]
 except ImportError:
     __all__ = []
 
