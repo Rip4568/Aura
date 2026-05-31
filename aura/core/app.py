@@ -267,7 +267,7 @@ class Aura:
         # Auto-initialise the database.
         _db_url: str | None = (
             os.environ.get("AURA__DATABASE__URL")
-            or os.environ.get("DATABASE__URL")
+            or os.environ.get("DATABASE_URL")
         )
 
         if _db_url:
