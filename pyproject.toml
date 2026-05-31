@@ -49,7 +49,7 @@ Documentation = "https://github.com/jonathasdavidd/Aura/tree/main/docs"
 granian = ["granian>=1.0"]
 uvicorn = ["uvicorn[standard]>=0.27"]
 templates = ["jinja2>=3.1", "python-multipart>=0.0.9"]
-sqlalchemy = ["sqlalchemy[asyncio]>=2.0", "alembic>=1.13"]
+sqlalchemy = ["sqlalchemy[asyncio]>=2.0", "alembic>=1.13", "faker>=19.0"]
 saq = ["saq>=0.12"]
 taskiq = ["taskiq>=0.11", "taskiq-redis>=0.5"]
 redis = ["redis[asyncio]>=5.0"]
@@ -67,6 +67,7 @@ dev = [
     "ruff>=0.2",
     "ipython>=8.0",
     "nest-asyncio>=1.5",
+    "faker>=19.0",
 ]
 
 [project.scripts]

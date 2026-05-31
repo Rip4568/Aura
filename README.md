@@ -311,6 +311,76 @@ aura db seed --once
 
 Confira a [Documentação de Seeders](docs/seeders.md) para detalhes completos de DI, transações e segurança em produção.
 
+### Model Factories & Faker
+
+Aura fornece uma infraestrutura robusta e moderna de **Factories** baseada no padrão Object Factory e integrada de forma nativa com a biblioteca **Faker**. Isso simplifica drasticamente a geração de dados para testes de integração, seeders e ambientes de desenvolvimento local.
+
+#### Definindo uma Fábrica
+
+As fábricas herdam de `Factory` e definem o modelo alvo e os atributos padrão usando o gerador `self.faker`. Relacionamentos são mapeados de forma elegante com `SubFactory`:
+
+```python
+from aura.orm import Factory, SubFactory
+from .models import User, Post
+
+class UserFactory(Factory[User]):
+    model = User
+
+    def definition(self) -> dict:
+        return {
+            "name": lambda: self.faker.name(),
+            "email": lambda: self.faker.unique.email(),
+            "active": True,
+        }
+
+class PostFactory(Factory[Post]):
+    model = Post
+
+    def definition(self) -> dict:
+        return {
+            "title": lambda: self.faker.sentence(),
+            "body": lambda: self.faker.paragraph(),
+            "author": SubFactory(UserFactory),  # Relacionamento automático
+        }
+```
+
+#### Estratégias de Geração
+
+O Aura diferencia explicitamente a geração em memória vs. a persistência no banco de dados para otimizar a velocidade e garantir previsibilidade nos testes:
+
+1. **Geração Síncrona em Memória (Rápida):** Instancia modelos sem tocar no banco de dados.
+   ```python
+   # Única instância em memória
+   post = PostFactory().make(title="Título Customizado")
+   
+   # Em lote (Batch) em memória
+   posts = PostFactory().make_many(5)
+   ```
+
+2. **Persistência Assíncrona no Banco (Real):** Salva e commita automaticamente no banco usando a sessão ativa ou abrindo uma nova transação.
+   ```python
+   # Única instância persistida
+   post = await PostFactory().create(title="Título Customizado")
+   
+   # Em lote (Batch) persistido
+   posts = await PostFactory().create_many(5)
+   ```
+
+#### Estado Imutável (`.state()`)
+
+Modifique fábricas de forma fluente e segura sem alterar a definição original:
+
+```python
+# Cria uma fábrica especializada em posts publicados
+published_factory = PostFactory().state(is_published=True)
+
+# Gera os posts publicados
+published_posts = await published_factory.create_many(3)
+```
+
+> [!NOTE]
+> Para uma documentação abrangente sobre estratégias avançadas, controle atômico de sessões sob ContextVars e tratamento de relacionamentos, confira o guia completo de [Model Factories](docs/factories.md).
+
 ---
 
 ## 🔐 Auth, Guards e Segurança
@@ -910,6 +980,7 @@ Confira a [Documentação Detalhada do Aura Tinker](docs/tinker.md) para ver exe
 - [x] `AuraModel.__abstract__ = True` — suporte a modelos abstratos intermediários
 - [x] SQLAlchemy 2.x async
 - [x] Sistema de Database Seeders com suporte a DI, idempotência e proteção de Produção
+- [x] `Model Factories` & `SubFactory` integrados ao `Faker` com suporte a `ContextVar` de transações
 
 ### Auth & Segurança
 
