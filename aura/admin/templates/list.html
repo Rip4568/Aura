@@ -1,0 +1,87 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ model_name }} | Aura Admin{% endblock %}
+{% block breadcrumb %}{{ model_name }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header bar -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-5">
+        <div>
+            <h1 class="text-2xl font-bold tracking-tight text-white">{{ model_name }}</h1>
+            <p class="text-xs text-slate-400 mt-1">Manage database records and execute search queries.</p>
+        </div>
+        <div>
+            <a href="/admin/{{ model_name_lower }}/create" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white rounded-lg transition-colors shadow-md shadow-brand-900/10">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+                <span>Create {{ model_name }}</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Search and Filter Form -->
+    <form id="filter-form" 
+          hx-get="/admin/{{ model_name_lower }}" 
+          hx-trigger="change, keyup changed delay:300ms from:input[name='q']" 
+          hx-target="#table-container" 
+          hx-swap="innerHTML"
+          class="flex flex-col lg:flex-row gap-6">
+        
+        <!-- Filters Sidebar / Controls -->
+        {% if admin.list_filter %}
+            <div class="w-full lg:w-64 bg-slate-900/50 border border-slate-800 rounded-xl p-5 space-y-4 shrink-0 h-fit">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Filters</h3>
+                
+                {% for f in admin.list_filter %}
+                    <div class="space-y-1.5">
+                        <label for="filter-{{ f }}" class="block text-xs font-medium text-slate-400 capitalize">
+                            {{ f.replace('_', ' ') }}
+                        </label>
+                        <select id="filter-{{ f }}" 
+                                name="{{ f }}"
+                                class="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-brand-500">
+                            <option value="">All</option>
+                            {% for val_id, val_label in filter_options[f] %}
+                                <option value="{{ val_id }}" {% if active_filters[f] == val_id %}selected{% endif %}>
+                                    {{ val_label }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                {% endfor %}
+                
+                <!-- Reset Filters link -->
+                <div class="pt-2">
+                    <a href="/admin/{{ model_name_lower }}" class="text-xs font-medium text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1">
+                        <span>Clear all filters</span>
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Table and Search Area -->
+        <div class="flex-1 space-y-4">
+            <!-- Search field -->
+            <div class="relative w-full max-w-md">
+                <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </span>
+                <input type="text" 
+                       name="q" 
+                       value="{{ q }}" 
+                       placeholder="Search records..." 
+                       class="w-full bg-slate-900 border border-slate-800 rounded-lg pl-9 pr-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all">
+            </div>
+
+            <!-- Table Container (swapped via HTMX) -->
+            <div id="table-container">
+                {% include "table_body.html" %}
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

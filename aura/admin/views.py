@@ -1,0 +1,712 @@
+from __future__ import annotations
+
+import os
+from datetime import date, datetime
+from typing import Any
+
+from jinja2 import Environment, FileSystemLoader
+
+from aura.admin.base import ModelAdmin, _registry
+from aura.core.request import AuraRequest
+from aura.core.response import redirect
+from aura.di.decorators import injectable
+from aura.exceptions.http import NotFoundException
+from aura.orm.base import AuraModel
+from aura.routing.decorators import delete, get, post
+from aura.templates.response import HtmlResponse
+
+# Configure Jinja2 environment pointing to local templates directory
+TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
+env = Environment(loader=FileSystemLoader(TEMPLATE_DIR), enable_async=True)
+
+
+async def render_admin(template_name: str, context: dict[str, Any]) -> HtmlResponse:
+    """Helper to render templates inside the admin local folder."""
+    # Add navigation/sidebar info with sorted model names
+    models_nav = []
+    for m in _registry.keys():
+        models_nav.append({
+            "name": m.__name__,
+            "path_name": m.__name__.lower(),
+        })
+    models_nav.sort(key=lambda x: x["name"])
+
+    full_context = {
+        "models_nav": models_nav,
+        "getattr": getattr,
+        "isinstance": isinstance,
+        "str": str,
+        "bool": bool,
+        "datetime": datetime,
+        "date": date,
+        "has_password": bool(
+            os.getenv("AURA_ADMIN_PASSWORD")
+            or os.getenv("AURA__ADMIN__PASSWORD")
+        ),
+        **context,
+    }
+
+    template = env.get_template(template_name)
+    html_content = await template.render_async(**full_context)
+    return HtmlResponse(html_content)
+
+
+@injectable
+class AdminController:
+    """Administrative control panel interface and route endpoints."""
+
+    @property
+    def session(self) -> Any:
+        """Resolve the active database session from ContextVar."""
+        from aura.orm.session import current_session
+        sess = current_session.get()
+        if sess is None:
+            raise RuntimeError(
+                "Database session not initialized. Make sure DatabaseMiddleware is configured."
+            )
+        return sess
+
+    def get_model_and_admin(self, model_name: str) -> tuple[type[AuraModel], ModelAdmin]:
+        """Look up a registered model and its ModelAdmin by case-insensitive name."""
+        for model, admin in _registry.items():
+            if model.__name__.lower() == model_name.lower():
+                return model, admin
+        raise NotFoundException(f"Model '{model_name}' not found in registry.")
+
+    def check_auth(self, request: AuraRequest) -> Any | None:
+        """Check if password security is active and the user is authenticated.
+
+        Returns a RedirectResponse if redirect is needed, otherwise None.
+        """
+        password = os.getenv("AURA_ADMIN_PASSWORD") or os.getenv("AURA__ADMIN__PASSWORD")
+        if not password:
+            return None
+
+        sess = getattr(request.state, "session", None)
+        if sess is None:
+            raise RuntimeError(
+                "SessionMiddleware is required for Aura Admin password security. "
+                "Please add SessionMiddleware to your application's middleware list in main.py."
+            )
+
+        if not sess.get("admin_authenticated"):
+            from aura.core.response import redirect
+            return redirect("/admin/login")
+
+        return None
+
+    @get("/admin/login")
+    async def auth_login_get(self, request: AuraRequest) -> Any:
+        """Render the admin login page."""
+        password = os.getenv("AURA_ADMIN_PASSWORD") or os.getenv("AURA__ADMIN__PASSWORD")
+        if not password:
+            from aura.core.response import redirect
+            return redirect("/admin")
+
+        sess = getattr(request.state, "session", None)
+        if sess is not None and sess.get("admin_authenticated"):
+            from aura.core.response import redirect
+            return redirect("/admin")
+
+        return await render_admin("login.html", {"error": None})
+
+    @post("/admin/login")
+    async def auth_login_post(self, request: AuraRequest) -> Any:
+        """Process the admin login submission."""
+        password = os.getenv("AURA_ADMIN_PASSWORD") or os.getenv("AURA__ADMIN__PASSWORD")
+        if not password:
+            from aura.core.response import redirect
+            return redirect("/admin")
+
+        sess = getattr(request.state, "session", None)
+        if sess is None:
+            raise RuntimeError(
+                "SessionMiddleware is required for Aura Admin password security. "
+                "Please add SessionMiddleware to your application's middleware list in main.py."
+            )
+
+        form_data = await request.form()
+        submitted = form_data.get("password")
+
+        if submitted == password:
+            sess["admin_authenticated"] = True
+            from aura.core.response import redirect
+            return redirect("/admin")
+
+        return await render_admin(
+            "login.html",
+            {"error": "Chave de acesso incorreta. Tente novamente."},
+        )
+
+    @get("/admin/logout")
+    async def auth_logout(self, request: AuraRequest) -> Any:
+        """Log out from the administrative panel."""
+        sess = getattr(request.state, "session", None)
+        if sess is not None:
+            sess.pop("admin_authenticated", None)
+
+        from aura.core.response import redirect
+        return redirect("/admin/login")
+
+    def apply_filters_and_search(
+        self, stmt: Any, model: type[AuraModel], admin: ModelAdmin, query_params: Any
+    ) -> Any:
+        """Apply the search_fields and list_filters to a select/count statement."""
+        from sqlalchemy import or_
+        from sqlalchemy.sql.sqltypes import Boolean, Float, Integer
+
+        # Search fields via `.like()`
+        q = query_params.get("q", "").strip()
+        if q and admin.search_fields:
+            conds = []
+            for field in admin.search_fields:
+                col = getattr(model, field, None)
+                if col is not None:
+                    conds.append(col.like(f"%{q}%"))
+            if conds:
+                stmt = stmt.where(or_(*conds))
+
+        # Filter fields via `==`
+        for filter_field in admin.list_filter:
+            val = query_params.get(filter_field)
+            if val is not None and val != "":
+                col = getattr(model, filter_field, None)
+                if col is not None:
+                    if isinstance(col.type, Boolean):
+                        parsed_val: Any = val.lower() in ("true", "1", "yes")
+                    elif isinstance(col.type, Integer):
+                        try:
+                            parsed_val = int(val)
+                        except ValueError:
+                            parsed_val = val
+                    elif isinstance(col.type, Float):
+                        try:
+                            parsed_val = float(val)
+                        except ValueError:
+                            parsed_val = val
+                    else:
+                        parsed_val = val
+                    stmt = stmt.where(col == parsed_val)
+        return stmt
+
+    @get("/admin")
+    async def dashboard(self, request: AuraRequest) -> Any:
+        """Dashboard home displaying registered models and row counts."""
+        auth_res = self.check_auth(request)
+        if auth_res:
+            return auth_res
+
+        from sqlalchemy import func, select
+
+        counts: dict[str, int] = {}
+        for model in _registry.keys():
+            stmt = select(func.count()).select_from(model)
+            res = await self.session.execute(stmt)
+            counts[model.__name__] = res.scalar() or 0
+
+        return await render_admin("dashboard.html", {
+            "counts": counts,
+        })
+
+    @get("/admin/{model_name}")
+    async def list_records(self, request: AuraRequest, model_name: str) -> Any:
+        """Paginated, searchable table of records for a given model."""
+        auth_res = self.check_auth(request)
+        if auth_res:
+            return auth_res
+
+        from sqlalchemy import func, select
+
+        model, admin = self.get_model_and_admin(model_name)
+
+        # Pagination
+        try:
+            page = int(request.query_params.get("page", "1"))
+            if page < 1:
+                page = 1
+        except ValueError:
+            page = 1
+
+        per_page = 10
+        offset = (page - 1) * per_page
+
+        # Build filter & search criteria
+        base_stmt = select(model)
+        base_stmt = self.apply_filters_and_search(base_stmt, model, admin, request.query_params)
+
+        # Count total records matching filters
+        count_stmt = select(func.count()).select_from(model)
+        count_stmt = self.apply_filters_and_search(count_stmt, model, admin, request.query_params)
+        total_res = await self.session.execute(count_stmt)
+        total = total_res.scalar() or 0
+
+        # Fetch records (order by primary key descending)
+        data_stmt = base_stmt.order_by(model.id.desc()).limit(per_page).offset(offset)
+        data_res = await self.session.execute(data_stmt)
+        items = list(data_res.scalars().all())
+
+        # Determine display fields
+        headers = admin.list_display if admin.list_display else list(model.__table__.columns.keys())
+
+        # Generate distinct choices for filters
+        filter_options = {}
+        for f in admin.list_filter:
+            col = getattr(model, f, None)
+            if col is not None:
+                from sqlalchemy.sql.sqltypes import Boolean
+                if isinstance(col.type, Boolean):
+                    filter_options[f] = [("true", "Yes"), ("false", "No")]
+                else:
+                    try:
+                        distinct_stmt = select(col).distinct().order_by(col).limit(50)
+                        res = await self.session.execute(distinct_stmt)
+                        options = res.scalars().all()
+                        filter_options[f] = [
+                            (str(opt), str(opt)) for opt in options if opt is not None
+                        ]
+                    except Exception:
+                        filter_options[f] = []
+
+        # Calculate pagination metadata
+        total_pages = (total + per_page - 1) // per_page if total > 0 else 1
+        has_next = page < total_pages
+        has_prev = page > 1
+
+        q_param = request.query_params.get("q", "")
+
+        active_filters = {}
+        for f in admin.list_filter:
+            val = request.query_params.get(f)
+            if val is not None and val != "":
+                active_filters[f] = val
+
+        context = {
+            "model_name": model.__name__,
+            "model_name_lower": model.__name__.lower(),
+            "admin": admin,
+            "items": items,
+            "headers": headers,
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "total_pages": total_pages,
+            "has_next": has_next,
+            "has_prev": has_prev,
+            "q": q_param,
+            "active_filters": active_filters,
+            "filter_options": filter_options,
+        }
+
+        if request.htmx.is_htmx:
+            return await render_admin("table_body.html", context)
+        return await render_admin("list.html", context)
+
+    @get("/admin/{model_name}/create")
+    async def create_form(self, request: AuraRequest, model_name: str) -> Any:
+        """Display creation form with columns inspected and mapped to field types."""
+        auth_res = self.check_auth(request)
+        if auth_res:
+            return auth_res
+
+        model, admin = self.get_model_and_admin(model_name)
+
+        from sqlalchemy.sql.sqltypes import Boolean, Date, DateTime, Float, Integer, String, Text
+
+        fields = []
+        for col in model.__table__.columns:
+            if col.primary_key or col.name in ("created_at", "updated_at"):
+                continue
+
+            input_type = "text"
+            is_textarea = False
+            is_checkbox = False
+
+            if isinstance(col.type, Boolean):
+                is_checkbox = True
+                input_type = "checkbox"
+            elif isinstance(col.type, (Integer, Float)):
+                input_type = "number"
+            elif isinstance(col.type, Text):
+                is_textarea = True
+            elif isinstance(col.type, String):
+                if col.type.length is None:
+                    is_textarea = True
+                else:
+                    input_type = "text"
+            elif isinstance(col.type, DateTime):
+                input_type = "datetime-local"
+            elif isinstance(col.type, Date):
+                input_type = "date"
+
+            fields.append({
+                "name": col.name,
+                "label": col.name.replace("_", " ").title(),
+                "input_type": input_type,
+                "is_textarea": is_textarea,
+                "is_checkbox": is_checkbox,
+                "required": not col.nullable and col.default is None and col.server_default is None,
+                "value": None,
+            })
+
+        return await render_admin("form.html", {
+            "model_name": model.__name__,
+            "model_name_lower": model.__name__.lower(),
+            "fields": fields,
+            "is_create": True,
+        })
+
+    @post("/admin/{model_name}/create")
+    async def create_record(self, request: AuraRequest, model_name: str) -> Any:
+        """Validate form data, persist creation, and redirect."""
+        auth_res = self.check_auth(request)
+        if auth_res:
+            return auth_res
+
+        model, admin = self.get_model_and_admin(model_name)
+        form_data = await request.form()
+
+        from sqlalchemy.sql.sqltypes import Boolean, Date, DateTime, Float, Integer, String, Text
+
+        errors: dict[str, str] = {}
+        insert_data: dict[str, Any] = {}
+
+        for col in model.__table__.columns:
+            if col.primary_key or col.name in ("created_at", "updated_at"):
+                continue
+
+            val = form_data.get(col.name)
+            parsed_val: Any = None
+
+            if isinstance(col.type, Boolean):
+                parsed_val = col.name in form_data
+            elif val is None or val == "":
+                if not col.nullable and col.default is None and col.server_default is None:
+                    errors[col.name] = f"Field '{col.name}' is required."
+                    parsed_val = None
+                else:
+                    parsed_val = None
+            else:
+                try:
+                    if isinstance(col.type, Integer):
+                        parsed_val = int(str(val))
+                    elif isinstance(col.type, Float):
+                        parsed_val = float(str(val))
+                    elif isinstance(col.type, DateTime):
+                        try:
+                            parsed_val = datetime.fromisoformat(str(val))
+                        except ValueError:
+                            parsed_val = datetime.strptime(str(val), "%Y-%m-%dT%H:%M:%S")
+                    elif isinstance(col.type, Date):
+                        parsed_val = date.fromisoformat(str(val))
+                    else:
+                        parsed_val = str(val)
+                except Exception as e:
+                    errors[col.name] = f"Invalid value: {str(e)}"
+                    parsed_val = None
+
+            if col.name not in errors:
+                insert_data[col.name] = parsed_val
+
+        if errors:
+            # Re-render form with validation errors and preserved input data
+            fields = []
+            for col in model.__table__.columns:
+                if col.primary_key or col.name in ("created_at", "updated_at"):
+                    continue
+
+                input_type = "text"
+                is_textarea = False
+                is_checkbox = False
+
+                if isinstance(col.type, Boolean):
+                    is_checkbox = True
+                    input_type = "checkbox"
+                elif isinstance(col.type, (Integer, Float)):
+                    input_type = "number"
+                elif isinstance(col.type, Text):
+                    is_textarea = True
+                elif isinstance(col.type, String):
+                    if col.type.length is None:
+                        is_textarea = True
+                    else:
+                        input_type = "text"
+                elif isinstance(col.type, DateTime):
+                    input_type = "datetime-local"
+                elif isinstance(col.type, Date):
+                    input_type = "date"
+
+                fields.append({
+                    "name": col.name,
+                    "label": col.name.replace("_", " ").title(),
+                    "input_type": input_type,
+                    "is_textarea": is_textarea,
+                    "is_checkbox": is_checkbox,
+                    "required": (
+                        not col.nullable
+                        and col.default is None
+                        and col.server_default is None
+                    ),
+                    "value": (
+                        form_data.get(col.name)
+                        if not is_checkbox
+                        else (col.name in form_data)
+                    ),
+                    "error": errors.get(col.name),
+                })
+
+            return await render_admin("form.html", {
+                "model_name": model.__name__,
+                "model_name_lower": model.__name__.lower(),
+                "fields": fields,
+                "is_create": True,
+                "errors": errors,
+            })
+
+        obj = model(**insert_data)
+        self.session.add(obj)
+        await self.session.flush()
+        await self.session.commit()
+
+        if request.htmx.is_htmx:
+            res = HtmlResponse()
+            res.htmx.trigger("recordCreated").redirect(f"/admin/{model.__name__.lower()}")
+            return res
+        return redirect(f"/admin/{model.__name__.lower()}")
+
+    @get("/admin/{model_name}/{record_id}/edit")
+    async def edit_form(
+        self, request: AuraRequest, model_name: str, record_id: int
+    ) -> Any:
+        """Display edit form populated with current database values."""
+        auth_res = self.check_auth(request)
+        if auth_res:
+            return auth_res
+
+        from sqlalchemy import select
+        model, admin = self.get_model_and_admin(model_name)
+
+        stmt = select(model).where(model.id == record_id)
+        res = await self.session.execute(stmt)
+        record = res.scalar()
+        if not record:
+            raise NotFoundException(f"Record with ID {record_id} not found.")
+
+        from sqlalchemy.sql.sqltypes import Boolean, Date, DateTime, Float, Integer, String, Text
+
+        fields = []
+        for col in model.__table__.columns:
+            if col.primary_key or col.name in ("created_at", "updated_at"):
+                continue
+
+            input_type = "text"
+            is_textarea = False
+            is_checkbox = False
+
+            if isinstance(col.type, Boolean):
+                is_checkbox = True
+                input_type = "checkbox"
+            elif isinstance(col.type, (Integer, Float)):
+                input_type = "number"
+            elif isinstance(col.type, Text):
+                is_textarea = True
+            elif isinstance(col.type, String):
+                if col.type.length is None:
+                    is_textarea = True
+                else:
+                    input_type = "text"
+            elif isinstance(col.type, DateTime):
+                input_type = "datetime-local"
+            elif isinstance(col.type, Date):
+                input_type = "date"
+
+            val = getattr(record, col.name)
+            if val is not None:
+                if isinstance(col.type, DateTime):
+                    val = val.strftime("%Y-%m-%dT%H:%M")
+                elif isinstance(col.type, Date):
+                    val = val.isoformat()
+
+            fields.append({
+                "name": col.name,
+                "label": col.name.replace("_", " ").title(),
+                "input_type": input_type,
+                "is_textarea": is_textarea,
+                "is_checkbox": is_checkbox,
+                "required": not col.nullable and col.default is None and col.server_default is None,
+                "value": val,
+            })
+
+        return await render_admin("form.html", {
+            "model_name": model.__name__,
+            "model_name_lower": model.__name__.lower(),
+            "fields": fields,
+            "is_create": False,
+            "record_id": record_id,
+        })
+
+    @post("/admin/{model_name}/{record_id}/edit")
+    async def edit_record(self, request: AuraRequest, model_name: str, record_id: int) -> Any:
+        """Validate edit form, update record attributes, flush, commit, and redirect."""
+        auth_res = self.check_auth(request)
+        if auth_res:
+            return auth_res
+
+        from sqlalchemy import select
+        model, admin = self.get_model_and_admin(model_name)
+
+        stmt = select(model).where(model.id == record_id)
+        res = await self.session.execute(stmt)
+        record = res.scalar()
+        if not record:
+            raise NotFoundException(f"Record with ID {record_id} not found.")
+
+        form_data = await request.form()
+
+        from sqlalchemy.sql.sqltypes import Boolean, Date, DateTime, Float, Integer, String, Text
+
+        errors: dict[str, str] = {}
+        update_data: dict[str, Any] = {}
+
+        for col in model.__table__.columns:
+            if col.primary_key or col.name in ("created_at", "updated_at"):
+                continue
+
+            val = form_data.get(col.name)
+            parsed_val: Any = None
+
+            if isinstance(col.type, Boolean):
+                parsed_val = col.name in form_data
+            elif val is None or val == "":
+                if not col.nullable and col.default is None and col.server_default is None:
+                    errors[col.name] = f"Field '{col.name}' is required."
+                    parsed_val = None
+                else:
+                    parsed_val = None
+            else:
+                try:
+                    if isinstance(col.type, Integer):
+                        parsed_val = int(str(val))
+                    elif isinstance(col.type, Float):
+                        parsed_val = float(str(val))
+                    elif isinstance(col.type, DateTime):
+                        try:
+                            parsed_val = datetime.fromisoformat(str(val))
+                        except ValueError:
+                            parsed_val = datetime.strptime(str(val), "%Y-%m-%dT%H:%M:%S")
+                    elif isinstance(col.type, Date):
+                        parsed_val = date.fromisoformat(str(val))
+                    else:
+                        parsed_val = str(val)
+                except Exception as e:
+                    errors[col.name] = f"Invalid value: {str(e)}"
+                    parsed_val = None
+
+            if col.name not in errors:
+                update_data[col.name] = parsed_val
+
+        if errors:
+            # Re-render form with validation errors and preserved input data
+            fields = []
+            for col in model.__table__.columns:
+                if col.primary_key or col.name in ("created_at", "updated_at"):
+                    continue
+
+                input_type = "text"
+                is_textarea = False
+                is_checkbox = False
+
+                if isinstance(col.type, Boolean):
+                    is_checkbox = True
+                    input_type = "checkbox"
+                elif isinstance(col.type, (Integer, Float)):
+                    input_type = "number"
+                elif isinstance(col.type, Text):
+                    is_textarea = True
+                elif isinstance(col.type, String):
+                    if col.type.length is None:
+                        is_textarea = True
+                    else:
+                        input_type = "text"
+                elif isinstance(col.type, DateTime):
+                    input_type = "datetime-local"
+                elif isinstance(col.type, Date):
+                    input_type = "date"
+
+                fields.append({
+                    "name": col.name,
+                    "label": col.name.replace("_", " ").title(),
+                    "input_type": input_type,
+                    "is_textarea": is_textarea,
+                    "is_checkbox": is_checkbox,
+                    "required": (
+                        not col.nullable
+                        and col.default is None
+                        and col.server_default is None
+                    ),
+                    "value": (
+                        form_data.get(col.name)
+                        if not is_checkbox
+                        else (col.name in form_data)
+                    ),
+                    "error": errors.get(col.name),
+                })
+
+            return await render_admin("form.html", {
+                "model_name": model.__name__,
+                "model_name_lower": model.__name__.lower(),
+                "fields": fields,
+                "is_create": False,
+                "record_id": record_id,
+                "errors": errors,
+            })
+
+        for key, value in update_data.items():
+            setattr(record, key, value)
+
+        await self.session.flush()
+        await self.session.commit()
+
+        if request.htmx.is_htmx:
+            res = HtmlResponse()
+            res.htmx.trigger("recordUpdated").redirect(f"/admin/{model.__name__.lower()}")
+            return res
+        return redirect(f"/admin/{model.__name__.lower()}")
+
+    @post("/admin/{model_name}/{record_id}/delete")
+    async def delete_record_post(
+        self, request: AuraRequest, model_name: str, record_id: int
+    ) -> Any:
+        """Endpoint to handle standard deletion form submission."""
+        return await self.perform_delete(request, model_name, record_id)
+
+    @delete("/admin/{model_name}/{record_id}")
+    async def delete_record_delete(
+        self, request: AuraRequest, model_name: str, record_id: int
+    ) -> Any:
+        """Endpoint to handle HTMX DELETE requests."""
+        return await self.perform_delete(request, model_name, record_id)
+
+    async def perform_delete(self, request: AuraRequest, model_name: str, record_id: int) -> Any:
+        """Internal helper logic to execute record deletion."""
+        auth_res = self.check_auth(request)
+        if auth_res:
+            return auth_res
+
+        from sqlalchemy import select
+        model, admin = self.get_model_and_admin(model_name)
+
+        stmt = select(model).where(model.id == record_id)
+        res = await self.session.execute(stmt)
+        record = res.scalar()
+        if not record:
+            raise NotFoundException(f"Record with ID {record_id} not found.")
+
+        await self.session.delete(record)
+        await self.session.flush()
+        await self.session.commit()
+
+        if request.htmx.is_htmx:
+            res = HtmlResponse()
+            res.htmx.trigger("recordDeleted").redirect(f"/admin/{model.__name__.lower()}")
+            return res
+        return redirect(f"/admin/{model.__name__.lower()}")

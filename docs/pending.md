@@ -8,7 +8,16 @@
 
 ## ✅ Recentemente concluído (v0.3.1 em progresso)
 
+### Admin Panel — AdminModule
+
+- [x] **`AdminModule`** — Módulo administrativo async-first com registro declarativo e decoração `@register`
+- [x] **Reflexão dinâmica de colunas** — Detecção automática dos tipos de colunas SQLAlchemy e mapeamento para formulários HTML no Tailwind CSS
+- [x] **Coerção de tipos automática** — Tratamento robusto e casting seguro de dados de POST/PUT para inteiros, booleanos, floats e datas
+- [x] **HTMX Integration** — Reatividade via partial updates (cabeçalho `HX-Request`) e triggers dinâmicos na resposta (`HX-Trigger`)
+- [x] **Interface Rica** — Tema escuro com glassmorphism, paginação, busca e filtros exatos integrados
+
 ### Logging System — AuraLogSystem v1.0
+
 
 - [x] **`DailyRotatingFileHandler`** — handler com daily rotation + line-based rotation,
   thread-safe com `threading.Lock`, detecção multiprocess warning, docstring alertando
@@ -134,10 +143,11 @@
 
 ### GraphQL / gRPC / Multi-tenancy / Admin Panel
 
-- [ ] **`GraphQLModule.for_root(schema)`** — integração com Strawberry
+- [x] **`GraphQLModule.for_root(schema)`** — integração com Strawberry (em andamento)
 - [ ] **`@GrpcController`** — controller gRPC ao lado de HTTP
 - [ ] **`TenantStrategy.ROW_LEVEL / SCHEMA`** — isolamento por tenant
-- [ ] **`AdminModule`** — interface administrativa auto-gerada
+- [x] **`AdminModule`** — interface administrativa auto-gerada ✓
+
 
 ---
 

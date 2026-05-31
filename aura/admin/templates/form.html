@@ -1,0 +1,116 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    {% if is_create %}Create{% else %}Edit #{{ record_id }}{% endif %} {{ model_name }} | Aura Admin
+{% endblock %}
+
+{% block breadcrumb %}
+    <a href="/admin/{{ model_name_lower }}" class="hover:text-slate-200 transition-colors">{{ model_name }}</a>
+    <span class="text-slate-600 px-1">/</span>
+    <span class="text-slate-400">{% if is_create %}Create{% else %}Edit #{{ record_id }}{% endif %}</span>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <!-- Form Card -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
+        <!-- Form Header -->
+        <div class="px-6 py-4 border-b border-slate-800 bg-slate-900/60 flex items-center justify-between">
+            <h2 class="text-lg font-bold text-white">
+                {% if is_create %}Create New{% else %}Edit Existing{% endif %} {{ model_name }}
+            </h2>
+            <a href="/admin/{{ model_name_lower }}" class="text-xs text-slate-400 hover:text-slate-300 transition-colors">
+                ← Back to List
+            </a>
+        </div>
+        
+        <!-- Form Content -->
+        <form method="POST" 
+              action="{% if is_create %}/admin/{{ model_name_lower }}/create{% else %}/admin/{{ model_name_lower }}/{{ record_id }}/edit{% endif %}"
+              class="p-6 space-y-6">
+            
+            {% if errors %}
+                <div class="p-4 bg-rose-950/40 border border-rose-900/50 rounded-lg flex gap-3 text-rose-300">
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                    <div class="text-xs">
+                        <span class="font-bold">Error saving record:</span> Please resolve the field validation issues highlighted below.
+                    </div>
+                </div>
+            {% endif %}
+
+            <div class="grid grid-cols-1 gap-6">
+                {% for field in fields %}
+                    <div class="space-y-2">
+                        {% if field.is_checkbox %}
+                            <!-- Checkbox layout -->
+                            <div class="flex items-start">
+                                <div class="flex items-center h-5">
+                                    <input id="field-{{ field.name }}" 
+                                           name="{{ field.name }}" 
+                                           type="checkbox"
+                                           {% if field.value %}checked{% endif %}
+                                           class="w-4 h-4 bg-slate-950 border-slate-800 text-brand-600 focus:ring-brand-500 rounded focus:ring-offset-slate-900 focus:ring-offset-2">
+                                </div>
+                                <div class="ml-3 text-xs leading-5">
+                                    <label for="field-{{ field.name }}" class="font-semibold text-slate-300 capitalize cursor-pointer">
+                                        {{ field.label }}
+                                    </label>
+                                    <span class="text-slate-500 font-normal">({{ field.name }})</span>
+                                </div>
+                            </div>
+                        {% else %}
+                            <!-- Standard input layout -->
+                            <div class="flex justify-between items-baseline">
+                                <label for="field-{{ field.name }}" class="block text-xs font-semibold text-slate-400 capitalize">
+                                    {{ field.label }}
+                                    {% if field.required %}
+                                        <span class="text-rose-500">*</span>
+                                    {% endif %}
+                                </label>
+                                <span class="text-[10px] text-slate-600 font-mono">{{ field.name }}</span>
+                            </div>
+
+                            {% if field.is_textarea %}
+                                <textarea id="field-{{ field.name }}" 
+                                          name="{{ field.name }}"
+                                          rows="5"
+                                          {% if field.required %}required{% endif %}
+                                          class="w-full bg-slate-950 border {% if field.error %}border-rose-900 focus:ring-rose-500 focus:border-rose-500{% else %}border-slate-800 focus:ring-brand-500 focus:border-brand-500{% endif %} rounded-lg px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 transition-all">{{ field.value if field.value is not none else '' }}</textarea>
+                            {% else %}
+                                <input id="field-{{ field.name }}" 
+                                       name="{{ field.name }}" 
+                                       type="{{ field.input_type }}"
+                                       value="{{ field.value if field.value is not none else '' }}"
+                                       {% if field.required %}required{% endif %}
+                                       class="w-full bg-slate-950 border {% if field.error %}border-rose-900 focus:ring-rose-500 focus:border-rose-500{% else %}border-slate-800 focus:ring-brand-500 focus:border-brand-500{% endif %} rounded-lg px-4 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 transition-all">
+                            {% endif %}
+                        {% endif %}
+
+                        <!-- Field error indicator -->
+                        {% if field.error %}
+                            <p class="text-xs text-rose-400 mt-1.5 flex items-center gap-1 font-medium">
+                                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span>{{ field.error }}</span>
+                            </p>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+
+            <!-- Action buttons -->
+            <div class="pt-6 border-t border-slate-800 flex justify-end gap-3">
+                <a href="/admin/{{ model_name_lower }}" class="px-4 py-2 text-sm font-semibold bg-slate-850 hover:bg-slate-800 text-slate-300 rounded-lg transition-colors border border-slate-800">
+                    Cancel
+                </a>
+                <button type="submit" class="px-5 py-2 text-sm font-semibold bg-brand-600 hover:bg-brand-500 text-white rounded-lg transition-colors shadow-md shadow-brand-900/10">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
