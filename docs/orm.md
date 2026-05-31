@@ -17,15 +17,16 @@ O Aura SQL ORM é uma ferramenta de mapeamento objeto-relacional (ORM) async-fir
 
 ### Definição do Modelo
 ```python
-from aura.orm import Model, fields
+from aura.orm import AuraModel, CharField, EmailField, BooleanField
+from sqlalchemy.orm import Mapped
 
-class User(Model):
+class User(AuraModel):
     __tablename__ = "users"
 
-    id = fields.IntegerField(primary_key=True)
-    name = fields.CharField(max_length=100)
-    email = fields.CharField(max_length=150, unique=True)
-    is_active = fields.BooleanField(default=True)
+    name: Mapped[str] = CharField(max_length=100)
+    email: Mapped[str] = EmailField(unique=True)
+    is_active: Mapped[bool] = BooleanField(default=True)
+    # id, created_at, updated_at são herdados automaticamente de AuraModel
 ```
 
 ### Consultando Dados (O Manager `objects`)

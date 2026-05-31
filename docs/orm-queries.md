@@ -13,16 +13,15 @@ Controller → Service → Repository[Model] → AsyncSession → PostgreSQL/SQL
 ## Definindo um Model
 
 ```python
-from sqlalchemy import String, Boolean, ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from aura.orm.base import AuraModel
+from aura.orm import AuraModel, CharField, EmailField, BooleanField, relationship
+from sqlalchemy.orm import Mapped
 
 class User(AuraModel):
     __tablename__ = "users"
 
-    name:    Mapped[str]  = mapped_column(String(100))
-    email:   Mapped[str]  = mapped_column(String(200), unique=True, index=True)
-    active:  Mapped[bool] = mapped_column(Boolean, default=True)
+    name:    Mapped[str]  = CharField(max_length=100)
+    email:   Mapped[str]  = EmailField(max_length=200, unique=True, index=True)
+    active:  Mapped[bool] = BooleanField(default=True)
 
     # Relacionamento
     posts:   Mapped[list["Post"]] = relationship("Post", back_populates="author")

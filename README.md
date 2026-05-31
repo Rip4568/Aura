@@ -99,16 +99,15 @@ meu_projeto/
 
 ```python
 # modules/posts/models.py
-from aura.orm import AuraModel
-from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import String, Text, Boolean
+from aura.orm import AuraModel, CharField, TextField, BooleanField
+from sqlalchemy.orm import Mapped
 
 class Post(AuraModel):
     __tablename__ = "posts"
 
-    title:     Mapped[str]  = mapped_column(String(200))
-    body:      Mapped[str]  = mapped_column(Text)
-    published: Mapped[bool] = mapped_column(Boolean, default=False)
+    title:     Mapped[str]  = CharField(max_length=200)
+    body:      Mapped[str]  = TextField()
+    published: Mapped[bool] = BooleanField(default=False)
     # id, created_at, updated_at → herdados de AuraModel automaticamente
 ```
 

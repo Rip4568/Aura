@@ -2,8 +2,22 @@
 
 try:
     from aura.orm.aggregates import Avg, Count, Max, Min, Sum
-    from aura.orm.base import AuraModel
+    from aura.orm.base import AuraModel, email_type, pk_int, str_255, text_long
     from aura.orm.expressions import Q
+    from aura.orm.fields import (
+        BooleanField,
+        CharField,
+        DateField,
+        DateTimeField,
+        DecimalField,
+        EmailField,
+        FloatField,
+        ForeignKeyField,
+        IntegerField,
+        ManyToManyField,
+        TextField,
+        relationship,
+    )
     from aura.orm.middleware import DatabaseMiddleware
     from aura.orm.query import MultipleObjectsReturnedException, QuerySet
     from aura.orm.repository import Page, PkType, Repository
@@ -25,6 +39,22 @@ try:
         "Min",
         "Max",
         "DatabaseMiddleware",
+        "str_255",
+        "email_type",
+        "text_long",
+        "pk_int",
+        "CharField",
+        "TextField",
+        "EmailField",
+        "BooleanField",
+        "IntegerField",
+        "FloatField",
+        "DecimalField",
+        "DateTimeField",
+        "DateField",
+        "ForeignKeyField",
+        "ManyToManyField",
+        "relationship",
     ]
 except ImportError:
     __all__ = []
