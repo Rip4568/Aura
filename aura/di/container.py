@@ -390,3 +390,8 @@ def _get_init_type_hints(cls: type) -> dict[str, Any]:
         return hints
     except (TypeError, ValueError):
         return {}
+
+
+# Global container instance
+container = DIContainer()
+

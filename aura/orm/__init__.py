@@ -22,6 +22,12 @@ try:
     from aura.orm.middleware import DatabaseMiddleware
     from aura.orm.query import MultipleObjectsReturnedException, QuerySet
     from aura.orm.repository import Page, PkType, Repository
+    from aura.orm.seeders import (
+        Seeder,
+        ensure_seeded_table_exists,
+        has_seeded,
+        mark_as_seeded,
+    )
     from aura.orm.session import DatabaseManager, db
 
     __all__ = [
@@ -58,6 +64,10 @@ try:
         "relationship",
         "Factory",
         "SubFactory",
+        "Seeder",
+        "ensure_seeded_table_exists",
+        "has_seeded",
+        "mark_as_seeded",
     ]
 except ImportError:
     __all__ = []
