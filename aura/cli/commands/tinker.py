@@ -27,7 +27,7 @@ def sync(coroutine: Any) -> Any:
     import asyncio
 
     try:
-        import nest_asyncio  # type: ignore[import-untyped]
+        import nest_asyncio
 
         nest_asyncio.apply()
     except ImportError:
@@ -188,7 +188,7 @@ def run_ipython_shell(namespace: dict[str, Any]) -> None:
 
 def run_bpython_shell(namespace: dict[str, Any]) -> None:
     """Launch bpython interactive shell if available."""
-    import bpython  # type: ignore[import-not-found]
+    import bpython
 
     bpython.embed(locals_=namespace)
 

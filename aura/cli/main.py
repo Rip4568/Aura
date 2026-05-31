@@ -35,7 +35,11 @@ app.add_typer(generate.app, name="generate", help="Generate modules, schemas, gu
 app.command("run")(run.run_command)
 app.command("worker")(worker.worker_command)
 app.add_typer(migrate.app, name="migrate", help="Database migration commands.")
-app.add_typer(tinker.app, name="tinker", help="Interactive REPL shell with auto-imported resources.")
+app.add_typer(
+    tinker.app,
+    name="tinker",
+    help="Interactive REPL shell with auto-imported resources.",
+)
 
 
 if __name__ == "__main__":
