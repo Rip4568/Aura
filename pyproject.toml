@@ -65,6 +65,8 @@ dev = [
     "httpx>=0.26",
     "mypy>=1.8",
     "ruff>=0.2",
+    "ipython>=8.0",
+    "nest-asyncio>=1.5",
 ]
 
 [project.scripts]

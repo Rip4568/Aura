@@ -399,8 +399,11 @@ class UsersController:
         associates them with logging contexts. Check your terminal logs!
         """
         return {
-            "message": "Request log interceptor is active. Check terminal console output for structured logging and request IDs!",
-            "interceptor": "RequestLogInterceptor"
+            "message": (
+                "Request log interceptor is active. Check terminal console "
+                "output for structured logging and request IDs!"
+            ),
+            "interceptor": "RequestLogInterceptor",
         }
 
     @get("/{user_id}")
