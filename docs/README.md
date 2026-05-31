@@ -11,5 +11,7 @@
 | [ORM & Queries](orm-queries.md) | Repository[T], CRUD completo, paginação, queries avançadas |
 | [Jobs & Workers](jobs-workers.md) | @task, @periodic, backends, SAQ vs Celery |
 | [Módulos & DI](modules-di.md) | Sistema de módulos, injeção de dependência, lifetimes |
+| [Painel Administrativo](admin.md) | Painel administrativo dinâmico e reativo com HTMX e Tailwind CSS |
 | [Roadmap](roadmap.md) | O que está construído e o que está por vir |
 | [**Pendências**](pending.md) | Lista completa de tudo que falta construir e melhorar |
+

@@ -105,6 +105,9 @@ O Aura está funcional e testado para uso em produção em projetos internos. O 
 - [ ] Worker CLI conectando ao SAQ
 - [ ] Backend auto-seleção: `AURA__JOBS__BROKER_URL` presente → SAQ, ausente → MemoryBackend
 
+### Admin Panel (v0.3.1)
+- [x] **`AdminModule`** — Interface administrativa auto-gerada e reativa com HTMX e Tailwind CSS ✓
+
 ---
 
 ## 📋 Planejado (v0.3.0+)
@@ -210,23 +213,6 @@ class AppModule:
     pass
 ```
 
-### Admin Panel
-Interface administrativa auto-gerada:
-
-```python
-from aura.admin import AdminModule, AdminResource
-
-@AdminResource(model=User, list_display=["name", "email", "active"])
-class UserAdmin:
-    pass
-
-@Module(
-    imports=[AdminModule.forRoot([UserAdmin])],
-    ...
-)
-class AppModule:
-    pass
-```
 
 ### CLI — Code Generation
 ```bash
@@ -276,7 +262,7 @@ app = Aura(plugins=[RedisPlugin()])
 |---|---|---|
 | `0.1.0` | ✅ Released | Core estável, routing, DI, ORM, jobs básico |
 | `0.2.0` | ✅ Released | bulk ops, scaffold models/repos, AuraModel abstract, mypy 0 erros, CI |
-| `0.3.0` | 🚧 Em dev | Migrations, `paginate()`, JWTGuard, SAQ backend, Interceptors |
+| `0.3.0` | 🚧 Em dev | Migrations, `paginate()`, JWTGuard, SAQ backend, Interceptors, Admin Panel |
 | `0.4.0` | 📋 Planejado | WebSocket Gateway, Pipes, GraphQL, gRPC |
 | `1.0.0` | 🎯 Meta | API estável, prod-ready, documentação completa |
 
