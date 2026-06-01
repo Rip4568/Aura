@@ -104,3 +104,26 @@ async def test_explain_sql_injection_protection() -> None:
     finally:
         await db.drop_all(AuraModel)
         await db.close()
+
+
+def test_production_secret_key_validation(monkeypatch: pytest.MonkeyPatch) -> None:
+    from pydantic import ValidationError
+    from aura.config.base import AuraConfig
+    import sys
+
+    # Default secret key with debug=True should be allowed
+    cfg_dev = AuraConfig(debug=True)
+    assert cfg_dev.secret_key == "change-me-in-production-32chars!!"
+
+    # Mock sys.modules to temporarily remove "pytest" so the validator executes
+    fake_modules = dict(sys.modules)
+    fake_modules.pop("pytest", None)
+    monkeypatch.setattr(sys, "modules", fake_modules)
+
+    # Default secret key with debug=False (production) should raise a validation error
+    with pytest.raises(ValidationError, match="SECRET_KEY must be changed from the default value in production."):
+        AuraConfig(debug=False)
+
+    # Custom secret key with debug=False should be allowed
+    cfg_prod = AuraConfig(debug=False, secret_key="custom-secure-secret-key-32chars!!")
+    assert cfg_prod.secret_key == "custom-secure-secret-key-32chars!!"

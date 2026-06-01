@@ -4,7 +4,7 @@ import os
 from datetime import date, datetime
 from typing import Any
 
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from aura.admin.base import ModelAdmin, _registry
 from aura.core.request import AuraRequest
@@ -17,7 +17,11 @@ from aura.templates.response import HtmlResponse
 
 # Configure Jinja2 environment pointing to local templates directory
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
-env = Environment(loader=FileSystemLoader(TEMPLATE_DIR), enable_async=True)
+env = Environment(
+    loader=FileSystemLoader(TEMPLATE_DIR),
+    autoescape=select_autoescape(["html", "xml"]),
+    enable_async=True,
+)
 
 
 async def render_admin(template_name: str, context: dict[str, Any]) -> HtmlResponse:
@@ -80,6 +84,12 @@ class AdminController:
         """
         password = os.getenv("AURA_ADMIN_PASSWORD") or os.getenv("AURA__ADMIN__PASSWORD")
         if not password:
+            is_debug = os.getenv("AURA__DEBUG", "true").lower() in ("true", "1")
+            if not is_debug:
+                raise RuntimeError(
+                    "AURA_ADMIN_PASSWORD must be configured in production environments (AURA__DEBUG=false) "
+                    "to secure the Administrative Panel. Please set the environment variable."
+                )
             return None
 
         sess = getattr(request.state, "session", None)

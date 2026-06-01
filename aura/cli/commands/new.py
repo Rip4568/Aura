@@ -60,16 +60,19 @@ app = Aura(
 )
 '''
 
-def _env_example() -> str:
-    return """\
+def _env_example(
+    secret_key: str = "change-me-in-production-32chars!!",
+    admin_password: str = "change-me-in-production",
+) -> str:
+    return f"""\
 # Copy this file to .env and fill in the values.
 # Aura reads nested config with __ as separator.
 
 # App Config
 AURA__APP_NAME="Aura App"
 AURA__DEBUG=true
-AURA__SECRET_KEY="change-me-in-production-32chars!!"
-AURA_ADMIN_PASSWORD="minha-senha-secreta"
+AURA__SECRET_KEY="{secret_key}"
+AURA_ADMIN_PASSWORD="{admin_password}"
 
 
 # Server
@@ -769,11 +772,19 @@ __all__ = ["UserSeeder", "DatabaseSeeder"]
 
 def _build_files(project_name: str) -> dict[str, str]:
     snake = _snake(project_name)
+    import secrets
+
+    # Generate secure random values for the active project instance
+    secret_key = secrets.token_urlsafe(32)
+    admin_password = f"insecure-{secrets.token_hex(8)}"
+
     return {
         "main.py":                        _main_py(project_name, snake),
         "aura.toml":                      _aura_toml(project_name, snake),
         "pyproject.toml":                 _pyproject_toml(project_name),
-        ".env":                           _env_example(),
+        ".env":                           _env_example(
+            secret_key=secret_key, admin_password=admin_password
+        ),
         ".env.example":                   _env_example(),
         "README.md":                      _readme(project_name),
         ".gitignore":                     _gitignore(),
