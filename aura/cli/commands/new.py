@@ -676,9 +676,9 @@ class UserSeeder(Seeder):
 
     async def run(self) -> None:
         # Create some default users using the factory.
-        # Option 1: Instantiate in memory first, then save using self.save()
-        alice = self.factory.make(name="Alice", email="alice@example.com")
-        bob = self.factory.make(name="Bob", email="bob@example.com")
+        # We only override specific fields; the factory automatically fills in the rest.
+        alice = self.factory.make(name="Alice")  # email will be filled automatically
+        bob = self.factory.make(email="bob@example.com")  # name will be filled automatically
 
         await self.save(alice)
         await self.save(bob)

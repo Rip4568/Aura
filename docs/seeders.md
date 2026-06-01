@@ -161,7 +161,27 @@ Se o operador escolher `N` ou pressionar Enter sem selecionar `y`, o processo se
 > **Use sempre `self.save()` ao invés de commits manuais:** Evite chamar `await session.commit()` diretamente dentro do método `run()` do seu seeder. A CLI do Aura gerencia a transação inteira de forma atômica no escopo do container assíncrono. Chamar commit manualmente impede rollback automático em caso de erro nos seeders posteriores.
 
 > [!TIP]
-> **Combine seeders com fábricas (factories):** Para gerar dados fictícios volumosos em ambiente de desenvolvimento, combine a injeção do seu `Repository` dentro do `Seeder` com bibliotecas populares de geração de dados como o `Faker`.
+> **Combine seeders com fábricas (factories) e utilize Sobreposição Parcial:**
+> Para gerar dados fictícios volumosos ou registros iniciais específicos em seu seeder, use as fábricas do Aura. Quando você passa argumentos nomeados (ex: `await UserFactory().create(name="Alice")`), o Aura realiza a **sobreposição parcial**, alterando **apenas** os atributos especificados. Todos os demais campos não fornecidos são populados automaticamente através das definições padrão da fábrica (como expressões lambda e callables do `Faker`).
+>
+> Veja um exemplo prático de um seeder usando factories:
+>
+> ```python
+> # database/seeders/user_factory_seeder.py
+> from aura.orm import Seeder
+> from database.factories import UserFactory
+> 
+> class UserFactorySeeder(Seeder):
+>     async def run(self) -> None:
+>         # Cria a "Alice" sobrepondo apenas o nome; o email é gerado automaticamente pelo Faker
+>         alice = await UserFactory().create(name="Alice")
+>         
+>         # Cria o "Bob" sobrepondo apenas o email; o nome é gerado automaticamente pelo Faker
+>         bob = await UserFactory().create(email="bob@example.com")
+>         
+>         # Cria mais 10 usuários com dados totalmente aleatórios e automáticos
+>         await UserFactory().create_many(10)
+> ```
 
 ---
 

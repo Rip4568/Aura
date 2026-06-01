@@ -77,19 +77,31 @@ Estes métodos criam instâncias do modelo de banco de dados apenas em memória 
 *   `make(**overrides) -> ModelT`: Cria uma única instância em memória.
 *   `make_many(count: int, **overrides) -> list[ModelT]`: Cria uma lista contendo `count` instâncias em memória.
 
+#### Sobreposição Parcial de Atributos (Partial Attribute Override)
+
+Ao invocar o método `make()` (ou `create()`), qualquer argumento nomeado fornecido sobrescreve o valor padrão definido na fábrica. Uma característica fundamental do Aura é a **sobreposição parcial**: todos os atributos que *não* forem passados na chamada de geração serão automaticamente gerados utilizando suas definições padrão configuradas na fábrica (como expressões lambda e callables do `Faker`).
+
 ```python
-# Geração síncrona simples
+# 1. Geração síncrona simples (todos os valores padrão/fictícios gerados automaticamente)
 user = UserFactory().make()
-print(user.name)  # Ex: "Jonathan David"
+print(user.name)  # Ex: "Jonathan David" (gerado pelo Faker)
 print(user.id)    # None (não persistido)
 
-# Geração com sobreposição (overrides)
-inactive_user = UserFactory().make(is_active=False)
-print(inactive_user.is_active)  # False
+# 2. Sobreposição parcial de atributos
+# Alice: sobrepondo apenas o nome. O e-mail e demais atributos serão gerados automaticamente
+alice = UserFactory().make(name="Alice")
+print(alice.name)   # "Alice" (valor sobreposto)
+print(alice.email)  # Ex: "alice_faker_generated@example.com" (gerado automaticamente pelo Faker)
 
-# Geração de lotes
-users = UserFactory().make_many(5)
+# Bob: sobrepondo apenas o e-mail. O nome e demais atributos serão gerados automaticamente
+bob = UserFactory().make(email="bob@example.com")
+print(bob.name)    # Ex: "Bob Silva" (gerado automaticamente pelo Faker)
+print(bob.email)   # "bob@example.com" (valor sobreposto)
+
+# 3. Geração de lotes (make_many)
+users = UserFactory().make_many(5, is_active=False)
 assert len(users) == 5
+assert all(u.is_active is False for u in users)
 ```
 
 ### B. Persistência Assíncrona no Banco (Com I/O)
@@ -99,12 +111,25 @@ Estes métodos são assíncronos (`async/await`), resolvem as dependências, sal
 *   `await create(**overrides) -> ModelT`: Cria e persiste uma única instância.
 *   `await create_many(count: int, **overrides) -> list[ModelT]`: Cria e persiste uma lista contendo `count` instâncias dentro da mesma transação.
 
+A sobreposição parcial de atributos funciona de forma idêntica à persistência assíncrona, garantindo que registros persistidos no banco possuam apenas os campos de interesse fixados, com os demais devidamente semeados com dados válidos gerados automaticamente.
+
 ```python
-# Persistência assíncrona simples
+# 1. Persistência assíncrona simples
 user = await UserFactory().create()
 print(user.id)  # Ex: 1 (ID gerado pelo banco de dados)
 
-# Persistência de lote de forma atômica e eficiente
+# 2. Sobreposição parcial persistida no banco
+# Alice: apenas o nome é fixado, o email e demais campos são dinâmicos e persistidos
+alice = await UserFactory().create(name="Alice")
+assert alice.id is not None
+assert alice.name == "Alice"
+
+# Bob: apenas o email é fixado, o nome e demais campos são dinâmicos e persistidos
+bob = await UserFactory().create(email="bob@example.com")
+assert bob.id is not None
+assert bob.email == "bob@example.com"
+
+# 3. Persistência de lote de forma atômica e eficiente
 users = await UserFactory().create_many(10, is_active=True)
 assert len(users) == 10
 assert all(u.id is not None for u in users)
