@@ -177,6 +177,9 @@ pip install -e ".[dev]"
 # Copy env file and configure
 cp .env.example .env
 
+# Run database seeders (optional)
+aura db seed
+
 # Run development server
 aura run --reload
 
@@ -192,6 +195,12 @@ aura run --reload
 ├── main.py                  # Entry point
 ├── aura.toml                # App config
 ├── .env                     # Secrets (not committed)
+├── database/                # Database seeders and factories
+│   ├── seeders/
+│   │   ├── user_seeder.py   # Seeder for User model
+│   │   └── database_seeder.py # Main seeder entrypoint
+│   └── factories/
+│       └── user_factory.py  # Factory for generating fake Users
 ├── modules/
 │   └── users/               # Example module — duplicate for new features
 │       ├── module.py        # @Module declaration
@@ -203,6 +212,54 @@ aura run --reload
 └── tests/
     └── test_users.py        # Integration tests
 ```
+
+## Database Seeders
+
+Aura provides a native asynchronous database seeding system with dependency injection support.
+
+To seed your database:
+```bash
+# Run the main DatabaseSeeder (which runs UserSeeder)
+aura db seed
+
+# Run a specific seeder class
+aura db seed --class UserSeeder
+
+# Run idempotently (skips seeders already registered in _aura_seeded)
+aura db seed --once
+```
+
+You can generate a new seeder with:
+```bash
+aura generate seeder post
+```
+
+## Model Factories & Faker
+
+Aura has a modern **Factories** system integrated with **Faker** to easily
+generate realistic mock data for your integration tests and seeders.
+
+Your factories live in `database/factories/`. For example, `UserFactory` generates random users:
+
+```python
+from database.factories.user_factory import UserFactory
+
+# 1. Generate in-memory instances (fast, does not touch the database)
+user = UserFactory().make(name="John Doe")
+users = UserFactory().make_many(5)
+
+# 2. Persist in the database (automatically handles async transactions)
+user = await UserFactory().create(email="john@example.com")
+users = await UserFactory().create_many(5)
+```
+
+You can generate a new factory with:
+```bash
+aura generate factory post
+```
+
+A working demonstration of using `UserFactory` is included in
+`tests/test_users.py` (`test_user_factory_demo`).
 
 ## Adding a new module
 
@@ -696,8 +753,11 @@ def _build_files(project_name: str) -> dict[str, str]:
         "modules/users/service.py":            _users_service(),
         "modules/users/controller.py":         _users_controller(),
         "modules/users/module.py":             _users_module(),
+        "database/__init__.py":                '"""Database package."""\n',
+        "database/seeders/__init__.py":        '"""Database seeders package."""\n',
         "database/seeders/user_seeder.py":     _user_seeder_template(),
         "database/seeders/database_seeder.py": _database_seeder_template(),
+        "database/factories/__init__.py":      '"""Database factories package."""\n',
         "database/factories/user_factory.py":  _user_factory_template(),
         "tests/__init__.py":              _tests_init(),
         "tests/conftest.py":              _conftest(project_name),
@@ -763,7 +823,8 @@ def new_project(
             f"[bold green]✓ Project created![/]\n\n"
             f"[bold]Next steps:[/]\n\n"
             f"  [cyan]cd {snake}[/]\n"
-            f"  [cyan]pip install -e '.[dev]'[/]\n"
+            f"  [cyan]pip install -e '.\\[dev]'[/]\n"
+            f"  [cyan]aura db seed[/]\n"
             f"  [cyan]aura run --reload[/]\n\n"
             f"[dim]API docs →  http://localhost:8000/docs[/]\n"
             f"[dim]Health   →  http://localhost:8000/health[/]",
