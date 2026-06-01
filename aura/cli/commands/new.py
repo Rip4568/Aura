@@ -326,10 +326,11 @@ def _users_repositories() -> str:
 
 from __future__ import annotations
 
-from aura import Repository
+from aura import Repository, injectable
 from .models import User
 
 
+@injectable
 class UserRepository(Repository[User]):
     model = User
 
@@ -711,10 +712,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from aura.di import injectable
 from aura.orm import Factory
 from modules.users.models import User
 
 
+@injectable
 class UserFactory(Factory[User]):
     """Factory for generating User instances with realistic test data."""
     model = User

@@ -6,6 +6,7 @@ from typing import Annotated
 
 import pytest
 
+from aura.di.decorators import injectable
 from aura.routing.decorators import delete, get, post, ws
 from aura.routing.params import (
     Body,
@@ -156,6 +157,7 @@ def test_router_add_handler_without_decorator_raises() -> None:
         router.add_handler(plain_function)
 
 
+@injectable()
 class DummyService:
     def get_value(self) -> str:
         return "injected"

@@ -89,13 +89,14 @@ class ModuleRegistry:
         Args:
             provider_class: The service/repository class to register.
         """
-        from aura.di.container import Lifetime
 
         meta = getattr(provider_class, "__aura_injectable__", None)
-        if meta:
-            lifetime = meta["lifetime"]
-        else:
-            lifetime = Lifetime.SINGLETON
+        if not meta:
+            raise TypeError(
+                f"Provider {provider_class.__name__!r} is not decorated with @injectable. "
+                "All providers registered in a Module must be decorated with @injectable."
+            )
+        lifetime = meta["lifetime"]
 
         self.container.register(provider_class, lifetime=lifetime)
         logger.debug(

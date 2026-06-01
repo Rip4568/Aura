@@ -13,6 +13,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from aura.di.container import Lifetime, container
+from aura.orm.factories import Factory
 from aura.orm.seeders import Seeder
 from aura.orm.session import current_session, db
 
@@ -67,6 +68,56 @@ def discover_seeders(root_dir: str = ".") -> dict[str, type[Seeder]]:
                     continue
                 try:
                     if issubclass(obj, Seeder) and obj is not Seeder:
+                        discovered[name] = obj
+                except Exception:
+                    pass
+    return discovered
+
+
+def discover_factories(root_dir: str = ".") -> dict[str, type[Factory[Any]]]:
+    """Recursively search CWD to find and import Factory classes.
+
+    Args:
+        root_dir: The directory to start searching from.
+
+    Returns:
+        A dictionary mapping factory class names to their classes.
+    """
+    discovered: dict[str, type[Factory[Any]]] = {}
+    if root_dir not in sys.path:
+        sys.path.insert(0, root_dir)
+
+    exclude_dirs = {
+        ".git",
+        ".venv",
+        "venv",
+        "tests",
+        "migrations",
+        "__pycache__",
+        "storage",
+        "dist",
+        "build",
+    }
+
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        dirnames[:] = [d for d in dirnames if d not in exclude_dirs]
+        for filename in filenames:
+            if not filename.endswith(".py") or filename.startswith("__"):
+                continue
+
+            rel_path = os.path.relpath(os.path.join(dirpath, filename), root_dir)
+            module_name = rel_path[:-3].replace(os.path.sep, ".")
+
+            try:
+                mod = importlib.import_module(module_name)
+            except Exception:
+                continue
+
+            for name, obj in inspect.getmembers(mod, inspect.isclass):
+                if obj.__module__ != module_name:
+                    continue
+                try:
+                    if issubclass(obj, Factory) and obj is not Factory:
                         discovered[name] = obj
                 except Exception:
                     pass
@@ -208,6 +259,12 @@ def seed(
                 break
     except Exception:
         pass
+
+    # Discover and register factories in container
+    factories = discover_factories(cwd)
+    for factory_class in factories.values():
+        if not container.is_registered(factory_class):
+            container.register(factory_class, lifetime=Lifetime.TRANSIENT)
 
     # 4. Discover seeders recursively
     seeders = discover_seeders(cwd)

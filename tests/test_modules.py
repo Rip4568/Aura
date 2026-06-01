@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from aura.di.container import DIContainer
+from aura.di.decorators import injectable
 from aura.modules.base import Module, ModuleMetadata
 from aura.modules.registry import ModuleRegistry
 from aura.routing.decorators import get
@@ -41,6 +42,7 @@ def test_module_decorator_default_values() -> None:
 
 
 def test_module_with_controllers_and_providers() -> None:
+    @injectable()
     class UserService:
         pass
 
@@ -106,8 +108,6 @@ def test_registry_collects_routes() -> None:
 
 
 def test_registry_registers_providers_in_container() -> None:
-    from aura.di.decorators import injectable
-
     @injectable()
     class MyService:
         pass
@@ -124,6 +124,7 @@ def test_registry_registers_providers_in_container() -> None:
 
 
 def test_registry_handles_module_imports() -> None:
+    @injectable()
     class SharedService:
         pass
 
