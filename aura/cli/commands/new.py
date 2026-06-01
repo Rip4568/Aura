@@ -666,17 +666,25 @@ from __future__ import annotations
 
 from aura import Seeder, injectable
 from modules.users.models import User
+from ..factories import UserFactory
 
 
 @injectable
 class UserSeeder(Seeder):
+    def __init__(self, factory: UserFactory) -> None:
+        self.factory = factory
+
     async def run(self) -> None:
-        # Create some default users
-        alice = User(name="Alice", email="alice@example.com")
-        bob = User(name="Bob", email="bob@example.com")
+        # Create some default users using the factory.
+        # Option 1: Instantiate in memory first, then save using self.save()
+        alice = self.factory.make(name="Alice", email="alice@example.com")
+        bob = self.factory.make(name="Bob", email="bob@example.com")
 
         await self.save(alice)
         await self.save(bob)
+
+        # Option 2 (Alternative): Directly create and persist in a single step:
+        # admin = await self.factory.create(name="Admin User", email="admin@example.com")
 '''
 
 
@@ -734,6 +742,27 @@ def _tests_init() -> str:
     return '"""Test suite."""\n'
 
 
+def _factories_init() -> str:
+    return '''\
+"""Database factories package."""
+
+from .user_factory import UserFactory
+
+__all__ = ["UserFactory"]
+'''
+
+
+def _seeders_init() -> str:
+    return '''\
+"""Database seeders package."""
+
+from .user_seeder import UserSeeder
+from .database_seeder import DatabaseSeeder
+
+__all__ = ["UserSeeder", "DatabaseSeeder"]
+'''
+
+
 # ---------------------------------------------------------------------------
 # Build the file map
 # ---------------------------------------------------------------------------
@@ -757,10 +786,10 @@ def _build_files(project_name: str) -> dict[str, str]:
         "modules/users/controller.py":         _users_controller(),
         "modules/users/module.py":             _users_module(),
         "database/__init__.py":                '"""Database package."""\n',
-        "database/seeders/__init__.py":        '"""Database seeders package."""\n',
+        "database/seeders/__init__.py":        _seeders_init(),
         "database/seeders/user_seeder.py":     _user_seeder_template(),
         "database/seeders/database_seeder.py": _database_seeder_template(),
-        "database/factories/__init__.py":      '"""Database factories package."""\n',
+        "database/factories/__init__.py":      _factories_init(),
         "database/factories/user_factory.py":  _user_factory_template(),
         "tests/__init__.py":              _tests_init(),
         "tests/conftest.py":              _conftest(project_name),
