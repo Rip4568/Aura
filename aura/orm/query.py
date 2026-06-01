@@ -409,7 +409,8 @@ class QuerySet(Generic[ModelT]):
         Uses EXPLAIN QUERY PLAN for SQLite, EXPLAIN (ANALYZE) for PostgreSQL.
         """
         stmt = self._build_stmt()
-        compiled = stmt.compile(compile_kwargs={"literal_binds": True})
+        # Compile standard parameterized statement
+        compiled = stmt.compile()
         sql_str = str(compiled)
 
         session = self._get_session()
@@ -422,7 +423,8 @@ class QuerySet(Generic[ModelT]):
         else:
             explain_sql = f"EXPLAIN QUERY PLAN {sql_str}"
 
-        result = await session.execute(text(explain_sql))
+        # Execute using parameterized bindings securely
+        result = await session.execute(text(explain_sql), compiled.params)
         rows = result.fetchall()
         return "\n".join(str(row) for row in rows)
 
