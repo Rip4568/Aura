@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from aura.logging.config import LogConfig
@@ -102,3 +102,12 @@ class AuraConfig(BaseSettings):
     database: DatabaseConfig = DatabaseConfig()
     jobs: JobsConfig = JobsConfig()
     logging: LogConfig = Field(default_factory=LogConfig)
+
+    @model_validator(mode="after")
+    def validate_production_secret_key(self) -> AuraConfig:
+        import sys
+        if "pytest" in sys.modules:
+            return self
+        if not self.debug and self.secret_key == "change-me-in-production-32chars!!":
+            raise ValueError("SECRET_KEY must be changed from the default value in production.")
+        return self

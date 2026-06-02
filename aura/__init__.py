@@ -91,6 +91,7 @@ except ImportError:
     pass
 
 from aura.middleware.query_count import QueryCountMiddleware
+from aura.middleware.security import SecurityHeadersMiddleware
 
 # Templates (optional — requires aura-web[templates])
 try:
@@ -184,6 +185,7 @@ __all__ = [
     "JWTGuard",
     "SessionMiddleware",
     "QueryCountMiddleware",
+    "SecurityHeadersMiddleware",
     # Exceptions
     "HTTPException",
     "BadRequestException",
