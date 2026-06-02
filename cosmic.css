@@ -757,3 +757,205 @@ footer.nav-footer {
         overflow-x: auto;
     }
 }
+
+/* --- PRODUCT MARKETING VALUE PROPOSITION & BENCHMARKS --- */
+.value-section {
+    padding: 80px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.value-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 30px;
+    margin-bottom: 60px;
+}
+
+.value-card {
+    background-color: var(--bg-card);
+    padding: 30px;
+    border: 1px solid var(--border-color);
+    transition: var(--transition-fast);
+}
+
+.value-card:hover {
+    border-color: var(--emerald);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0, 245, 212, 0.05);
+}
+
+.value-card-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.value-card-header h3 {
+    font-size: 1.15rem;
+    color: var(--text-white);
+    letter-spacing: -0.01em;
+}
+
+.value-card p {
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+/* INSTALLATION PIP BAR */
+.install-bar {
+    display: flex;
+    align-items: center;
+    background-color: #050608;
+    border: 1px solid var(--border-color);
+    padding: 10px 20px;
+    margin-top: 25px;
+    margin-bottom: 25px;
+    width: 100%;
+    max-width: 450px;
+    position: relative;
+}
+
+.install-bar:hover {
+    border-color: var(--emerald);
+}
+
+.install-prompt {
+    font-family: var(--font-mono);
+    color: var(--emerald);
+    font-weight: 700;
+    margin-right: 12px;
+    user-select: none;
+}
+
+.install-text {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-white);
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    cursor: default;
+}
+
+.install-copy-btn {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    font-family: var(--font-header);
+    font-size: 0.75rem;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 0;
+}
+
+.install-copy-btn:hover {
+    border-color: var(--emerald);
+    color: var(--emerald);
+}
+
+/* BENCHMARK BARS */
+.benchmark-container {
+    background-color: #050608;
+    padding: 30px;
+    margin-top: 40px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 0 25px rgba(0, 245, 212, 0.03);
+}
+
+.benchmark-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 15px;
+    margin-bottom: 25px;
+}
+
+.benchmark-title {
+    font-family: var(--font-header);
+    font-size: 1.1rem;
+    color: var(--text-white);
+}
+
+.benchmark-subtitle {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.benchmark-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.benchmark-row {
+    display: grid;
+    grid-template-columns: 240px 1fr 80px;
+    align-items: center;
+    gap: 20px;
+}
+
+.bench-label {
+    font-family: var(--font-header);
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.bench-track {
+    background-color: #12131a;
+    height: 16px;
+    border: 1px solid var(--border-color);
+    position: relative;
+}
+
+.bench-bar {
+    height: 100%;
+    transition: width 1s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.bench-bar.bench-drf {
+    background-color: #e06c75;
+}
+
+.bench-bar.bench-fastapi {
+    background-color: var(--gold);
+    box-shadow: 0 0 10px rgba(255, 209, 102, 0.2);
+}
+
+.bench-bar.bench-aura {
+    background-color: var(--emerald);
+    box-shadow: 0 0 12px rgba(0, 245, 212, 0.3);
+}
+
+.bench-time {
+    font-size: 0.9rem;
+    text-align: right;
+}
+
+.benchmark-footer {
+    border-top: 1px solid var(--border-color);
+    margin-top: 25px;
+    padding-top: 15px;
+    font-size: 0.95rem;
+    font-family: var(--font-header);
+}
+
+@media (max-width: 1024px) {
+    .value-grid {
+        grid-template-columns: 1fr;
+    }
+    .benchmark-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    .bench-time {
+        text-align: left;
+    }
+}

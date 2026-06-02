@@ -599,4 +599,25 @@ function setupCopyButtons() {
             });
         });
     });
+
+    // Installation bar copy button logic
+    const installBtn = document.getElementById('install-copy-btn');
+    if (installBtn) {
+        installBtn.addEventListener('click', () => {
+            const installText = document.querySelector('.install-text');
+            if (!installText) return;
+
+            navigator.clipboard.writeText(installText.value).then(() => {
+                const originalHTML = installBtn.innerHTML;
+                installBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="stroke: #00f5d4; stroke-width: 2; display: inline-block; vertical-align: middle; margin-right: 4px;">
+                    <polyline points="20 6 9 17 4 12" />
+                </svg><span style="color: #00f5d4">COPIED</span>`;
+                installBtn.style.borderColor = '#00f5d4';
+                setTimeout(() => {
+                    installBtn.innerHTML = originalHTML;
+                    installBtn.style.borderColor = '';
+                }, 1500);
+            });
+        });
+    }
 }
