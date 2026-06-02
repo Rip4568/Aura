@@ -124,46 +124,95 @@ function initSpaceCanvas() {
     }
 
     let time = 0;
+    
+    // Core color systems in RGBA prefix string formats (safe, fast, flexible)
+    const colorEmerald = 'rgba(0, 245, 212, ';
+    const colorGold = 'rgba(255, 209, 102, ';
+
+    function drawAuroraRibbon(centerY, amplitude, baseSpeed, frequency, color1, color2, opacityMultiplier) {
+        // Base ribbon thickness waving over time
+        const ribbonWidth = 160 + Math.sin(time * 0.7) * 40;
+        
+        // Horizontal ribbon linear vertical gradient
+        const grad = ctx.createLinearGradient(0, centerY - ribbonWidth, 0, centerY + ribbonWidth);
+        grad.addColorStop(0, 'rgba(0, 245, 212, 0)');
+        grad.addColorStop(0.3, color1 + (0.05 * opacityMultiplier) + ')');
+        grad.addColorStop(0.5, color2 + (0.10 * opacityMultiplier) + ')');
+        grad.addColorStop(0.7, color1 + (0.06 * opacityMultiplier) + ')');
+        grad.addColorStop(1, 'rgba(0, 245, 212, 0)');
+        
+        ctx.beginPath();
+        for (let x = 0; x <= width; x += 20) {
+            // High-fidelity fluid movement using 3 layered trigonometric waves
+            const w1 = Math.sin(x * frequency + time * baseSpeed) * amplitude;
+            const w2 = Math.cos(x * (frequency * 2.1) - time * (baseSpeed * 0.85)) * (amplitude * 0.35);
+            const w3 = Math.sin(x * (frequency * 0.55) + time * (baseSpeed * 0.4)) * (amplitude * 0.5);
+            
+            const y = centerY + w1 + w2 + w3;
+            
+            if (x === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        }
+        
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = ribbonWidth;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+    }
+
+    function drawAuroraCurtain(centerY, amplitude, baseSpeed, frequency, colorStr, opacityMultiplier) {
+        // Shimmer curtain width waving over time
+        const curtainWidth = 220 + Math.sin(time * 0.5) * 50;
+        
+        ctx.lineWidth = 3.0;
+        
+        // Loop horizontally with a performance-optimized step of 12px
+        for (let x = 0; x <= width; x += 12) {
+            const w1 = Math.sin(x * frequency + time * baseSpeed) * amplitude;
+            const w2 = Math.cos(x * (frequency * 2.3) - time * (baseSpeed * 0.75)) * (amplitude * 0.3);
+            const y = centerY + w1 + w2;
+            
+            // Pillar heights undulating separately to simulate gas streams
+            const pillarHeight = curtainWidth * (0.8 + Math.sin(x * 0.007 + time * 3.5) * 0.25);
+            
+            // Dynamic column alpha simulation (simulating light columns fading in and out)
+            const alpha = (0.03 + Math.sin(x * 0.005 - time * 2.2) * 0.02) * opacityMultiplier;
+            
+            if (alpha <= 0) continue;
+            
+            const grad = ctx.createLinearGradient(0, y - pillarHeight / 2, 0, y + pillarHeight / 2);
+            grad.addColorStop(0, 'rgba(0, 245, 212, 0)');
+            grad.addColorStop(0.5, colorStr + alpha + ')');
+            grad.addColorStop(1, 'rgba(0, 245, 212, 0)');
+            
+            ctx.strokeStyle = grad;
+            ctx.beginPath();
+            ctx.moveTo(x, y - pillarHeight / 2);
+            ctx.lineTo(x, y + pillarHeight / 2);
+            ctx.stroke();
+        }
+    }
+
     function drawAurora() {
-        time += 0.001; // Slow and organic movement
+        time += 0.0006; // Slow, organic, majestic evolution rate
         ctx.save();
         ctx.globalCompositeOperation = 'screen';
         
-        // Wave 1: Cosmic Emerald Glow (#00f5d4)
-        const y1 = height * 0.4 + Math.sin(time * 1.5) * 60;
-        const g1 = ctx.createLinearGradient(0, y1 - 250, 0, y1 + 350);
-        g1.addColorStop(0, 'rgba(0, 245, 212, 0)');
-        g1.addColorStop(0.5, 'rgba(0, 245, 212, 0.07)');
-        g1.addColorStop(1, 'rgba(0, 245, 212, 0)');
+        // Layer 1: Emerald Backing Ribbon (Soft Atmospheric Layer)
+        drawAuroraRibbon(height * 0.35, 75, 1.1, 0.0008, colorEmerald, colorEmerald, 1.2);
         
-        ctx.fillStyle = g1;
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        for (let x = 0; x <= width; x += 15) {
-            const yOffset = Math.sin(x * 0.0015 + time * 3) * 50 + Math.cos(x * 0.0008 - time * 2) * 25;
-            ctx.lineTo(x, y1 + yOffset);
-        }
-        ctx.lineTo(width, 0);
-        ctx.closePath();
-        ctx.fill();
+        // Layer 2: Main Emerald Curtain (High-detailed shimmering columns)
+        drawAuroraCurtain(height * 0.42, 90, 1.3, 0.0011, colorEmerald, 1.3);
         
-        // Wave 2: Stellar Gold Glow (#ffd166)
-        const y2 = height * 0.5 + Math.cos(time * 1.2) * 50;
-        const g2 = ctx.createLinearGradient(0, y2 - 300, 0, y2 + 300);
-        g2.addColorStop(0, 'rgba(255, 209, 102, 0)');
-        g2.addColorStop(0.5, 'rgba(255, 209, 102, 0.03)');
-        g2.addColorStop(1, 'rgba(255, 209, 102, 0)');
+        // Layer 3: Gold Intertwining Ribbon (Warmer accents creating chromatic depth)
+        drawAuroraRibbon(height * 0.48, 105, -0.85, 0.0007, colorGold, colorEmerald, 0.85);
         
-        ctx.fillStyle = g2;
-        ctx.beginPath();
-        ctx.moveTo(0, height);
-        for (let x = 0; x <= width; x += 15) {
-            const yOffset = Math.cos(x * 0.0012 - time * 2.5) * 40 + Math.sin(x * 0.0022 + time * 1.8) * 20;
-            ctx.lineTo(x, y2 + yOffset);
-        }
-        ctx.lineTo(width, height);
-        ctx.closePath();
-        ctx.fill();
+        // Layer 4: Lower Emerald Ribbon (Grounding layer adding volume)
+        drawAuroraRibbon(height * 0.58, 85, 0.6, 0.0005, colorEmerald, colorGold, 1.0);
         
         ctx.restore();
     }
