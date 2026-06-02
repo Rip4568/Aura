@@ -7,9 +7,9 @@
 ### Django Templates
 - **Sem type-safety**: contexto é `dict` livre — erros só aparecem em produção
 - **N+1 em templates**: `{{ post.author.name }}` dentro de loop dispara N queries (lazy-load ORM)
-- **Template tags verbosas**: `{% if %}`, `{% for %}`, `{% load %}` — lógica misturada com HTML
+- **Template tags verbosas**: `&#123;% if %&#125;`, `&#123;% for %&#125;`, `&#123;% load %&#125;` — lógica misturada com HTML
 - **Context processors globais**: injetam dados silenciosamente, sem contrato declarado
-- **Sem sistema de componentes**: `{% include %}` passa o contexto inteiro, sem validação
+- **Sem sistema de componentes**: `&#123;% include %&#125;` passa o contexto inteiro, sem validação
 
 ### Flask/Jinja2
 - Herda todos os problemas do Django Templates

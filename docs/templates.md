@@ -218,7 +218,7 @@ class PostController:
 
 ## Componentes — reutilização com props tipadas
 
-O problema dos `{% include %}` do Django: passam o contexto inteiro, sem contrato. No Aura, componentes têm Props validadas:
+O problema dos `&#123;% include %&#125;` do Django: passam o contexto inteiro, sem contrato. No Aura, componentes têm Props validadas:
 
 ```python
 # components/user_card.py
