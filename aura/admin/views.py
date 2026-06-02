@@ -87,8 +87,9 @@ class AdminController:
             is_debug = os.getenv("AURA__DEBUG", "true").lower() in ("true", "1")
             if not is_debug:
                 raise RuntimeError(
-                    "AURA_ADMIN_PASSWORD must be configured in production environments (AURA__DEBUG=false) "
-                    "to secure the Administrative Panel. Please set the environment variable."
+                    "AURA_ADMIN_PASSWORD must be configured in production "
+                    "environments (AURA__DEBUG=false) to secure the "
+                    "Administrative Panel. Please set the environment variable."
                 )
             return None
 
