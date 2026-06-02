@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import pytest
+from sqlalchemy import Column, Integer, String
 from starlette.testclient import TestClient
 
 from aura import Aura, Module, get
 from aura.middleware.security import SecurityHeadersMiddleware
 from aura.orm import AuraModel, db
-from sqlalchemy import Column, Integer, String
 
 
 class SecurityUser(AuraModel):
@@ -107,9 +107,11 @@ async def test_explain_sql_injection_protection() -> None:
 
 
 def test_production_secret_key_validation(monkeypatch: pytest.MonkeyPatch) -> None:
-    from pydantic import ValidationError
-    from aura.config.base import AuraConfig
     import sys
+
+    from pydantic import ValidationError
+
+    from aura.config.base import AuraConfig
 
     # Default secret key with debug=True should be allowed
     cfg_dev = AuraConfig(debug=True)
@@ -121,7 +123,8 @@ def test_production_secret_key_validation(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(sys, "modules", fake_modules)
 
     # Default secret key with debug=False (production) should raise a validation error
-    with pytest.raises(ValidationError, match="SECRET_KEY must be changed from the default value in production."):
+    err_msg = "SECRET_KEY must be changed from the default value in production."
+    with pytest.raises(ValidationError, match=err_msg):
         AuraConfig(debug=False)
 
     # Custom secret key with debug=False should be allowed

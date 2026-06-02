@@ -50,11 +50,13 @@ class SecurityHeadersMiddleware:
         self.headers: list[tuple[bytes, bytes]] = []
 
         if content_security_policy is not None:
-            self.headers.append((b"content-security-policy", content_security_policy.encode("latin-1")))
+            csp_val = content_security_policy.encode("latin-1")
+            self.headers.append((b"content-security-policy", csp_val))
         if x_frame_options:
             self.headers.append((b"x-frame-options", x_frame_options.encode("latin-1")))
         if x_content_type_options:
-            self.headers.append((b"x-content-type-options", x_content_type_options.encode("latin-1")))
+            ct_val = x_content_type_options.encode("latin-1")
+            self.headers.append((b"x-content-type-options", ct_val))
         if x_xss_protection:
             self.headers.append((b"x-xss-protection", x_xss_protection.encode("latin-1")))
         if referrer_policy:
