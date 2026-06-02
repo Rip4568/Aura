@@ -123,10 +123,56 @@ function initSpaceCanvas() {
         }
     }
 
+    let time = 0;
+    function drawAurora() {
+        time += 0.001; // Slow and organic movement
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        
+        // Wave 1: Cosmic Emerald Glow (#00f5d4)
+        const y1 = height * 0.4 + Math.sin(time * 1.5) * 60;
+        const g1 = ctx.createLinearGradient(0, y1 - 250, 0, y1 + 350);
+        g1.addColorStop(0, 'rgba(0, 245, 212, 0)');
+        g1.addColorStop(0.5, 'rgba(0, 245, 212, 0.07)');
+        g1.addColorStop(1, 'rgba(0, 245, 212, 0)');
+        
+        ctx.fillStyle = g1;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        for (let x = 0; x <= width; x += 15) {
+            const yOffset = Math.sin(x * 0.0015 + time * 3) * 50 + Math.cos(x * 0.0008 - time * 2) * 25;
+            ctx.lineTo(x, y1 + yOffset);
+        }
+        ctx.lineTo(width, 0);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Wave 2: Stellar Gold Glow (#ffd166)
+        const y2 = height * 0.5 + Math.cos(time * 1.2) * 50;
+        const g2 = ctx.createLinearGradient(0, y2 - 300, 0, y2 + 300);
+        g2.addColorStop(0, 'rgba(255, 209, 102, 0)');
+        g2.addColorStop(0.5, 'rgba(255, 209, 102, 0.03)');
+        g2.addColorStop(1, 'rgba(255, 209, 102, 0)');
+        
+        ctx.fillStyle = g2;
+        ctx.beginPath();
+        ctx.moveTo(0, height);
+        for (let x = 0; x <= width; x += 15) {
+            const yOffset = Math.cos(x * 0.0012 - time * 2.5) * 40 + Math.sin(x * 0.0022 + time * 1.8) * 20;
+            ctx.lineTo(x, y2 + yOffset);
+        }
+        ctx.lineTo(width, height);
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.restore();
+    }
+
     function animate() {
         ctx.fillStyle = '#0b0c10'; // Deep Obsidian Charcoal
         ctx.fillRect(0, 0, width, height);
 
+        drawAurora();
         drawGridLines();
 
         stars.forEach((star) => {
