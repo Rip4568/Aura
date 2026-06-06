@@ -1,687 +1,299 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Aura Web — Async-First, Type-Safe, Modular Python Web Framework</title>
-    
-    <!-- PRIMARY SEO META TAGS -->
-    <meta name="description" content="Aura is an elegant, async-first, NestJS-inspired Python web framework. Built on SQLAlchemy 2.x async ORM, Pydantic v2 C-core validation, and Starlette, it delivers high performance and strict dependency injection.">
-    <meta name="keywords" content="python web framework, async python, nestjs python, type-safe web framework, sqlalchemy 2.x async, pydantic v2, saq redis, python dependency injection, webmvc python, htmx python">
-    <meta name="author" content="Aura Open Source Community">
-    <meta name="robots" content="index, follow">
-    
-    <!-- OPEN GRAPH / FACEBOOK / LINKEDIN -->
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://rip4568.github.io/Aura/">
-    <meta property="og:title" content="Aura Web — Asynchronous, Modular, Type-Safe Python Web Engine">
-    <meta property="og:description" content="Eradicate Django's blocking ORM and FastAPI's structureless folder chaos. Aura brings high-performance async-first modular architecture to the Python ecosystem.">
-    <meta property="og:image" content="https://rip4568.github.io/Aura/assets/og-image.png">
-
-    <!-- TWITTER / X -->
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://rip4568.github.io/Aura/">
-    <meta property="twitter:title" content="Aura Web — Asynchronous, Modular, Type-Safe Python Web Engine">
-    <meta property="twitter:description" content="Eradicate Django's blocking ORM and FastAPI's structureless folder chaos. Aura brings high-performance async-first modular architecture to the Python ecosystem.">
-    <meta property="twitter:image" content="https://rip4568.github.io/Aura/assets/og-image.png">
-
-    <!-- STRUCTURED RICH DATA / JSON-LD -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "Aura Web",
-      "operatingSystem": "Linux, macOS, Windows",
-      "applicationCategory": "DeveloperApplication",
-      "offers": {
-        "@type": "Offer",
-        "price": "0.00",
-        "priceCurrency": "USD"
-      },
-      "downloadUrl": "https://pypi.org/project/aura-web/",
-      "softwareVersion": "0.4.9",
-      "releaseNotes": "https://github.com/Rip4568/Aura/releases",
-      "description": "An async-first, NestJS-inspired, type-safe Python web framework designed to provide robust dependency injection, SQLAlchemy 2.x async ORM integration, and SAQ background tasks.",
-      "applicationSubCategory": "Web Development Framework",
-      "requirements": "Python 3.10+"
-    }
-    </script>
-
-    <link rel="stylesheet" href="cosmic.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aura Framework — Async-First, Type-Safe, Modular Python Web Framework</title>
+<meta name="description" content="Aura is an elegant, async-first, NestJS-inspired Python web framework.">
+<meta name="author" content="Aura Open Source Community">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://rip4568.github.io/Aura/">
+<meta property="og:title" content="Aura Framework — Asynchronous, Modular, Type-Safe Python Web Engine">
+<meta property="og:description" content="Eradicate Django's blocking ORM and FastAPI's structureless folder chaos.">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Aura Framework","operatingSystem":"Linux, macOS, Windows","applicationCategory":"DeveloperApplication","offers":{"@type":"Offer","price":"0.00","priceCurrency":"USD"},"downloadUrl":"https://pypi.org/project/aura-web/","softwareVersion":"0.4.9","releaseNotes":"https://github.com/Rip4568/Aura/releases","description":"An async-first, NestJS-inspired, type-safe Python web framework.","applicationSubCategory":"Web Development Framework","requirements":"Python 3.10+"}
+</script>
+<script>window.AURA_VERSION = "0.4.9";</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<link rel="stylesheet" href="cosmic.css">
 </head>
 <body>
-
-    <!-- 0. HIGH-PERFORMANCE BACKGROUND CANVAS -->
-    <canvas id="space-canvas"></canvas>
-
-    <div class="app-container">
-        
-        <!-- 1. HEADER / NAVIGATION -->
-        <header class="nav-header sharp-border">
-            <a href="#" class="brand">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="stroke: var(--emerald); stroke-width: 2;">
-                    <rect x="3" y="3" width="18" height="18" />
-                    <path d="M12 3V21" />
-                    <path d="M3 12H21" />
-                    <circle cx="12" cy="12" r="4" fill="var(--bg-dark)" />
-                </svg>
-                AURA <span>FRAMEWORK</span>
-            </a>
-            <nav class="nav-links">
-                <a href="#" class="nav-link active">HOME</a>
-                <a href="#aura-cli-section" class="nav-link">CLI GENERATOR</a>
-                <a href="#aura-di-section" class="nav-link">ARCHITECTURE</a>
-                <a href="#aura-matrix-section" class="nav-link">WHY AURA</a>
-                <a href="#aura-docs-section" class="nav-link">DOCUMENTATION</a>
-            </nav>
-        </header>
-        <!-- 2. HERO SECTION -->
-        <section class="hero-section">
-            <div class="hero-content">
-                <h1 class="glow-emerald"><span class="accent-emerald">ASYNC-FIRST.</span><br><span class="accent-gold">SPEC-DRIVEN.</span><br>TYPE-SAFE.</h1>
-                <p class="hero-subtitle">
-                    Aura is an elegant, NestJS-inspired Python web framework built on raw performance and structured modularity. Designed to eradicate Django's legacy blocking ORM and FastAPI's structureless file chaos, Aura brings production-grade architecture to the Python ecosystem.
-                </p>
-                <div class="install-bar sharp-border">
-                    <span class="install-prompt">$</span>
-                    <input type="text" class="install-text" value="pip install aura-web" readonly>
-                    <button class="install-copy-btn" id="install-copy-btn">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="stroke: currentColor; stroke-width: 2; display: inline-block; vertical-align: middle; margin-right: 4px;">
-                            <rect x="9" y="9" width="13" height="13" />
-                            <path d="M5 15H4V4H15V5" />
-                        </svg>
-                        <span>COPY</span>
-                    </button>
-                </div>
-                <div class="hero-ctas">
-                    <a href="#aura-docs-section" id="cta-explore-docs" class="raw-btn raw-btn-gold magnetic">EXPLORE THE DOCS</a>
-                    <a href="#aura-cli-section" class="raw-btn magnetic">GET STARTED (CLI)</a>
-                </div>
-            </div>
-            
-            <!-- SPEC STACK PANEL -->
-            <div class="spec-panel sharp-border-emerald">
-                <div class="spec-panel-header">
-                    <span class="spec-title">AURA ENGINE SPECS</span>
-                    <span class="spec-status">VERSION 0.4.9</span>
-                </div>
-                <div class="spec-grid">
-                    <div class="spec-item">
-                        <span class="spec-label">RUNTIME TARGET</span>
-                        <span class="spec-value">Python 3.10+ (Strict Typings)</span>
-                    </div>
-                    <div class="spec-item">
-                        <span class="spec-label">ASGI CORE</span>
-                        <span class="spec-value">Starlette (Non-Blocking)</span>
-                    </div>
-                    <div class="spec-item">
-                        <span class="spec-label">DATA VALIDATION</span>
-                        <span class="spec-value">Pydantic v2 (Rust-Powered)</span>
-                    </div>
-                    <div class="spec-item">
-                        <span class="spec-label">ORM CORE</span>
-                        <span class="spec-value">SQLAlchemy 2.x (True Async)</span>
-                    </div>
-                    <div class="spec-item">
-                        <span class="spec-label">TASK QUEUE</span>
-                        <span class="spec-value">SAQ (Redis Backed Async)</span>
-                    </div>
-                    <div class="spec-item">
-                        <span class="spec-label">RENDER ENGINE</span>
-                        <span class="spec-value">Jinja2 Template Engine</span>
-                    </div>
-                    <div class="spec-item">
-                        <span class="spec-label">STATIC VERIFIER</span>
-                        <span class="spec-value">Mypy Strict & Ruff Linter</span>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- 2.5 AURA VALUE PROPOSITION & BENCHMARKS -->
-        <section class="value-section">
-            <div class="section-intro">
-                <h2>THE ENGINE OF TOMORROW</h2>
-                <p>Aura solves the core architectural problems of traditional Python web frameworks with native speed and strict typing.</p>
-            </div>
-            
-            <div class="value-grid">
-                <div class="value-card sharp-border">
-                    <div class="value-card-header">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="stroke: var(--emerald); stroke-width: 2;">
-                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                        </svg>
-                        <h3>NATIVE ASYNC CONCURRENCY</h3>
-                    </div>
-                    <p>
-                        Django's pseudo-async ORM forces blocking database calls into worker threads, causing massive context-switching overhead and event loop delay. Aura uses true asynchronous SQLAlchemy 2.x and asyncpg pooling, driving native non-blocking loops at scale.
-                    </p>
-                </div>
-                
-                <div class="value-card sharp-border">
-                    <div class="value-card-header">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="stroke: var(--gold); stroke-width: 2;">
-                            <rect x="3" y="3" width="18" height="18" rx="0" />
-                            <path d="M9 3v18M15 3v18M3 9h18M3 15h18" />
-                        </svg>
-                        <h3>STRUCTURED MODULARITY</h3>
-                    </div>
-                    <p>
-                        FastAPI projects often collapse under circular imports and unstructured file layout. Aura introduces NestJS-inspired modules `@Module()`, explicitly binding controllers, services, and repositories inside clean boundaries that are highly testable.
-                    </p>
-                </div>
-                
-                <div class="value-card sharp-border">
-                    <div class="value-card-header">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="stroke: var(--emerald); stroke-width: 2;">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                        </svg>
-                        <h3>FAIL-CLOSED SECURITY</h3>
-                    </div>
-                    <p>
-                        Never leak administrative access in production. Aura's Admin Panel detects the production flag and actively prevents app startup if the admin password environment variable is missing, guaranteeing zero accidental exposure.
-                    </p>
-                </div>
-            </div>
-
-            <!-- BENCHMARKS SUBSECTION -->
-            <div class="benchmark-container sharp-border-emerald">
-                <div class="benchmark-header">
-                    <span class="benchmark-title">HIGH-VOLUME SERIALIZATION SPEED TEST</span>
-                    <span class="benchmark-subtitle">5,000 Complex Records Generation</span>
-                </div>
-                <div class="benchmark-bars">
-                    <div class="benchmark-row">
-                        <span class="bench-label">Django REST Framework (DRF)</span>
-                        <div class="bench-track">
-                            <div class="bench-bar bench-drf" style="width: 100%;"></div>
-                        </div>
-                        <span class="bench-time font-mono">12.80s</span>
-                    </div>
-                    <div class="benchmark-row">
-                        <span class="bench-label">FastAPI (Pydantic v1)</span>
-                        <div class="bench-track">
-                            <div class="bench-bar bench-fastapi" style="width: 4.8%;"></div>
-                        </div>
-                        <span class="bench-time font-mono">0.048s</span>
-                    </div>
-                    <div class="benchmark-row">
-                        <span class="bench-label">Aura (Pydantic v2 C-Core)</span>
-                        <div class="bench-track">
-                            <div class="bench-bar bench-aura" style="width: 3.4%;"></div>
-                        </div>
-                        <span class="bench-time font-mono accent-emerald">0.034s</span>
-                    </div>
-                </div>
-                <div class="benchmark-footer">
-                    <span class="accent-gold font-mono">RESULT: Aura is 376x faster than DRF and 41% faster than FastAPI.</span>
-                </div>
-            </div>
-        </section>
-
-        <!-- 3. INTERACTIVE CLI WIDGET -->
-        <section id="aura-cli-section" class="widget-section">
-            <div class="section-intro">
-                <h2>AURA COMMAND LINER</h2>
-                <p>Compile production scaffolding instantly. Experience the brutalist efficiency of our CLI generators.</p>
-            </div>
-            <div class="cli-builder-container sharp-border">
-                <div class="cli-builder-sidebar">
-                    <button class="cli-builder-btn active magnetic" data-cli-type="new">CREATE NEW PROJECT</button>
-                    <button class="cli-builder-btn magnetic" data-cli-type="module">GENERATE MODULE</button>
-                    <button class="cli-builder-btn magnetic" data-cli-type="migrate">RUN MIGRATIONS</button>
-                    <button class="cli-builder-btn magnetic" data-cli-type="worker">LAUNCH TASK WORKER</button>
-                    <button class="cli-builder-btn magnetic" data-cli-type="tinker">INTERACTIVE REPL</button>
-                </div>
-                <div class="glowing-terminal sharp-border-emerald">
-                    <div class="terminal-header">
-                        <span class="terminal-title" id="glowing-terminal-title">aura new --scaffold</span>
-                        <button class="terminal-copy" id="glowing-terminal-copy">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="stroke: currentColor; stroke-width: 2; display: inline-block; vertical-align: middle; margin-right: 4px;">
-                                <rect x="9" y="9" width="13" height="13" rx="0" />
-                                <path d="M5 15H4V4H15V5" />
-                            </svg>
-                            COPY
-                        </button>
-                    </div>
-                    <pre><code id="glowing-terminal-code"><span class="term-comment"># scaffold a full NestJS-inspired, async-first application structure</span>
+<canvas id="space-canvas" aria-hidden="true"></canvas>
+<div class="app-container">
+<header class="nav-header" role="banner">
+<a href="#" class="brand" aria-label="Aura Framework home">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="3" y="3" width="18" height="18" stroke="var(--emerald)" stroke-width="2" fill="none"/><path d="M12 3V21" stroke="var(--emerald)" stroke-width="2"/><path d="M3 12H21" stroke="var(--emerald)" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="var(--bg-dark)" stroke="var(--gold)" stroke-width="1.5"/></svg>
+AURA <span>FRAMEWORK</span>
+</a>
+<nav class="nav-links" role="navigation" aria-label="Main navigation">
+<a href="#" class="nav-link active">Home</a>
+<a href="#tech-stack" class="nav-link">Tech Stack</a>
+<a href="#features" class="nav-link">Features</a>
+<a href="#aura-cli-section" class="nav-link">CLI</a>
+<a href="#aura-docs-section" class="nav-link">Docs</a>
+</nav>
+<button class="hamburger" id="hamburger-btn" aria-label="Toggle navigation menu" aria-expanded="false" type="button">
+<span class="hamburger-line"></span><span class="hamburger-line"></span><span class="hamburger-line"></span>
+</button>
+</header>
+<div class="mobile-nav-overlay" id="mobile-nav-overlay" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Navigation menu">
+<nav class="mobile-nav" role="navigation" aria-label="Mobile navigation">
+<a href="#" class="nav-link active">Home</a>
+<a href="#tech-stack" class="nav-link">Tech Stack</a>
+<a href="#features" class="nav-link">Features</a>
+<a href="#aura-cli-section" class="nav-link">CLI</a>
+<a href="#aura-docs-section" class="nav-link">Docs</a>
+</nav>
+</div>
+<section class="hero-section">
+<div class="hero-content">
+<h1 class="glow-emerald"><span class="accent-emerald">Async-First.</span><br><span class="accent-gold">Spec-Driven.</span><br>Type-Safe.</h1>
+<p class="hero-subtitle">Aura is an elegant, NestJS-inspired Python web framework built on raw performance and structured modularity. Designed to eradicate Django's legacy blocking ORM and FastAPI's structureless file chaos, Aura brings production-grade architecture to the Python ecosystem.</p>
+<div class="install-bar">
+<span class="install-prompt" aria-hidden="true">$</span>
+<input type="text" class="install-text" value="pip install aura-web" readonly aria-label="Install command: pip install aura-web">
+<button class="install-copy-btn" id="install-copy-btn" aria-label="Copy install command">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="9" y="9" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"/><path d="M5 15H4V4H15V5" stroke="currentColor" stroke-width="2" fill="none"/></svg><span>Copy</span>
+</button>
+</div>
+<div class="hero-ctas">
+<a href="https://pypi.org/project/aura-web/" class="raw-btn raw-btn-gold" target="_blank" rel="noopener noreferrer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><polyline points="7 10 12 15 17 10" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="15" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Install from PyPI</a>
+<a href="#aura-docs-section" class="raw-btn magnetic" id="cta-explore-docs">Explore the Docs</a>
+<a href="https://github.com/Rip4568/Aura" class="raw-btn raw-btn-gh" target="_blank" rel="noopener noreferrer"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.385-1.335-1.755-1.335-1.755-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.605-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12 24 5.37 18.63 0 12 0z"/></svg> View on GitHub <span class="github-star-badge" id="github-star-count"></span></a>
+</div>
+</div>
+</section>
+<div class="social-proof-bar" role="complementary" aria-label="Project statistics">
+<div class="proof-item"><span class="proof-value">v<span data-aura-version>0.4.9</span></span><span class="proof-label">Latest Version</span></div>
+<div class="proof-item"><span class="proof-value">MIT</span><span class="proof-label">License</span></div>
+<div class="proof-item"><span class="proof-value">Python 3.10+</span><span class="proof-label">Runtime</span></div>
+<div class="proof-item"><span class="proof-value" id="github-stars-display">&#9733; 0</span><span class="proof-label">GitHub Stars</span></div>
+</div>
+<section id="tech-stack" class="tech-stack-section">
+<div class="section-intro"><h2>Tech Stack</h2><p>The Aura engine is built on battle-tested components, carefully integrated for maximum performance.</p></div>
+<div class="tech-stack-grid">
+<div class="tech-card"><div class="tech-dot tech-dot-emerald"></div><span class="tech-label">Runtime Target</span><span class="tech-value">Python 3.10+ (Strict Typings)</span></div>
+<div class="tech-card"><div class="tech-dot tech-dot-gold"></div><span class="tech-label">ASGI Core</span><span class="tech-value">Starlette (Non-Blocking)</span></div>
+<div class="tech-card"><div class="tech-dot tech-dot-emerald"></div><span class="tech-label">Data Validation</span><span class="tech-value">Pydantic v2 (Rust-Powered)</span></div>
+<div class="tech-card"><div class="tech-dot tech-dot-gold"></div><span class="tech-label">ORM Core</span><span class="tech-value">SQLAlchemy 2.x (True Async)</span></div>
+<div class="tech-card"><div class="tech-dot tech-dot-emerald"></div><span class="tech-label">Task Queue</span><span class="tech-value">SAQ (Redis Backed Async)</span></div>
+<div class="tech-card"><div class="tech-dot tech-dot-gold"></div><span class="tech-label">Render Engine</span><span class="tech-value">Jinja2 Template Engine</span></div>
+<div class="tech-card"><div class="tech-dot tech-dot-emerald"></div><span class="tech-label">Static Verifier</span><span class="tech-value">Mypy Strict &amp; Ruff Linter</span></div>
+</div>
+</section>
+<section id="features" class="value-section">
+<div class="section-intro"><h2>Why Aura?</h2><p>Aura solves the core architectural problems of traditional Python web frameworks.</p></div>
+<div class="value-grid">
+<div class="value-card"><div class="value-card-header"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" stroke="var(--emerald)" stroke-width="2" fill="none" stroke-linejoin="round"/></svg><h3>Native Async Concurrency</h3></div><p>Django's pseudo-async ORM forces blocking database calls into worker threads. Aura uses true asynchronous SQLAlchemy 2.x and asyncpg pooling.</p></div>
+<div class="value-card"><div class="value-card-header"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="3" y="3" width="18" height="18" rx="0" stroke="var(--gold)" stroke-width="2" fill="none"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18" stroke="var(--gold)" stroke-width="2" fill="none"/></svg><h3>Structured Modularity</h3></div><p>FastAPI projects often collapse under circular imports. Aura introduces NestJS-inspired modules with clean boundaries.</p></div>
+<div class="value-card"><div class="value-card-header"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="var(--emerald)" stroke-width="2" fill="none" stroke-linejoin="round"/></svg><h3>Fail-Closed Security</h3></div><p>Never leak admin access in production. Aura's Admin Panel prevents startup if password env var is missing.</p></div>
+</div>
+<div class="benchmark-container">
+<div class="benchmark-header"><span class="benchmark-title">Serialization Speed Benchmark</span><span class="benchmark-subtitle">5,000 Complex Records</span></div>
+<div class="benchmark-bars">
+<div class="benchmark-row"><span class="bench-label">DRF</span><div class="bench-track"><div class="bench-bar bench-drf" style="width:100%"></div></div><span class="bench-time font-mono">12.80s</span></div>
+<div class="benchmark-row"><span class="bench-label">FastAPI</span><div class="bench-track"><div class="bench-bar bench-fastapi" style="width:4.8%"></div></div><span class="bench-time font-mono">0.048s</span></div>
+<div class="benchmark-row"><span class="bench-label">Aura</span><div class="bench-track"><div class="bench-bar bench-aura" style="width:3.4%"></div></div><span class="bench-time font-mono accent-emerald">0.034s</span></div>
+</div>
+<div class="benchmark-footer"><span class="accent-gold font-mono">Aura is 376x faster than DRF and 41% faster than FastAPI.</span></div>
+</div>
+</section>
+<section id="aura-cli-section" class="widget-section">
+<div class="section-intro"><h2>Aura Command Liner</h2><p>Compile production scaffolding instantly.</p></div>
+<div class="cli-builder-container">
+<div class="cli-builder-sidebar" role="tablist" aria-label="CLI command categories">
+<button class="cli-builder-btn active magnetic" data-cli-type="new" role="tab" aria-selected="true">Create New Project</button>
+<button class="cli-builder-btn magnetic" data-cli-type="module" role="tab" aria-selected="false">Generate Module</button>
+<button class="cli-builder-btn magnetic" data-cli-type="migrate" role="tab" aria-selected="false">Run Migrations</button>
+<button class="cli-builder-btn magnetic" data-cli-type="worker" role="tab" aria-selected="false">Launch Task Worker</button>
+<button class="cli-builder-btn magnetic" data-cli-type="tinker" role="tab" aria-selected="false">Interactive REPL</button>
+</div>
+<div class="glowing-terminal" role="region" aria-label="CLI command preview">
+<div class="terminal-header"><span class="terminal-title" id="glowing-terminal-title">aura new --scaffold</span><button class="terminal-copy" id="glowing-terminal-copy" aria-label="Copy CLI command"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="9" y="9" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"/><path d="M5 15H4V4H15V5" stroke="currentColor" stroke-width="2" fill="none"/></svg> COPY</button></div>
+<pre><code id="glowing-terminal-code"><span class="term-comment"># scaffold a NestJS-inspired, async-first application</span>
 <span class="term-prompt">$</span> aura new aura-app --dir ./workspace
 cd aura-app
 pip install -e ".[dev]"
 aura run --reload</code></pre>
-                </div>
-            </div>
-        </section>
-
-        <!-- 4. DI VISUALIZER -->
-        <section id="aura-di-section" class="visualizer-section">
-            <div class="section-intro">
-                <h2>THE ARCHITECTURAL SHIELD</h2>
-                <p>Four interconnected clean layers designed to preserve architectural boundaries and isolate side effects.</p>
-            </div>
-            <div class="di-visualizer">
-                <div class="di-card sharp-border">
-                    <div class="di-card-num">01</div>
-                    <h3 class="di-card-title">MÓDULOS</h3>
-                    <p class="di-card-desc">Registry declaration context that isolates, binds, and configures localized controllers, guards, and services.</p>
-                    <div class="di-card-tag">@Module Decorator</div>
-                </div>
-                <div class="di-card sharp-border">
-                    <div class="di-card-num">02</div>
-                    <h3 class="di-card-title">CONTROLLERS</h3>
-                    <p class="di-card-desc">Pure ASGI routing nodes executing parameters, guard pipelines, and serializing typed payloads.</p>
-                    <div class="di-card-tag">@get / @post / @html</div>
-                </div>
-                <div class="di-card sharp-border">
-                    <div class="di-card-num">03</div>
-                    <h3 class="di-card-title">SERVICES</h3>
-                    <p class="di-card-desc">Stateful business controllers resolved dynamically via robust, cross-thread Dependency Injection.</p>
-                    <div class="di-card-tag">@injectable Injector</div>
-                </div>
-                <div class="di-card sharp-border">
-                    <div class="di-card-num">04</div>
-                    <h3 class="di-card-title">REPOSITORIES</h3>
-                    <p class="di-card-desc">Layered database connectors driving native asynchronous transactions under unified connection pooling.</p>
-                    <div class="di-card-tag">Repository[Model]</div>
-                </div>
-            </div>
-        </section>
-
-        <!-- 5. "WHY AURA" MATRIX -->
-        <section id="aura-matrix-section" class="matrix-section">
-            <div class="section-intro">
-                <h2>THE ARCHITECTURAL BREAKDOWN</h2>
-                <p>Compare actual production headaches against clean modern implementations.</p>
-            </div>
-            <table class="matrix-table sharp-border">
-                <thead>
-                    <tr>
-                        <th>HEADACHE DEFINITION</th>
-                        <th>LEGACY FRAMEWORKS</th>
-                        <th>AURA FRAMEWORK REMEDY</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td class="matrix-title">Monolithic Configuration</td>
-                        <td class="matrix-bad">Django settings.py files scaling to 800+ lines.</td>
-                        <td class="matrix-good">Declaring localized settings per module using typed models and aura.toml contexts.</td>
-                    </tr>
-                    <tr>
-                        <td class="matrix-title">Async-to-Sync Blocking ORM</td>
-                        <td class="matrix-bad">Django ORM requiring blocking wrappers or causing threadpool exhaustion.</td>
-                        <td class="matrix-good">Native async SQLAlchemy 2.x database connections executing transparently in background loops.</td>
-                    </tr>
-                    <tr>
-                        <td class="matrix-title">Unstructured Routing Files</td>
-                        <td class="matrix-bad">FastAPI systems developing in dozens of unstructured file formats.</td>
-                        <td class="matrix-good">NestJS-style modular architectures providing clear separation between request/response structures.</td>
-                    </tr>
-                    <tr>
-                        <td class="matrix-title">Restricted Dependency Injection</td>
-                        <td class="matrix-bad">FastAPI Depends() injection that only resolves during HTTP request-response loops.</td>
-                        <td class="matrix-good">Global DIContainer resolving dependencies safely in jobs, CLI, workers, and background threads.</td>
-                    </tr>
-                    <tr>
-                        <td class="matrix-title">Blocking Background Tasks</td>
-                        <td class="matrix-bad">Complex and heavy Celery frameworks running synchronous tasks.</td>
-                        <td class="matrix-good">Lightweight, modern async tasks triggered globally with the simple @task decorator.</td>
-                    </tr>
-                </tbody>
-            </table>
-        </section>
-
-        <!-- 6. DUAL DOCS APP SECTION -->
-        <section id="aura-docs-section" class="docs-section">
-            <div class="section-intro">
-                <h2>DOCUMENTATION & APIS</h2>
-                <p>Search standard commands, view framework examples, and copy production ready snippets.</p>
-            </div>
-            <div class="docs-grid sharp-border">
-                
-                <!-- SIDEBAR -->
-                <div class="docs-sidebar">
-                    <input type="text" id="docs-search-input" class="docs-search sharp-border" placeholder="SEARCH APIS & DOCS...">
-                    
-                    <div class="docs-menu-group">
-                        <div class="docs-menu-title">GETTING STARTED</div>
-                        <div class="docs-sidebar-links">
-                            <a href="#" class="docs-sidebar-link active" data-target="doc-quickstart">Quick Start</a>
-                            <a href="#" class="docs-sidebar-link" data-target="doc-installation">Installation</a>
-                            <a href="#" class="docs-sidebar-link" data-target="doc-architecture">Project Layout</a>
-                        </div>
-                    </div>
-                    
-                    <div class="docs-menu-group">
-                        <div class="docs-menu-title">ARCHITECTURE</div>
-                        <div class="docs-sidebar-links">
-                            <a href="#" class="docs-sidebar-link" data-target="doc-modules">Modules & DI</a>
-                            <a href="#" class="docs-sidebar-link" data-target="doc-controllers">Controllers</a>
-                        </div>
-                    </div>
-
-                    <div class="docs-menu-group">
-                        <div class="docs-menu-title">DATABASE ORM</div>
-                        <div class="docs-sidebar-links">
-                            <a href="#" class="docs-sidebar-link" data-target="doc-orm">Models & Repository</a>
-                            <a href="#" class="docs-sidebar-link" data-target="doc-factories">Factories & Seeders</a>
-                        </div>
-                    </div>
-
-                    <div class="docs-menu-group">
-                        <div class="docs-menu-title">SECURITY & GUARDS</div>
-                        <div class="docs-sidebar-links">
-                            <a href="#" class="docs-sidebar-link" data-target="doc-guards">JWT & Guards</a>
-                            <a href="#" class="docs-sidebar-link" data-target="doc-sessions">Sessions Control</a>
-                        </div>
-                    </div>
-
-                    <div class="docs-menu-group">
-                        <div class="docs-menu-title">BACKSTAGE</div>
-                        <div class="docs-sidebar-links">
-                            <a href="#" class="docs-sidebar-link" data-target="doc-jobs">Background Jobs</a>
-                            <a href="#" class="docs-sidebar-link" data-target="doc-logging">Async Logging</a>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- CONTENT VIEWER CONTAINER -->
-                <div class="docs-content-container">
-                    
-                    <!-- PANEL: QUICKSTART -->
-                    <div class="docs-panel active" id="doc-quickstart">
-                        <h2>Quick Start</h2>
-                        <p>Generate a complete, fully functional Restful modular template using our custom CLI tool in seconds.</p>
-                        <h3>Initial Scaffolding</h3>
-                        <p>Launch the global generator utility to structure files, setup configurations, and write primary unit tests:</p>
-                        <div class="docs-code-block">
-                            <pre><code>$ aura new meu-projeto
+</div>
+</div>
+</section>
+<section id="aura-di-section" class="visualizer-section">
+<div class="section-intro"><h2>The Architectural Shield</h2><p>Four interconnected clean layers designed to preserve architectural boundaries.</p></div>
+<div class="di-visualizer">
+<div class="di-card"><div class="di-card-num">01</div><h3>Modules</h3><p class="di-card-desc">Registry declaration context that isolates and configures controllers, guards, and services.</p><div class="di-card-tag">@Module Decorator</div></div>
+<div class="di-card"><div class="di-card-num">02</div><h3>Controllers</h3><p class="di-card-desc">Pure ASGI routing nodes executing guard pipelines and serializing typed payloads.</p><div class="di-card-tag">@get / @post / @html</div></div>
+<div class="di-card"><div class="di-card-num">03</div><h3>Services</h3><p class="di-card-desc">Stateful business controllers resolved dynamically via Dependency Injection.</p><div class="di-card-tag">@injectable Injector</div></div>
+<div class="di-card"><div class="di-card-num">04</div><h3>Repositories</h3><p class="di-card-desc">Layered database connectors driving native async transactions.</p><div class="di-card-tag">Repository[Model]</div></div>
+</div>
+</section>
+<section id="aura-matrix-section" class="matrix-section">
+<div class="section-intro"><h2>The Architectural Breakdown</h2><p>Compare production headaches against clean implementations.</p></div>
+<div class="matrix-table-wrapper">
+<table class="matrix-table">
+<thead><tr><th>Issue</th><th>Legacy</th><th>Aura Remedy</th></tr></thead>
+<tbody>
+<tr><td class="matrix-title">Monolithic Config</td><td class="matrix-bad">Django settings.py scaling to 800+ lines.</td><td class="matrix-good">Localized settings per module with typed aura.toml.</td></tr>
+<tr><td class="matrix-title">Blocking ORM</td><td class="matrix-bad">Django ORM requiring blocking wrappers.</td><td class="matrix-good">Native async SQLAlchemy 2.x connections.</td></tr>
+<tr><td class="matrix-title">Unstructured Routing</td><td class="matrix-bad">FastAPI systems in dozens of unstructured files.</td><td class="matrix-good">NestJS-style modular separation.</td></tr>
+<tr><td class="matrix-title">Restricted DI</td><td class="matrix-bad">FastAPI Depends() only in HTTP request loops.</td><td class="matrix-good">Global DIContainer for jobs, CLI, workers.</td></tr>
+<tr><td class="matrix-title">Blocking Tasks</td><td class="matrix-bad">Heavy Celery with synchronous tasks.</td><td class="matrix-good">Lightweight @task decorator with async SAQ.</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="aura-docs-section" class="docs-section">
+<div class="section-intro"><h2>Documentation &amp; APIs</h2><p>Search commands, browse examples, and copy production-ready snippets.</p></div>
+<button class="docs-sidebar-toggle" id="docs-sidebar-toggle" aria-label="Toggle documentation sidebar" aria-expanded="false" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="3" y1="18" x2="21" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Documentation Menu</button>
+<div class="docs-layout">
+<aside class="docs-sidebar" id="docs-sidebar" role="navigation" aria-label="Documentation navigation">
+<div class="docs-search-wrapper" role="search">
+<svg class="docs-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2" fill="none"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+<input type="search" id="docs-search-input" class="docs-search" placeholder="Search APIs &amp; docs..." aria-label="Search documentation">
+</div>
+<div class="docs-nav">
+<div class="docs-category" data-category="getting-started"><button class="docs-category-toggle" aria-expanded="true" aria-controls="cat-getting-started"><svg class="category-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><polyline points="9 18 15 12 9 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Getting Started</button><div class="docs-category-links" id="cat-getting-started"><a href="#" class="docs-sidebar-link active" data-target="doc-quickstart">Quick Start</a><a href="#" class="docs-sidebar-link" data-target="doc-installation">Installation</a><a href="#" class="docs-sidebar-link" data-target="doc-architecture">Project Layout</a></div></div>
+<div class="docs-category" data-category="architecture"><button class="docs-category-toggle" aria-expanded="true" aria-controls="cat-architecture"><svg class="category-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><polyline points="9 18 15 12 9 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Architecture</button><div class="docs-category-links" id="cat-architecture"><a href="#" class="docs-sidebar-link" data-target="doc-modules">Modules &amp; DI</a><a href="#" class="docs-sidebar-link" data-target="doc-controllers">Controllers</a></div></div>
+<div class="docs-category" data-category="database"><button class="docs-category-toggle" aria-expanded="true" aria-controls="cat-database"><svg class="category-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><polyline points="9 18 15 12 9 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Database ORM</button><div class="docs-category-links" id="cat-database"><a href="#" class="docs-sidebar-link" data-target="doc-orm">Models &amp; Repository</a><a href="#" class="docs-sidebar-link" data-target="doc-factories">Factories &amp; Seeders</a></div></div>
+<div class="docs-category" data-category="security"><button class="docs-category-toggle" aria-expanded="true" aria-controls="cat-security"><svg class="category-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><polyline points="9 18 15 12 9 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Security &amp; Guards</button><div class="docs-category-links" id="cat-security"><a href="#" class="docs-sidebar-link" data-target="doc-guards">JWT &amp; Guards</a><a href="#" class="docs-sidebar-link" data-target="doc-sessions">Sessions Control</a></div></div>
+<div class="docs-category" data-category="backstage"><button class="docs-category-toggle" aria-expanded="true" aria-controls="cat-backstage"><svg class="category-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><polyline points="9 18 15 12 9 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Backstage</button><div class="docs-category-links" id="cat-backstage"><a href="#" class="docs-sidebar-link" data-target="doc-jobs">Background Jobs</a><a href="#" class="docs-sidebar-link" data-target="doc-logging">Async Logging</a></div></div>
+</div>
+</aside>
+<main class="docs-content" id="docs-content" role="main" aria-label="Documentation content">
+<nav class="docs-breadcrumb" aria-label="Breadcrumb"><span class="breadcrumb-item">Docs</span><span class="breadcrumb-sep" aria-hidden="true">/</span><span class="breadcrumb-item breadcrumb-current" id="breadcrumb-current">Quick Start</span></nav>
+<a href="https://github.com/Rip4568/Aura" class="docs-edit-link" id="docs-edit-link" target="_blank" rel="noopener noreferrer" aria-label="Edit on GitHub"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg> Edit on GitHub</a>
+<div class="docs-panels" id="docs-panels">
+<div class="docs-panel active" id="doc-quickstart">
+<h2>Quick Start</h2>
+<p>Generate a fully functional RESTful modular template using Aura's CLI tool.</p>
+<h3>Initial Scaffolding</h3>
+<div class="docs-code-block"><button class="copy-code-btn" aria-label="Copy code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="9" y="9" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"/><path d="M5 15H4V4H15V5" stroke="currentColor" stroke-width="2" fill="none"/></svg> Copy</button><pre><code class="language-bash">$ aura new meu-projeto
 $ cd meu_projeto
 $ pip install -e ".[dev]"
-$ aura run --reload</code></pre>
-                        </div>
-                        <div class="docs-alert">
-                            <div class="docs-alert-title">REGISTRY VERIFICATION</div>
-                            <div class="docs-alert-content">The scaffolding controller binds auto-generated route targets immediately. Point a browser to http://localhost:8000/docs to explore the fully functional interactive Swagger documentation interface.</div>
-                        </div>
-                    </div>
-
-                    <!-- PANEL: INSTALLATION -->
-                    <div class="docs-panel" id="doc-installation">
-                        <h2>Installation</h2>
-                        <p>Aura uses conditional extras packaging to minimize bundle size, ensure high scalability, and avoid loading redundant backend packages into small microservices.</p>
-                        <h3>Target Selection Packages</h3>
-                        <p>Install targeted components based on production needs:</p>
-                        <div class="docs-code-block">
-                            <pre><code># Standard REST API runtime (Uvicorn core wrapper)
+$ aura run --reload</code></pre></div>
+<div class="docs-alert"><div class="docs-alert-title">Registry Verification</div><div class="docs-alert-content">Point a browser to http://localhost:8000/docs for Swagger docs.</div></div>
+</div>
+<div class="docs-panel" id="doc-installation">
+<h2>Installation</h2>
+<p>Aura uses conditional extras packaging to minimize bundle size.</p>
+<h3>Target Selection Packages</h3>
+<div class="docs-code-block"><button class="copy-code-btn" aria-label="Copy code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="9" y="9" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"/><path d="M5 15H4V4H15V5" stroke="currentColor" stroke-width="2" fill="none"/></svg> Copy</button><pre><code class="language-bash"># Standard REST API
 pip install "aura-web[uvicorn]"
 
-# Full template package incorporating Jinja2 engines
+# With Jinja2 templates
 pip install "aura-web[uvicorn,templates]"
 
-# Full SQL support with asynchronous SQLAlchemy pools
+# With SQLAlchemy
 pip install "aura-web[uvicorn,sqlalchemy]"
 
-# Production package incorporating all extras
-pip install "aura-web[all]"</code></pre>
-                        </div>
-                    </div>
-
-                    <!-- PANEL: ARCHITECTURE -->
-                    <div class="docs-panel" id="doc-architecture">
-                        <h2>Project Layout</h2>
-                        <p>Aura strictly separates localized domains using cohesive modular folders. Every single module contains everything it needs to function correctly.</p>
-                        <h3>Domain Package View</h3>
-                        <p>A typical modular layout includes:</p>
-                        <div class="docs-code-block">
-                            <pre><code>meu_projeto/
-├── main.py                      # App initialization: app = Aura(modules=[UsersModule])
-├── aura.toml                    # Strict typed configuration variables
-├── modules/
-│   └── users/
-│       ├── schemas.py           # Typed Pydantic DTO definitions
-│       ├── service.py           # Stateful business logic (@injectable)
-│       ├── controller.py        # Routing node decorators (@get, @post)
-│       ├── repository.py        # Asynchronous SQL repository
-│       ├── model.py             # SQLAlchemy 2.x Entity layout
-│       └── module.py            # Binds services, controllers, guards
-└── tests/
-    └── test_users.py            # Complete isolated async integration tests</code></pre>
-                        </div>
-                    </div>
-
-                    <!-- PANEL: MODULES & DI -->
-                    <div class="docs-panel" id="doc-modules">
-                        <h2>Modules & Dependency Injection</h2>
-                        <p>Isolate localized context domains cleanly. Aura dependencies are instantiated as Singletons, Scoped, or Transients globally, then injected into targets via clear constructor declarations.</p>
-                        <h3>Structuring a module</h3>
-                        <p>Declare modular packages cleanly using decorators:</p>
-                        <div class="docs-code-block">
-                            <pre><code># modules/posts/module.py
-from aura import Module
-from .controller import PostsController
-from .service import PostService
-
-@Module(
-    providers=[PostService],
-    controllers=[PostsController],
-    prefix="/posts",
-    tags=["Posts"]
-)
-class PostsModule:
-    pass</code></pre>
-                        </div>
-                        <h3>Service Injection</h3>
-                        <p>Declare clean state injectors that do not rely on standard HTTP contexts:</p>
-                        <div class="docs-code-block">
-                            <pre><code># service.py
-from aura import injectable
-from .repository import PostRepository
+# All extras
+pip install "aura-web[all]"</code></pre></div>
+</div>
+<div class="docs-panel" id="doc-architecture">
+<h2>Project Layout</h2>
+<p>Aura strictly separates localized domains using cohesive modular folders.</p>
+<div class="docs-code-block"><button class="copy-code-btn" aria-label="Copy code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="9" y="9" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"/><path d="M5 15H4V4H15V5" stroke="currentColor" stroke-width="2" fill="none"/></svg> Copy</button><pre><code class="language-plaintext">meu_projeto/
+  main.py
+  aura.toml
+  modules/users/
+    schemas.py, service.py, controller.py
+    repository.py, model.py, module.py
+  tests/test_users.py</code></pre></div>
+</div>
+<div class="docs-panel" id="doc-modules">
+<h2>Modules &amp; DI</h2>
+<p>Isolate context domains with Singletons, Scoped, or Transient lifetimes.</p>
+<div class="docs-code-block"><button class="copy-code-btn" aria-label="Copy code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="9" y="9" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"/><path d="M5 15H4V4H15V5" stroke="currentColor" stroke-width="2" fill="none"/></svg> Copy</button><pre><code class="language-python">@Module(providers=[PostService], controllers=[PostsController], prefix="/posts")
+class PostsModule: pass
 
 @injectable
 class PostService:
-    def __init__(self, post_repository: PostRepository) -> None:
-        self.repo = post_repository # Auto-resolved from the container!</code></pre>
-                        </div>
-                    </div>
-
-                    <!-- PANEL: CONTROLLERS -->
-                    <div class="docs-panel" id="doc-controllers">
-                        <h2>Controllers & Routing</h2>
-                        <p>Bind endpoint routes to actions smoothly using declarative decorators. Type conversions and query validations are checked transparently.</p>
-                        <h3>Creating controllers</h3>
-                        <p>Map path routes to actions easily:</p>
-                        <div class="docs-code-block">
-                            <pre><code># controller.py
-from aura import get, post, put, Body, Query
-from .schemas import CreatePostDTO, PostResponse
-from .service import PostService
-
-class PostsController:
-    def __init__(self, service: PostService) -> None:
-        self.service = service
-
+    def __init__(self, repo: PostRepository):
+        self.repo = repo</code></pre></div>
+</div>
+<div class="docs-panel" id="doc-controllers">
+<h2>Controllers &amp; Routing</h2>
+<p>Bind routes with declarative decorators.</p>
+<div class="docs-code-block"><button class="copy-code-btn" aria-label="Copy code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="9" y="9" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"/><path d="M5 15H4V4H15V5" stroke="currentColor" stroke-width="2" fill="none"/></svg> Copy</button><pre><code class="language-python">class PostsController:
     @get("/")
-    async def list_posts(self, page: Query[int] = 1) -> list[PostResponse]:
-        return await self.service.list_posts(page)
+    async def list(self, page: Query[int] = 1) -> list[PostResponse]:
+        return await self.service.list(page)
 
     @post("/", status=201)
-    async def create_post(self, body: Body[CreatePostDTO]) -> PostResponse:
-        return await self.service.create_post(body)</code></pre>
-                        </div>
-                    </div>
-
-                    <!-- PANEL: ORM -->
-                    <div class="docs-panel" id="doc-orm">
-                        <h2>Models & Repository</h2>
-                        <p>Drive database mutations safely using fully non-blocking asynchronous operations. The Repository abstraction exposes built-in pagination, bulk queries, and transaction control.</p>
-                        <h3>Defining entities</h3>
-                        <p>Map fields cleanly using standard types:</p>
-                        <div class="docs-code-block">
-                            <pre><code># models.py
-from aura.orm import AuraModel, CharField, TextField, BooleanField
-from sqlalchemy.orm import Mapped
-
-class Post(AuraModel):
+    async def create(self, body: Body[CreatePostDTO]) -> PostResponse:
+        return await self.service.create(body)</code></pre></div>
+</div>
+<div class="docs-panel" id="doc-orm">
+<h2>Models &amp; Repository</h2>
+<p>Non-blocking async ORM with built-in CRUD.</p>
+<div class="docs-code-block"><button class="copy-code-btn" aria-label="Copy code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="9" y="9" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"/><path d="M5 15H4V4H15V5" stroke="currentColor" stroke-width="2" fill="none"/></svg> Copy</button><pre><code class="language-python">class Post(AuraModel):
     __tablename__ = "posts"
-
     title: Mapped[str] = CharField(max_length=200)
-    body: Mapped[str] = TextField()
-    published: Mapped[bool] = BooleanField(default=False)</code></pre>
-                        </div>
-                        <h3>Repository Queries</h3>
-                        <p>Write robust operations using Aura's fluent query system:</p>
-                        <div class="docs-code-block">
-                            <pre><code># repository.py
-from aura.orm import Repository
-from .models import Post
 
 class PostRepository(Repository[Post]):
     model = Post
-
-    async def list_published(self, limit: int = 10) -> list[Post]:
-        return await (
-            Post.objects
-            .filter(published=True)
-            .order_by("-created_at")
-            .limit(limit)
-            .all()
-        )</code></pre>
-                        </div>
-                    </div>
-
-                    <!-- PANEL: FACTORIES -->
-                    <div class="docs-panel" id="doc-factories">
-                        <h2>Factories & Seeders</h2>
-                        <p>Generate highly realistic testing records and mock local databases smoothly using built-in model factories and seeders.</p>
-                        <h3>Generating factories</h3>
-                        <p>Build custom object structures easily:</p>
-                        <div class="docs-code-block">
-                            <pre><code># database/factories.py
-from aura.orm import Factory
-from modules.users.models import User
-
-class UserFactory(Factory[User]):
+    async def list_published(self, limit=10):
+        return await Post.objects.filter(published=True).limit(limit).all()</code></pre></div>
+</div>
+<div class="docs-panel" id="doc-factories">
+<h2>Factories &amp; Seeders</h2>
+<p>Generate test records with Faker integration.</p>
+<div class="docs-code-block"><button class="copy-code-btn" aria-label="Copy code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="9" y="9" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"/><path d="M5 15H4V4H15V5" stroke="currentColor" stroke-width="2" fill="none"/></svg> Copy</button><pre><code class="language-python">class UserFactory(Factory[User]):
     model = User
-
-    def definition(self) -> dict:
-        return {
-            "name": lambda: self.faker.name(),
-            "email": lambda: self.faker.unique.email(),
-            "active": True
-        }</code></pre>
-                        </div>
-                        <h3>Managing Database seeders</h3>
-                        <p>Populate tables cleanly inside atomic transactions:</p>
-                        <div class="docs-code-block">
-                            <pre><code># database/seeders.py
-from aura.orm import Seeder
-from database.factories import UserFactory
-
-class DatabaseSeeder(Seeder):
-    async def run(self) -> None:
-        # Create 50 active users inside database automatically
-        await UserFactory().create_many(50)</code></pre>
-                        </div>
-                    </div>
-
-                    <!-- PANEL: GUARDS -->
-                    <div class="docs-panel" id="doc-guards">
-                        <h2>JWT & Guards</h2>
-                        <p>Inject security controls, credential verification, and path permissions instantly using flexible Guard chains.</p>
-                        <h3>Configuring auth barriers</h3>
-                        <p>Apply guards to specialized endpoint routes instantly:</p>
-                        <div class="docs-code-block">
-                            <pre><code># controller.py
-from aura import get, AuraRequest
-from aura.guards import JWTGuard
-
-class UserController:
-    @get("/me", guards=[JWTGuard(secret="sua-chave-secreta")])
+    def definition(self):
+        return {"name": lambda: self.faker.name(), "email": lambda: self.faker.unique.email(), "active": True}</code></pre></div>
+</div>
+<div class="docs-panel" id="doc-guards">
+<h2>JWT &amp; Guards</h2>
+<p>Guard chains for endpoint security.</p>
+<div class="docs-code-block"><button class="copy-code-btn" aria-label="Copy code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="9" y="9" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"/><path d="M5 15H4V4H15V5" stroke="currentColor" stroke-width="2" fill="none"/></svg> Copy</button><pre><code class="language-python">class UserController:
+    @get("/me", guards=[JWTGuard(secret="your-key")])
     async def get_me(self, request: AuraRequest) -> dict:
-        return request.state.user # JWT Decoded payload!</code></pre>
-                        </div>
-                    </div>
-
-                    <!-- PANEL: SESSIONS -->
-                    <div class="docs-panel" id="doc-sessions">
-                        <h2>Sessions Control</h2>
-                        <p>Track client details and session parameters safely across requests using standard encrypted browser cookies.</p>
-                        <h3>Binding Session Middlewares</h3>
-                        <p>Load configuration settings smoothly:</p>
-                        <div class="docs-code-block">
-                            <pre><code># main.py
-from aura import Aura
-from aura.middleware import SessionMiddleware
-
-app = Aura(
-    modules=[UsersModule],
-    middleware=[
-        SessionMiddleware(secret_key="sua-chave-secreta-longa")
-    ]
-)</code></pre>
-                        </div>
-                    </div>
-
-                    <!-- PANEL: JOBS -->
-                    <div class="docs-panel" id="doc-jobs">
-                        <h2>Background Jobs</h2>
-                        <p>Execute long-running actions, generate PDFs, and dispatch email queues safely using lightweight background tasks.</p>
-                        <h3>Task Decoration</h3>
-                        <p>Declare non-blocking executions smoothly:</p>
-                        <div class="docs-code-block">
-                            <pre><code># jobs.py
-from aura.jobs import task, periodic
-
-@task(queue="emails")
-async def send_welcome_email(email: str) -> None:
-    await mailer.send(email, "Welcome to Aura!")
+        return request.state.user</code></pre></div>
+</div>
+<div class="docs-panel" id="doc-sessions">
+<h2>Sessions Control</h2>
+<p>Encrypted cookie-based sessions.</p>
+<div class="docs-code-block"><button class="copy-code-btn" aria-label="Copy code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="9" y="9" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"/><path d="M5 15H4V4H15V5" stroke="currentColor" stroke-width="2" fill="none"/></svg> Copy</button><pre><code class="language-python">app = Aura(modules=[UsersModule], middleware=[SessionMiddleware(secret_key="key")])</code></pre></div>
+</div>
+<div class="docs-panel" id="doc-jobs">
+<h2>Background Jobs</h2>
+<p>SAQ-powered async task queue.</p>
+<div class="docs-code-block"><button class="copy-code-btn" aria-label="Copy code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="9" y="9" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"/><path d="M5 15H4V4H15V5" stroke="currentColor" stroke-width="2" fill="none"/></svg> Copy</button><pre><code class="language-python">@task(queue="emails")
+async def send_welcome_email(email: str):
+    await mailer.send(email, "Welcome!")
 
 @periodic(cron="0 8 * * *")
-async def daily_cleanup() -> None:
-    await database.purge_expired_sessions()</code></pre>
-                        </div>
-                    </div>
-
-                    <!-- PANEL: LOGGING -->
-                    <div class="docs-panel" id="doc-logging">
-                        <h2>Async Logging</h2>
-                        <p>Protect performance loops using a high-throughput, asynchronous logging system built directly into the core engine framework.</p>
-                        <h3>Using the Log Facade</h3>
-                        <p>Send messages, tracking IDs, and exceptions easily without stalling the ASGI loops:</p>
-                        <div class="docs-code-block">
-                            <pre><code>from aura.logging import Log
-
-# Simple info log
-Log.info("Transaction initialized")
-
-# Structured log incorporating sanitization
-Log.warning(
-    "Unauthorized API access attempt",
-    api_key="api_xyz123",  # Automatically redacted: ***REDACTED***
-    ip="192.168.1.1"
-)</code></pre>
-                        </div>
-                    </div>
-
-                </div>
-
-            </div>
-        </section>
-
-        <!-- 7. FOOTER -->
-        <footer class="nav-header sharp-border">
-            <span class="footer-copy">AURA v0.4.9 // LICENSED UNDER THE MIT PROTOCOL // NO COOKIES RECORDED.</span>
-            <div class="nav-links">
-                <a href="https://github.com" class="nav-link">GITHUB</a>
-                <a href="https://pypi.org/project/aura-web/" class="nav-link">PYPI</a>
-            </div>
-        </footer>
-
-    </div>
-
-    <!-- 8. JS CODE -->
-    <script src="docs-data.js"></script>
-    <script src="space.js"></script>
+async def daily_cleanup(): pass</code></pre></div>
+</div>
+<div class="docs-panel" id="doc-logging">
+<h2>Async Logging</h2>
+<p>Non-blocking structured logging.</p>
+<div class="docs-code-block"><button class="copy-code-btn" aria-label="Copy code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><rect x="9" y="9" width="13" height="13" stroke="currentColor" stroke-width="2" fill="none"/><path d="M5 15H4V4H15V5" stroke="currentColor" stroke-width="2" fill="none"/></svg> Copy</button><pre><code class="language-python">Log.info("Transaction initialized")
+Log.warning("Unauthorized access", ip="192.168.1.1")</code></pre></div>
+</div>
+</div>
+</main>
+</div>
+</section>
+<footer class="site-footer" role="contentinfo">
+<div class="footer-content">
+<span class="footer-copy">AURA v<span data-aura-version>0.4.9</span> // Licensed under MIT // No cookies recorded.</span>
+<div class="footer-links">
+<a href="https://github.com/Rip4568/Aura" class="footer-link" target="_blank" rel="noopener noreferrer">GitHub</a>
+<a href="https://pypi.org/project/aura-web/" class="footer-link" target="_blank" rel="noopener noreferrer">PyPI</a>
+</div>
+</div>
+</footer>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js" defer></script>
+<script src="space.js"></script>
 </body>
 </html>
