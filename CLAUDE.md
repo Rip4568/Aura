@@ -10,9 +10,9 @@
 **Aura** é um framework Python web NestJS-inspired: async-first, type-safe, Spec-Driven.  
 Resolve as dores reais do Django (ORM síncrono, sem DI real) e do FastAPI (sem estrutura, DI amarrado ao HTTP).
 
-**PyPI:** `pip install aura-web`  
-**Versão atual:** 0.4.9  
-**Testes:** 537 passando · mypy strict 0 erros · ruff clean
+**PyPI:** `pip install aura-web`
+**Versão:** Definida em `pyproject.toml` (fonte canônica) · `aura.__version__` lê via `importlib.metadata`
+**Testes:** 589 passando · mypy strict 0 erros · ruff clean
 
 ---
 

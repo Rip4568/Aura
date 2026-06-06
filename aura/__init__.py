@@ -149,7 +149,13 @@ try:
 except ImportError:
     pass
 
-__version__ = "0.3.1"
+# __version__ follows pyproject.toml (single source of truth via importlib.metadata)
+# This reads the installed package version — always in sync with what PyPI publishes.
+from importlib.metadata import PackageNotFoundError, version as _get_version
+try:
+    __version__ = _get_version("aura-web")
+except PackageNotFoundError:
+    __version__ = "0.0.0-dev"  # editable install / development
 
 __all__ = [
     # Application

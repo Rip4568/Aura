@@ -8,8 +8,8 @@
     <img src="https://img.shields.io/badge/python-3.10%2B-blue?style=flat-square&logo=python" />
     <img src="https://img.shields.io/badge/pydantic-v2-orange?style=flat-square" />
     <img src="https://img.shields.io/badge/pypi-aura--web-purple?style=flat-square" />
-    <img src="https://img.shields.io/badge/version-0.4.9-blue?style=flat-square" />
-    <img src="https://img.shields.io/badge/tests-347%20passing-brightgreen?style=flat-square" />
+    <img src="https://img.shields.io/pypi/v/aura-web?style=flat-square&color=blue" />
+    <img src="https://img.shields.io/badge/tests-589%20passing-brightgreen?style=flat-square" />
     <img src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square" />
     <img src="https://img.shields.io/badge/status-alpha-red?style=flat-square" />
   </p>
