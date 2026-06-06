@@ -264,18 +264,18 @@ class Aura:
         except Exception:
             logger.exception("Failed to initialize logging system")
 
-        # Auto-initialise the database.
-        _db_url: str | None = (
-            os.environ.get("AURA__DATABASE__URL")
-            or os.environ.get("DATABASE_URL")
-        )
+        # Auto-initialise the database using the already-loaded config object.
+        # cfg.database.url respects aura.toml, .env, and env vars (via pydantic-settings)
+        # — same source that _build_middleware() uses, guaranteeing consistency.
+        _db_url: str | None = getattr(cfg.database, "url", None)
 
         if _db_url:
             try:
                 from aura.orm.session import db as _db
                 if _db._engine is None:
-                    _db.init(_db_url)
-                    logger.info("Database auto-initialized: %s", _db_url)
+                    _db_echo: bool = getattr(cfg.database, "echo", False)
+                    _db.init(_db_url, echo=_db_echo)
+                    logger.info("Database auto-initialized: %s (echo=%s)", _db_url, _db_echo)
             except ImportError:
                 pass
 

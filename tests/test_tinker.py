@@ -135,6 +135,7 @@ def test_tinker_command_standard_repl() -> None:
 
 def test_tinker_command_ipython_repl() -> None:
     """Test running tinker command launches IPython backend with top-await."""
+    pytest.importorskip("IPython")
     with (
         patch("IPython.start_ipython") as mock_start_ipython,
         patch("aura.cli.commands.tinker.setup_database_manager") as mock_setup_db,

@@ -30,14 +30,53 @@ class DatabaseMiddleware:
                 "Please install it with: pip install 'aura-web[sqlalchemy]'"
             )
         self.app = app
+        self._init_attempted = False
+
+    def _try_lazy_init(self) -> None:
+        """Attempt to auto-initialize the database from config.
+
+        This is a fallback for environments where lifespan events are not
+        triggered (Starlette TestClient, httpx ASGITransport, uvicorn
+        --lifespan off).  On normal uvicorn startup, _on_startup() in
+        app.py handles initialization and this method becomes a no-op
+        because db._engine is already set.
+        """
+        try:
+            from aura.config.base import AuraConfig
+
+            cfg = AuraConfig()
+            db_url = cfg.database.url
+            if db_url and db._engine is None:
+                db.init(db_url, echo=cfg.database.echo)
+                logger.info(
+                    "Database lazy-initialized on first request: %s (echo=%s)",
+                    db_url,
+                    cfg.database.echo,
+                )
+        except ImportError:
+            pass
+        except Exception:
+            logger.exception("Failed to lazy-initialize database")
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] not in ("http", "websocket"):
             await self.app(scope, receive, send)
             return
 
-        # If database is not configured, bypass and continue
+        # If database is not configured, try lazy-initializing it on the
+        # first request.  This covers scenarios where lifespan events are
+        # not triggered: TestClient, AuraTestClient, uvicorn --lifespan off.
         if not SQLALCHEMY_AVAILABLE or db._session_factory is None:
+            if db._session_factory is None and not self._init_attempted:
+                self._init_attempted = True
+                self._try_lazy_init()
+
+            if db._session_factory is None:
+                logger.warning(
+                    "DatabaseMiddleware is active but db._session_factory is None. "
+                    "Database operations will fail. "
+                    "Set AURA__DATABASE__URL env var or configure [database] url in aura.toml."
+                )
             await self.app(scope, receive, send)
             return
 

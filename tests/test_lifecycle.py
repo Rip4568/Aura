@@ -63,8 +63,12 @@ def test_db_auto_init_from_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_db_not_initialized_without_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Without AURA__DATABASE__URL the global db singleton stays untouched."""
+    """Without any database configuration the global db singleton stays untouched."""
     monkeypatch.delenv("AURA__DATABASE__URL", raising=False)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv(
+        "AURA__DATABASE__URL", ""
+    )  # Makes cfg.database.url empty via pydantic-settings
 
     from aura.orm.session import db
 

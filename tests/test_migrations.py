@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -22,7 +23,7 @@ def test_get_alembic_config_defaults() -> None:
     """Verifies that get_alembic_config correctly parses directories and URLs."""
     config = get_alembic_config(migrations_dir="tests/dummy_migrations", database_url="sqlite+aiosqlite:///:memory:")
     assert config.get_main_option("sqlalchemy.url") == "sqlite+aiosqlite:///:memory:"
-    assert "tests/dummy_migrations" in config.get_main_option("script_location")
+    assert config.get_main_option("script_location") == os.path.abspath("tests/dummy_migrations")
 
 
 def test_generate_env_py_scaffold() -> None:

@@ -96,7 +96,7 @@ class AuraConfig(BaseSettings):
 
     app_name: str = "Aura App"
     debug: bool = False
-    secret_key: str = Field(default="change-me-in-production-32chars!!", min_length=32)
+    secret_key: str = Field(default="change-me-in-production-32chars!!")
 
     server: ServerConfig = ServerConfig()
     database: DatabaseConfig = DatabaseConfig()
@@ -108,6 +108,9 @@ class AuraConfig(BaseSettings):
         import sys
         if "pytest" in sys.modules:
             return self
-        if not self.debug and self.secret_key == "change-me-in-production-32chars!!":
-            raise ValueError("SECRET_KEY must be changed from the default value in production.")
+        if not self.debug:
+            if self.secret_key == "change-me-in-production-32chars!!":
+                raise ValueError("SECRET_KEY must be changed from the default value in production.")
+            if len(self.secret_key) < 32:
+                raise ValueError("SECRET_KEY must be at least 32 characters in production.")
         return self
