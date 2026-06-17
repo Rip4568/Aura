@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -16,10 +17,17 @@ async def test_saq_backend_startup_uses_from_url() -> None:
     mock_queue = MagicMock()
     mock_queue.disconnect = AsyncMock()
 
-    with patch("saq.Queue.from_url", return_value=mock_queue) as from_url:
+    mock_queue_cls = MagicMock()
+    mock_queue_cls.from_url = MagicMock(return_value=mock_queue)
+    mock_saq = MagicMock()
+    mock_saq.Queue = mock_queue_cls
+
+    with patch.dict(sys.modules, {"saq": mock_saq}):
         await backend.startup()
 
-    from_url.assert_called_once_with("redis://localhost:6379/0", name="emails")
+    mock_queue_cls.from_url.assert_called_once_with(
+        "redis://localhost:6379/0", name="emails"
+    )
     assert backend._queue is mock_queue
 
 
