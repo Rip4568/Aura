@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 import pytest
 from httpx import ASGITransport, AsyncClient
+from starlette.types import ASGIApp
 
 from aura import Aura, Module, get
 from aura.middleware.rate_limit import RateLimitMiddleware
@@ -21,7 +24,7 @@ class TestRateLimitMiddleware:
                 pass
 
             @get("/test")
-            async def test_route(self) -> dict:  # type: ignore[type-arg]
+            async def test_route(self) -> dict[str, Any]:
                 return {"ok": True}
 
         @Module(controllers=[TestController], prefix="")
@@ -29,10 +32,12 @@ class TestRateLimitMiddleware:
             pass
 
         app = Aura(modules=[TestModule])
-        app = RateLimitMiddleware(app, max_requests=2, window_seconds=60)
+        middleware: ASGIApp = cast(
+            ASGIApp, RateLimitMiddleware(app, max_requests=2, window_seconds=60)
+        )
 
         async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
+            transport=ASGITransport(app=middleware), base_url="http://test"
         ) as c:
             for _ in range(2):
                 r = await c.get("/test")
@@ -47,7 +52,7 @@ class TestRateLimitMiddleware:
                 pass
 
             @get("/test")
-            async def test_route(self) -> dict:  # type: ignore[type-arg]
+            async def test_route(self) -> dict[str, Any]:
                 return {"ok": True}
 
         @Module(controllers=[TestController], prefix="")
@@ -55,10 +60,12 @@ class TestRateLimitMiddleware:
             pass
 
         app = Aura(modules=[TestModule])
-        app = RateLimitMiddleware(app, max_requests=2, window_seconds=60)
+        middleware: ASGIApp = cast(
+            ASGIApp, RateLimitMiddleware(app, max_requests=2, window_seconds=60)
+        )
 
         async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
+            transport=ASGITransport(app=middleware), base_url="http://test"
         ) as c:
             for _ in range(2):
                 r = await c.get("/test")
@@ -75,7 +82,7 @@ class TestRateLimitMiddleware:
                 pass
 
             @get("/test")
-            async def test_route(self) -> dict:  # type: ignore[type-arg]
+            async def test_route(self) -> dict[str, Any]:
                 return {"ok": True}
 
         @Module(controllers=[TestController], prefix="")
@@ -83,12 +90,12 @@ class TestRateLimitMiddleware:
             pass
 
         app = Aura(modules=[TestModule])
-        app = RateLimitMiddleware(
+        middleware: ASGIApp = cast(ASGIApp, RateLimitMiddleware(
             app, max_requests=1, window_seconds=60, message="Custom rate limit message"
-        )
+        ))
 
         async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
+            transport=ASGITransport(app=middleware), base_url="http://test"
         ) as c:
             r1 = await c.get("/test")
             assert r1.status_code == 200
@@ -112,7 +119,7 @@ class TestCORSMiddleware:
                 pass
 
             @get("/test")
-            async def test_route(self) -> dict:  # type: ignore[type-arg]
+            async def test_route(self) -> dict[str, Any]:
                 return {"ok": True}
 
         @Module(controllers=[TestController], prefix="")
@@ -121,10 +128,10 @@ class TestCORSMiddleware:
 
         app = Aura(modules=[TestModule])
         cors = CORSMiddleware(allow_origins=["*"])
-        app = cors.build(app)
+        middleware: ASGIApp = cors.build(app)
 
         async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
+            transport=ASGITransport(app=middleware), base_url="http://test"
         ) as c:
             # Request without Origin header
             r = await c.get("/test")
@@ -149,7 +156,7 @@ class TestCORSMiddleware:
                 pass
 
             @get("/test")
-            async def test_route(self) -> dict:  # type: ignore[type-arg]
+            async def test_route(self) -> dict[str, Any]:
                 return {"ok": True}
 
         @Module(controllers=[TestController], prefix="")
@@ -158,10 +165,10 @@ class TestCORSMiddleware:
 
         app = Aura(modules=[TestModule])
         cors = CORSMiddleware(allow_origins=["https://example.com"])
-        app = cors.build(app)
+        middleware: ASGIApp = cors.build(app)
 
         async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
+            transport=ASGITransport(app=middleware), base_url="http://test"
         ) as c:
             r = await c.get("/test", headers={"Origin": "https://example.com"})
             assert r.status_code == 200

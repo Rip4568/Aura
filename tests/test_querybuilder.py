@@ -724,7 +724,7 @@ class TestAggregate:
 
     async def test_aggregate_wrong_type_raises(self, session: AsyncSession) -> None:
         with pytest.raises(TypeError, match="Aggregate"):
-            await QBPost.objects.using(session).aggregate(bad="not_an_aggregate")  # type: ignore[arg-type]
+            await QBPost.objects.using(session).aggregate(bad="not_an_aggregate")
 
 
 # ---------------------------------------------------------------------------

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 import pytest
 
 from aura.di.container import DIContainer
@@ -21,7 +23,7 @@ def test_module_decorator_attaches_metadata() -> None:
         pass
 
     assert hasattr(UserModule, "__aura_module__")
-    meta = UserModule.__aura_module__
+    meta = cast(Any, UserModule).__aura_module__
     assert isinstance(meta, ModuleMetadata)
     assert meta.prefix == "/users"
 
@@ -31,7 +33,7 @@ def test_module_decorator_default_values() -> None:
     class EmptyModule:
         pass
 
-    meta = EmptyModule.__aura_module__
+    meta = cast(Any, EmptyModule).__aura_module__
     assert meta.imports == []
     assert meta.providers == []
     assert meta.controllers == []
@@ -55,7 +57,7 @@ def test_module_with_controllers_and_providers() -> None:
     class UserModule:
         pass
 
-    meta = UserModule.__aura_module__
+    meta = cast(Any, UserModule).__aura_module__
     assert UserController in meta.controllers
     assert UserService in meta.providers
 

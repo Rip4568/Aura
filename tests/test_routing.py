@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any, cast
 
 import pytest
 
@@ -32,7 +32,7 @@ def test_get_decorator_attaches_metadata() -> None:
         pass
 
     assert hasattr(list_users, "__aura_route__")
-    meta = list_users.__aura_route__
+    meta = cast(Any, list_users).__aura_route__
     assert meta["method"] == "GET"
     assert meta["path"] == "/users"
     assert meta["status"] == 200
@@ -43,7 +43,7 @@ def test_post_decorator_default_status_201() -> None:
     async def create_user() -> None:
         pass
 
-    assert create_user.__aura_route__["status"] == 201
+    assert cast(Any, create_user).__aura_route__["status"] == 201
 
 
 def test_delete_decorator_default_status_204() -> None:
@@ -51,7 +51,7 @@ def test_delete_decorator_default_status_204() -> None:
     async def delete_user() -> None:
         pass
 
-    assert delete_user.__aura_route__["status"] == 204
+    assert cast(Any, delete_user).__aura_route__["status"] == 204
 
 
 def test_decorator_tags_and_summary() -> None:
@@ -59,7 +59,7 @@ def test_decorator_tags_and_summary() -> None:
     async def health() -> None:
         pass
 
-    meta = health.__aura_route__
+    meta = cast(Any, health).__aura_route__
     assert meta["tags"] == ["system"]
     assert meta["summary"] == "Health check"
 
@@ -69,8 +69,8 @@ def test_ws_decorator() -> None:
     async def chat() -> None:
         pass
 
-    assert chat.__aura_route__["method"] == "WS"
-    assert chat.__aura_route__["path"] == "/ws/chat"
+    assert cast(Any, chat).__aura_route__["method"] == "WS"
+    assert cast(Any, chat).__aura_route__["path"] == "/ws/chat"
 
 
 def test_deprecated_flag() -> None:
@@ -78,7 +78,7 @@ def test_deprecated_flag() -> None:
     async def old_endpoint() -> None:
         pass
 
-    assert old_endpoint.__aura_route__["deprecated"] is True
+    assert cast(Any, old_endpoint).__aura_route__["deprecated"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -236,7 +236,7 @@ class UserSchema(Schema):
 # Controller for Body binding tests
 class UserBodyController:
     @post("/users")
-    async def create_user(self, body: Body[UserSchema]) -> UserSchema:
+    async def create_user(self, body: Body[UserSchema]) -> UserSchema:  # type: ignore[valid-type]
         # Echo back the created user
         return body
 
@@ -244,7 +244,7 @@ class UserBodyController:
 # Controller for Query binding tests
 class ListQueryController:
     @get("/items")
-    async def list_items(self, page: Query[int]) -> dict[str, int]:
+    async def list_items(self, page: Query[int]) -> dict[str, int]:  # type: ignore[valid-type]
         return {"page": page}
 
 
@@ -260,7 +260,7 @@ class SearchQueryController:
 # Controller for path param binding tests
 class ItemPathController:
     @get("/items/{item_id}")
-    async def get_item(self, item_id: Param[int]) -> dict[str, int]:
+    async def get_item(self, item_id: Param[int]) -> dict[str, int]:  # type: ignore[valid-type]
         return {"item_id": item_id}
 
 
@@ -429,7 +429,7 @@ async def test_cookie_binding() -> None:
 
 class CoercionErrorController:
     @get("/items")
-    async def list_items(self, page: Query[int]) -> dict[str, int]:
+    async def list_items(self, page: Query[int]) -> dict[str, int]:  # type: ignore[valid-type]
         return {"page": page}
 
 
@@ -458,7 +458,7 @@ async def test_invalid_query_int_coercion_returns_422() -> None:
 
 class RequiredBodyController:
     @post("/data")
-    async def create_data(self, body: Body[UserSchema]) -> UserSchema:
+    async def create_data(self, body: Body[UserSchema]) -> UserSchema:  # type: ignore[valid-type]
         return body
 
 

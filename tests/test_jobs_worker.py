@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import sys
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -174,17 +174,17 @@ class TestAuraWorkerRun:
         from aura.jobs.worker import AuraWorker
 
         backend = MemoryBackend(concurrency=1)
-        backend.startup = AsyncMock(wraps=backend.startup)
-        backend.shutdown = AsyncMock(wraps=backend.shutdown)
+        cast(Any, backend).startup = AsyncMock(wraps=backend.startup)
+        cast(Any, backend).shutdown = AsyncMock(wraps=backend.shutdown)
 
         worker = AuraWorker(backend=backend, concurrency=1)
         # Patch _process_loop to return immediately
-        worker._process_loop = AsyncMock()  # type: ignore[method-assign]
+        cast(Any, worker)._process_loop = AsyncMock()
 
         await worker.run()
 
-        backend.startup.assert_awaited_once()
-        backend.shutdown.assert_awaited_once()
+        cast(Any, backend.startup).assert_awaited_once()
+        cast(Any, backend.shutdown).assert_awaited_once()
 
     async def test_worker_detects_memory_backend_not_saq(self) -> None:
         """_is_saq_backend() must return False for MemoryBackend."""
@@ -238,11 +238,11 @@ class TestWorkerCommand:
                     queues=["default"],
                     concurrency=2,
                     burst=False,
-                    app_path=None,
-                    broker_url=None,
+                    app_path=cast(str, None),
+                    broker_url=cast(str, None),
                 )
 
-            assert original_run  # sanity — asyncio.run still importable
+            assert original_run is not None  # sanity — asyncio.run still importable
 
         assert len(run_calls) == 1
 
@@ -287,8 +287,8 @@ class TestWorkerCommand:
                 queues=["emails", "default"],
                 concurrency=8,
                 burst=True,
-                app_path=None,
-                broker_url=None,
+                app_path=cast(str, None),
+                broker_url=cast(str, None),
             )
 
         assert len(created_workers) == 1
@@ -338,7 +338,7 @@ class TestWorkerCommand:
                 queues=["default"],
                 concurrency=4,
                 burst=False,
-                app_path=None,
+                app_path=cast(str, None),
                 broker_url="redis://myhost:6379",
             )
 
@@ -369,7 +369,7 @@ class TestWorkerCommand:
                 concurrency=4,
                 burst=False,
                 app_path="dummy_app:app",
-                broker_url=None,
+                broker_url=cast(str, None),
             )
 
     def test_worker_command_bad_app_path_raises(
@@ -388,5 +388,5 @@ class TestWorkerCommand:
                 concurrency=4,
                 burst=False,
                 app_path="no_such_module_xyz:app",
-                broker_url=None,
+                broker_url=cast(str, None),
             )

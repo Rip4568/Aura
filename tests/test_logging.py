@@ -6,7 +6,7 @@ import json
 import logging
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -119,8 +119,8 @@ class TestSanitizer:
         }
         sanitized = sanitizer.sanitize_body(body)
 
-        assert sanitized["users"][0]["password"] == "***REDACTED***"
-        assert sanitized["users"][1]["password"] == "***REDACTED***"
+        assert cast(dict[str, Any], sanitized)["users"][0]["password"] == "***REDACTED***"
+        assert cast(dict[str, Any], sanitized)["users"][1]["password"] == "***REDACTED***"
 
     def test_sanitize_body_string(self) -> None:
         """Test that string bodies are returned as-is."""
@@ -433,7 +433,7 @@ class TestLog:
 
     def setup_method(self) -> None:
         """Reset the Log singleton before each test."""
-        Log._set_instance(None)
+        cast(Any, Log)._set_instance(None)
         # Reconfigure aura.app logger for testing
         stdlib_logger = logging.getLogger("aura.app")
         stdlib_logger.handlers.clear()
@@ -506,7 +506,7 @@ class TestSetupLogging:
 
     def teardown_method(self) -> None:
         """Reset the Log singleton and stdlib logger after each test."""
-        Log._set_instance(None)
+        cast(Any, Log)._set_instance(None)
         # Reset stdlib logger to default state
         stdlib_logger = logging.getLogger("aura.app")
         stdlib_logger.handlers.clear()

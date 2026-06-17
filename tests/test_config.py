@@ -82,7 +82,7 @@ def test_aura_config_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_load_config_returns_default() -> None:
-    cfg = load_config()
+    cfg: AuraConfig = load_config()
     assert isinstance(cfg, AuraConfig)
 
 

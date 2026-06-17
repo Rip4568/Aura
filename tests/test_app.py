@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from typing import Any
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -25,7 +28,7 @@ class CreateItemSchema(Schema):
 # In-memory store
 # ---------------------------------------------------------------------------
 
-_ITEMS: dict[int, dict] = {}
+_ITEMS: dict[int, dict[str, Any]] = {}
 _COUNTER = 0
 
 
@@ -42,16 +45,16 @@ def _reset_store() -> None:
 
 class ItemController:
     @get("/", response=ItemSchema)
-    async def list_items(self) -> list[dict]:
+    async def list_items(self) -> list[dict[str, Any]]:
         return list(_ITEMS.values())
 
     @get("/{item_id}", response=ItemSchema)
-    async def get_item(self) -> dict:
+    async def get_item(self) -> dict[str, Any]:
         # In a real handler, item_id would come from Param[int]
         return {"id": 1, "name": "test"}
 
     @post("/", response=ItemSchema)
-    async def create_item(self) -> dict:
+    async def create_item(self) -> dict[str, Any]:
         global _COUNTER
         _COUNTER += 1
         item = {"id": _COUNTER, "name": "new item"}
@@ -86,7 +89,7 @@ def app() -> Aura:
 
 
 @pytest.fixture
-async def client(app: Aura) -> AsyncClient:  # type: ignore[misc]
+async def client(app: Aura) -> AsyncIterator[AsyncClient]:
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://testserver",

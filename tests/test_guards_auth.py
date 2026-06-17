@@ -1,9 +1,12 @@
 """Tests for JWTGuard, RateLimitGuard, and SessionMiddleware."""
 from __future__ import annotations
 
+from typing import Any, cast
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from starlette.requests import Request
+from starlette.types import ASGIApp
 
 from aura import Aura, Module, get
 from aura.guards.rate_limit import RateLimitGuard
@@ -18,7 +21,7 @@ _TEST_JWT_SECRET = "aura-jwt-test-secret-key-32chars!!"
 _WRONG_JWT_SECRET = "wrong-jwt-test-secret-key-32chars!!"
 
 
-def make_jwt_token(secret: str, payload: dict) -> str:  # type: ignore[type-arg]
+def make_jwt_token(secret: str, payload: dict[str, Any]) -> str:
     import jwt
 
     return str(jwt.encode(payload, secret, algorithm="HS256"))
@@ -43,11 +46,11 @@ def jwt_app() -> Aura:
             pass
 
         @get("/public")
-        async def public(self) -> dict:  # type: ignore[type-arg]
+        async def public(self) -> dict[str, Any]:
             return {"public": True}
 
         @get("/protected", guards=[guard])
-        async def protected(self, request: Request) -> dict:  # type: ignore[type-arg]
+        async def protected(self, request: Request) -> dict[str, Any]:
             return {"user": request.state.user}
 
     @Module(controllers=[TestController], prefix="")
@@ -134,7 +137,7 @@ async def test_jwt_require_exp_rejects_token_without_exp() -> None:
 
     class TestController:
         @get("/protected", guards=[guard])
-        async def protected(self, request: Request) -> dict:  # type: ignore[type-arg]
+        async def protected(self, request: Request) -> dict[str, Any]:
             return {"user": request.state.user}
 
     @Module(controllers=[TestController], prefix="")
@@ -167,7 +170,7 @@ class TestJWTGuard:
                 pass
 
             @get("/optional", guards=[guard])
-            async def optional(self, request: Request) -> dict:  # type: ignore[type-arg]
+            async def optional(self, request: Request) -> dict[str, Any]:
                 user = getattr(request.state, "user", "NOT_SET")
                 return {"user": user}
 
@@ -199,7 +202,7 @@ class TestJWTGuard:
                 pass
 
             @get("/optional", guards=[guard])
-            async def optional(self, request: Request) -> dict:  # type: ignore[type-arg]
+            async def optional(self, request: Request) -> dict[str, Any]:
                 user = getattr(request.state, "user", "NOT_SET")
                 return {"user": user}
 
@@ -231,11 +234,11 @@ def rate_limit_app() -> Aura:
             pass
 
         @get("/limited", guards=[limit])
-        async def limited(self) -> dict:  # type: ignore[type-arg]
+        async def limited(self) -> dict[str, Any]:
             return {"ok": True}
 
         @get("/unlimited")
-        async def unlimited(self) -> dict:  # type: ignore[type-arg]
+        async def unlimited(self) -> dict[str, Any]:
             return {"ok": True}
 
     @Module(controllers=[TestController], prefix="")
@@ -299,11 +302,11 @@ class TestRateLimitGuard:
                 pass
 
             @get("/a", guards=[limit_a])
-            async def route_a(self) -> dict:  # type: ignore[type-arg]
+            async def route_a(self) -> dict[str, Any]:
                 return {"ok": True}
 
             @get("/b", guards=[limit_b])
-            async def route_b(self) -> dict:  # type: ignore[type-arg]
+            async def route_b(self) -> dict[str, Any]:
                 return {"ok": True}
 
         @Module(controllers=[TestController], prefix="")
@@ -343,7 +346,7 @@ class TestRateLimitGuard:
                 pass
 
             @get("/limited", guards=[limit])
-            async def limited(self) -> dict:  # type: ignore[type-arg]
+            async def limited(self) -> dict[str, Any]:
                 return {"ok": True}
 
         @Module(controllers=[TestController], prefix="")
@@ -372,7 +375,7 @@ class TestRateLimitGuard:
                 pass
 
             @get("/limited", guards=[limit])
-            async def limited(self) -> dict:  # type: ignore[type-arg]
+            async def limited(self) -> dict[str, Any]:
                 return {"ok": True}
 
         @Module(controllers=[TestController], prefix="")
@@ -411,12 +414,12 @@ async def test_session_middleware_stores_and_retrieves() -> None:
             pass
 
         @get("/set")
-        async def set_session(self, request: Request) -> dict:  # type: ignore[type-arg]
+        async def set_session(self, request: Request) -> dict[str, Any]:
             request.state.session["key"] = "value"
             return {"ok": True}
 
         @get("/get")
-        async def get_session(self, request: Request) -> dict:  # type: ignore[type-arg]
+        async def get_session(self, request: Request) -> dict[str, Any]:
             return {"key": request.state.session.get("key")}
 
     @Module(controllers=[TestController], prefix="")
@@ -426,7 +429,9 @@ async def test_session_middleware_stores_and_retrieves() -> None:
     raw_app = Aura(modules=[TestModule])
     app = SessionMiddleware(raw_app, secret_key="test-secret")
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+    async with AsyncClient(
+        transport=ASGITransport(app=cast(ASGIApp, app)), base_url="http://test"
+    ) as c:
         r1 = await c.get("/set")
         assert r1.status_code == 200
         # Cookie should be set in response
@@ -448,12 +453,12 @@ async def test_session_middleware_round_trip() -> None:
             pass
 
         @get("/set")
-        async def set_session(self, request: Request) -> dict:  # type: ignore[type-arg]
+        async def set_session(self, request: Request) -> dict[str, Any]:
             request.state.session["key"] = "hello"
             return {"ok": True}
 
         @get("/get")
-        async def get_session(self, request: Request) -> dict:  # type: ignore[type-arg]
+        async def get_session(self, request: Request) -> dict[str, Any]:
             return {"key": request.state.session.get("key")}
 
     @Module(controllers=[TestController], prefix="")
@@ -463,7 +468,9 @@ async def test_session_middleware_round_trip() -> None:
     raw_app = Aura(modules=[TestModule])
     app = SessionMiddleware(raw_app, secret_key="test-secret")
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+    async with AsyncClient(
+        transport=ASGITransport(app=cast(ASGIApp, app)), base_url="http://test"
+    ) as c:
         r1 = await c.get("/set")
         assert r1.status_code == 200
         # httpx automatically stores cookies between requests within the same client

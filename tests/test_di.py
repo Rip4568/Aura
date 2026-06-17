@@ -1,11 +1,11 @@
 """Tests for aura.di module."""
 
-from __future__ import annotations
+from typing import Annotated, Any, cast
 
 import pytest
 
 from aura.di.container import DIContainer, Lifetime
-from aura.di.decorators import injectable
+from aura.di.decorators import inject, injectable
 
 # ---------------------------------------------------------------------------
 # Test services
@@ -22,9 +22,9 @@ class Logger:
 
 class UserRepository:
     def __init__(self) -> None:
-        self.users: list[dict] = []
+        self.users: list[dict[str, Any]] = []
 
-    def add(self, user: dict) -> None:
+    def add(self, user: dict[str, Any]) -> None:
         self.users.append(user)
 
 
@@ -32,7 +32,7 @@ class UserService:
     def __init__(self, repo: UserRepository) -> None:
         self.repo = repo
 
-    def create(self, name: str) -> dict:
+    def create(self, name: str) -> dict[str, Any]:
         user = {"name": name}
         self.repo.add(user)
         return user
@@ -49,7 +49,7 @@ class ServiceWithOptionalDep:
 
 
 class ServiceA:
-    def __init__(self, service_b: ServiceB) -> None:
+    def __init__(self, service_b: "ServiceB") -> None:
         self.service_b = service_b
 
 
@@ -169,7 +169,7 @@ def test_injectable_decorator_marks_class() -> None:
         pass
 
     assert hasattr(MyService, "__aura_injectable__")
-    assert MyService.__aura_injectable__["lifetime"] == Lifetime.SINGLETON
+    assert cast(Any, MyService).__aura_injectable__["lifetime"] == Lifetime.SINGLETON
 
 
 def test_injectable_decorator_custom_lifetime() -> None:
@@ -177,7 +177,7 @@ def test_injectable_decorator_custom_lifetime() -> None:
     class MyService:
         pass
 
-    assert MyService.__aura_injectable__["lifetime"] == Lifetime.TRANSIENT
+    assert cast(Any, MyService).__aura_injectable__["lifetime"] == Lifetime.TRANSIENT
 
 
 # ---------------------------------------------------------------------------
@@ -339,3 +339,23 @@ async def test_container_shutdown_does_not_raise() -> None:
 
     # Should not raise
     await container.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_inject_marker_resolves_dependency() -> None:
+    """Annotated[T, inject()] should resolve T from the container."""
+
+    @injectable()
+    class Repo:
+        pass
+
+    class Service:
+        def __init__(self, repo: Annotated[Repo, inject()]) -> None:
+            self.repo = repo
+
+    container = DIContainer()
+    container.register(Repo)
+    container.register(Service)
+
+    service = await container.resolve(Service)
+    assert service.repo is await container.resolve(Repo)

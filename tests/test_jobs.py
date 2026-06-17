@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncGenerator
 
 import pytest
 
@@ -38,7 +39,7 @@ class TestMemoryBackend:
     """Tests for the in-memory task queue backend."""
 
     @pytest.fixture
-    async def backend(self) -> MemoryBackend:
+    async def backend(self) -> AsyncGenerator[MemoryBackend, None]:
         b = MemoryBackend(concurrency=2)
         await b.startup()
         yield b

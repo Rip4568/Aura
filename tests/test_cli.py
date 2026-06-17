@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pathlib
 from pathlib import Path
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
@@ -288,7 +289,7 @@ class TestRunCommand:
 
         # Mock uvicorn.run to ensure it doesn't run the actual server, and we can check sys.path
         called = False
-        def mock_uvicorn_run(app_path: str, **kwargs: any) -> None:
+        def mock_uvicorn_run(app_path: str, **kwargs: Any) -> None:
             nonlocal called
             called = True
             import sys
@@ -324,7 +325,7 @@ class TestWorkerCommand:
         monkeypatch.chdir(tmp_path)
 
         # Mock AuraWorker.run to be a no-op asyncio task
-        async def mock_run(*args: any, **kwargs: any) -> None:
+        async def mock_run(*args: Any, **kwargs: Any) -> None:
             return
 
         from aura.jobs.worker import AuraWorker
