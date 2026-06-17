@@ -61,6 +61,7 @@ class OpenAPIGenerator:
 
         paths: dict[str, Any] = {}
         components_schemas: dict[str, Any] = {}
+        components_security: dict[str, Any] = {}
 
         for route in self._routes:
             path = self._convert_path(route.get("path", "/"))
@@ -124,6 +125,13 @@ class OpenAPIGenerator:
                 },
             }
 
+            security_reqs, route_schemes = self._collect_security_from_guards(
+                route.get("guards", [])
+            )
+            components_security.update(route_schemes)
+            if security_reqs:
+                operation["security"] = security_reqs
+
             paths.setdefault(path, {})[method] = operation
 
         # Validation error schemas
@@ -149,6 +157,10 @@ class OpenAPIGenerator:
             "required": ["loc", "msg", "type"],
         }
 
+        components: dict[str, Any] = {"schemas": components_schemas}
+        if components_security:
+            components["securitySchemes"] = components_security
+
         self._spec = {
             "openapi": "3.1.0",
             "info": {
@@ -158,7 +170,7 @@ class OpenAPIGenerator:
             },
             "servers": self.servers,
             "paths": paths,
-            "components": {"schemas": components_schemas},
+            "components": components,
         }
         return self._spec
 
@@ -204,6 +216,31 @@ class OpenAPIGenerator:
         components[schema_name] = schema
 
         return schema_name
+
+    @staticmethod
+    def _collect_security_from_guards(
+        guards: list[Any],
+    ) -> tuple[list[dict[str, list[str]]], dict[str, Any]]:
+        """Collect OpenAPI security requirements and schemes from route guards."""
+        requirements: list[dict[str, list[str]]] = []
+        schemes: dict[str, Any] = {}
+        seen_names: set[str] = set()
+
+        for guard in guards:
+            scheme_name = guard.openapi_security_scheme_name()
+            if not scheme_name or scheme_name in seen_names:
+                continue
+
+            scheme = guard.openapi_security_scheme()
+            if scheme:
+                schemes[scheme_name] = scheme
+
+            requirement = guard.openapi_security_requirement()
+            if requirement:
+                requirements.append(requirement)
+                seen_names.add(scheme_name)
+
+        return requirements, schemes
 
     @staticmethod
     def _convert_path(path: str) -> str:

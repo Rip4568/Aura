@@ -299,12 +299,20 @@ class Router:
 
             # F-06 + F-01: Register with OpenAPI generator and add extracted metadata
             if openapi_gen is not None:
+                merged_tags: list[str] = []
+                seen_tags: set[str] = set()
+                for tag in self.tags + meta.get("tags", []):
+                    if tag not in seen_tags:
+                        seen_tags.add(tag)
+                        merged_tags.append(tag)
                 openapi_gen.add_route(
                     {
                         **meta,
                         **openapi_meta,
                         "path": path,
                         "operation_id": getattr(handler, "__name__", ""),
+                        "tags": merged_tags,
+                        "guards": all_guards,
                     }
                 )
 

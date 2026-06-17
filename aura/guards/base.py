@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from starlette.requests import Request
@@ -63,3 +63,15 @@ class Guard(ABC):
         from aura.exceptions.http import ForbiddenException
 
         raise ForbiddenException()
+
+    def openapi_security_scheme_name(self) -> str | None:
+        """Return the OpenAPI security scheme name, or ``None`` if not applicable."""
+        return None
+
+    def openapi_security_scheme(self) -> dict[str, Any] | None:
+        """Return the OpenAPI ``components.securitySchemes`` entry for this guard."""
+        return None
+
+    def openapi_security_requirement(self) -> dict[str, list[str]] | None:
+        """Return the OpenAPI operation ``security`` requirement for this guard."""
+        return None
