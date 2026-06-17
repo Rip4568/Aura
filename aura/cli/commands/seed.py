@@ -137,7 +137,7 @@ def setup_database_manager() -> str | None:
                 if sys.version_info >= (3, 11):
                     import tomllib
                 else:
-                    import tomli as tomllib  # type: ignore[import-not-found]
+                    import tomli as tomllib
 
                 with open(toml_path, "rb") as f:
                     config_data = tomllib.load(f)

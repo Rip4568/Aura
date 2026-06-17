@@ -27,7 +27,7 @@ def sync(coroutine: Any) -> Any:
     import asyncio
 
     try:
-        import nest_asyncio  # type: ignore[import-not-found]
+        import nest_asyncio
 
         nest_asyncio.apply()
     except ImportError:
@@ -141,7 +141,7 @@ def setup_database_manager() -> Any | None:
                 if sys.version_info >= (3, 11):
                     import tomllib
                 else:
-                    import tomli as tomllib  # type: ignore[import-not-found]
+                    import tomli as tomllib
 
                 with open(toml_path, "rb") as f:
                     config_data = tomllib.load(f)
@@ -175,8 +175,8 @@ def setup_database_manager() -> Any | None:
 
 def run_ipython_shell(namespace: dict[str, Any]) -> None:
     """Launch IPython interative shell with autoawait enabled."""
-    import IPython  # type: ignore[import-not-found]
-    from traitlets.config import Config  # type: ignore[import-not-found]
+    import IPython
+    from traitlets.config import Config
 
     c = Config()
     c.InteractiveShell.autoawait = True
@@ -188,7 +188,7 @@ def run_ipython_shell(namespace: dict[str, Any]) -> None:
 
 def run_bpython_shell(namespace: dict[str, Any]) -> None:
     """Launch bpython interactive shell if available."""
-    import bpython  # type: ignore[import-not-found]
+    import bpython
 
     bpython.embed(locals_=namespace)
 
