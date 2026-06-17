@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import asyncio
-import time
-from collections import defaultdict
 from collections.abc import Callable
-from typing import Any, cast  # noqa: F401
+from typing import Any, cast
+
+from aura.middleware.rate_limit_backends.base import RateLimitBackend
+from aura.middleware.rate_limit_backends.memory import MemoryBackend
 
 # ASGI type aliases
 Scope = dict[str, Any]
@@ -27,6 +27,8 @@ class RateLimitMiddleware:
         key_func: Callable that returns the rate-limit key for a request.
                   Defaults to the client IP address extracted from the
                   ASGI scope.
+        backend: Storage backend for request counters.  Defaults to
+                 :class:`~aura.middleware.rate_limit_backends.memory.MemoryBackend`.
         status_code: HTTP status code returned when limit is exceeded
                      (default 429).
         message: Response body message.
@@ -47,6 +49,7 @@ class RateLimitMiddleware:
         max_requests: int = 100,
         window_seconds: int = 60,
         key_func: Callable[[Scope], str] | None = None,
+        backend: RateLimitBackend | None = None,
         status_code: int = 429,
         message: str = "Too Many Requests",
     ) -> None:
@@ -54,12 +57,9 @@ class RateLimitMiddleware:
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self.key_func = key_func or self._default_key
+        self._backend = backend or MemoryBackend()
         self.status_code = status_code
         self.message = message
-
-        # { key -> list[timestamp] }
-        self._requests: dict[str, list[float]] = defaultdict(list)
-        self._lock = asyncio.Lock()
 
     async def __call__(self, scope: Scope, receive: Any, send: Any) -> None:
         """ASGI callable — check rate limit then delegate or reject."""
@@ -68,21 +68,16 @@ class RateLimitMiddleware:
             return
 
         key = self.key_func(scope)
-        now = time.monotonic()
-        window_start = now - self.window_seconds
+        allowed, remaining = await self._backend.acquire(
+            key,
+            max_requests=self.max_requests,
+            window_seconds=float(self.window_seconds),
+        )
 
-        async with self._lock:
-            history = self._requests[key]
-            pruned = [ts for ts in history if ts >= window_start]
-
-            if len(pruned) >= self.max_requests:
-                retry_after = max(1, int(self.window_seconds))
-                await self._send_429(send, retry_after=retry_after)
-                return
-
-            pruned.append(now)
-            self._requests[key] = pruned
-            remaining = max(0, self.max_requests - len(pruned))
+        if not allowed:
+            retry_after = max(1, int(self.window_seconds))
+            await self._send_429(send, retry_after=retry_after)
+            return
 
         async def send_wrapper(message: dict[str, Any]) -> None:
             if message.get("type") == "http.response.start":

@@ -10,6 +10,8 @@ from starlette.types import ASGIApp
 
 from aura import Aura, Module, get
 from aura.middleware.rate_limit import RateLimitMiddleware
+from aura.middleware.rate_limit_backends.base import RateLimitBackend
+from aura.middleware.rate_limit_backends.memory import MemoryBackend
 
 
 class TestRateLimitMiddleware:
@@ -104,6 +106,70 @@ class TestRateLimitMiddleware:
             assert "retry-after" in r2.headers
             assert r2.headers.get("x-ratelimit-remaining") == "0"
             assert "Custom rate limit message" in r2.text or r2.text != ""
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_middleware_uses_injectable_backend(self) -> None:
+        """Test that a custom backend can be injected."""
+
+        class CountingBackend(RateLimitBackend):
+            def __init__(self) -> None:
+                self.calls: list[str] = []
+
+            async def acquire(
+                self,
+                key: str,
+                *,
+                max_requests: int,
+                window_seconds: float,
+            ) -> tuple[bool, int]:
+                self.calls.append(key)
+                return True, max_requests - 1
+
+        class TestController:
+            def __init__(self) -> None:
+                pass
+
+            @get("/test")
+            async def test_route(self) -> dict[str, Any]:
+                return {"ok": True}
+
+        @Module(controllers=[TestController], prefix="")
+        class TestModule:
+            pass
+
+        app = Aura(modules=[TestModule])
+        backend = CountingBackend()
+        middleware: ASGIApp = cast(
+            ASGIApp,
+            RateLimitMiddleware(app, max_requests=5, window_seconds=60, backend=backend),
+        )
+
+        async with AsyncClient(
+            transport=ASGITransport(app=middleware), base_url="http://test"
+        ) as c:
+            r = await c.get("/test")
+            assert r.status_code == 200
+            assert len(backend.calls) == 1
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_middleware_defaults_to_memory_backend(self) -> None:
+        """Test that the default backend is MemoryBackend."""
+
+        class TestController:
+            def __init__(self) -> None:
+                pass
+
+            @get("/test")
+            async def test_route(self) -> dict[str, Any]:
+                return {"ok": True}
+
+        @Module(controllers=[TestController], prefix="")
+        class TestModule:
+            pass
+
+        app = Aura(modules=[TestModule])
+        middleware = RateLimitMiddleware(app, max_requests=5, window_seconds=60)
+        assert isinstance(middleware._backend, MemoryBackend)
 
 
 class TestCORSMiddleware:
