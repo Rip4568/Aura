@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -28,6 +29,26 @@ class TestRedisBackend:
         with pytest.raises(Exception):
             await backend.acquire("test-key", max_requests=5, window_seconds=60)
         await backend.close()
+
+    @pytest.mark.asyncio
+    async def test_redis_backend_acquire_uses_atomic_script(self) -> None:
+        """acquire() must use a single Lua script (no TOCTOU race)."""
+        from aura.middleware.rate_limit_backends.redis import RedisBackend
+
+        mock_script = AsyncMock(return_value=[1, 4])
+        mock_redis = MagicMock()
+        mock_redis.register_script = MagicMock(return_value=mock_script)
+
+        with patch("redis.asyncio.Redis.from_url", return_value=mock_redis):
+            backend = RedisBackend()
+            allowed, remaining = await backend.acquire(
+                "client-1", max_requests=5, window_seconds=60
+            )
+
+        assert allowed is True
+        assert remaining == 4
+        mock_script.assert_awaited_once()
+        mock_redis.register_script.assert_called_once()
 
 
 class TestMemoryBackend:

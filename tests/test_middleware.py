@@ -171,6 +171,43 @@ class TestRateLimitMiddleware:
         middleware = RateLimitMiddleware(app, max_requests=5, window_seconds=60)
         assert isinstance(middleware._backend, MemoryBackend)
 
+    @pytest.mark.asyncio
+    async def test_rate_limit_middleware_trusted_proxy_xff(self) -> None:
+        """Middleware honours X-Forwarded-For from trusted proxies only."""
+
+        class TestController:
+            def __init__(self) -> None:
+                pass
+
+            @get("/test")
+            async def test_route(self) -> dict[str, Any]:
+                return {"ok": True}
+
+        @Module(controllers=[TestController], prefix="")
+        class TestModule:
+            pass
+
+        app = Aura(modules=[TestModule])
+        middleware: ASGIApp = cast(
+            ASGIApp,
+            RateLimitMiddleware(
+                app,
+                max_requests=1,
+                window_seconds=60,
+                trusted_proxies=["127.0.0.1"],
+            ),
+        )
+
+        async with AsyncClient(
+            transport=ASGITransport(app=middleware), base_url="http://test"
+        ) as c:
+            r1 = await c.get("/test", headers={"X-Forwarded-For": "203.0.113.10"})
+            assert r1.status_code == 200
+            r2 = await c.get("/test", headers={"X-Forwarded-For": "203.0.113.10"})
+            assert r2.status_code == 429
+            r3 = await c.get("/test", headers={"X-Forwarded-For": "203.0.113.11"})
+            assert r3.status_code == 200
+
 
 class TestCORSMiddleware:
     """Tests for CORSMiddleware (wrapper around Starlette's implementation)."""

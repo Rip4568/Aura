@@ -23,8 +23,12 @@ _WRONG_JWT_SECRET = "wrong-jwt-test-secret-key-32chars!!"
 
 
 def make_jwt_token(secret: str, payload: dict[str, Any]) -> str:
+    import time
+
     import jwt
 
+    if "exp" not in payload:
+        payload = {**payload, "exp": int(time.time()) + 3600}
     return str(jwt.encode(payload, secret, algorithm="HS256"))
 
 
@@ -131,6 +135,37 @@ async def test_jwt_none_algorithm_rejected(jwt_app: Aura) -> None:
 
 
 @pytest.mark.asyncio
+async def test_jwt_default_require_exp_rejects_token_without_exp() -> None:
+    """Default JWTGuard rejects tokens missing the exp claim."""
+    try:
+        import jwt as pyjwt
+
+        from aura.guards.jwt import JWTGuard
+    except ImportError:
+        pytest.skip("PyJWT not installed")
+
+    guard = JWTGuard(secret=_TEST_JWT_SECRET)
+
+    class TestController:
+        @get("/protected", guards=[guard])
+        async def protected(self, request: Request) -> dict[str, Any]:
+            return {"user": request.state.user}
+
+    @Module(controllers=[TestController], prefix="")
+    class TestModule:
+        pass
+
+    app = Aura(modules=[TestModule])
+    token_no_exp = str(
+        pyjwt.encode({"sub": "user1"}, _TEST_JWT_SECRET, algorithm="HS256")
+    )
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        r = await c.get("/protected", headers={"Authorization": f"Bearer {token_no_exp}"})
+    assert r.status_code == 401
+
+
+@pytest.mark.asyncio
 async def test_jwt_require_exp_rejects_token_without_exp() -> None:
     from aura.guards.jwt import JWTGuard
 
@@ -146,7 +181,9 @@ async def test_jwt_require_exp_rejects_token_without_exp() -> None:
         pass
 
     app = Aura(modules=[TestModule])
-    token = make_jwt_token(_TEST_JWT_SECRET, {"sub": "user1"})
+    import jwt as pyjwt
+
+    token = str(pyjwt.encode({"sub": "user1"}, _TEST_JWT_SECRET, algorithm="HS256"))
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         r = await c.get("/protected", headers={"Authorization": f"Bearer {token}"})
@@ -367,9 +404,73 @@ class TestRateLimitGuard:
             assert r3.status_code == 429
 
     @pytest.mark.asyncio
-    async def test_rate_limit_guard_uses_x_forwarded_for_header(self) -> None:
-        """Test that RateLimitGuard falls back to X-Forwarded-For header."""
+    async def test_rate_limit_guard_uses_x_forwarded_for_with_trusted_proxy(self) -> None:
+        """X-Forwarded-For is honoured only for trusted proxy IPs."""
+        limit = RateLimitGuard(
+            max_requests=1,
+            window_seconds=60,
+            trusted_proxies=["127.0.0.1"],
+        )
+
+        class TestController:
+            def __init__(self) -> None:
+                pass
+
+            @get("/limited", guards=[limit])
+            async def limited(self) -> dict[str, Any]:
+                return {"ok": True}
+
+        @Module(controllers=[TestController], prefix="")
+        class TestModule:
+            pass
+
+        app = Aura(modules=[TestModule])
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as c:
+            r1 = await c.get("/limited", headers={"X-Forwarded-For": "192.168.1.100"})
+            assert r1.status_code == 200
+            r2 = await c.get("/limited", headers={"X-Forwarded-For": "192.168.1.100"})
+            assert r2.status_code == 429
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_guard_ignores_x_forwarded_for_without_trusted_proxy(
+        self,
+    ) -> None:
+        """Untrusted X-Forwarded-For must not bypass rate limits."""
         limit = RateLimitGuard(max_requests=1, window_seconds=60)
+
+        class TestController:
+            def __init__(self) -> None:
+                pass
+
+            @get("/limited", guards=[limit])
+            async def limited(self) -> dict[str, Any]:
+                return {"ok": True}
+
+        @Module(controllers=[TestController], prefix="")
+        class TestModule:
+            pass
+
+        app = Aura(modules=[TestModule])
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as c:
+            r1 = await c.get("/limited", headers={"X-Forwarded-For": "10.0.0.1"})
+            assert r1.status_code == 200
+            r2 = await c.get("/limited", headers={"X-Forwarded-For": "10.0.0.2"})
+            assert r2.status_code == 429
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_guard_uses_x_forwarded_for_header(self) -> None:
+        """Legacy alias: trusted proxy required for X-Forwarded-For keying."""
+        limit = RateLimitGuard(
+            max_requests=1,
+            window_seconds=60,
+            trusted_proxies=["127.0.0.1"],
+        )
 
         class TestController:
             def __init__(self) -> None:

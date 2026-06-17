@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any
 
+from aura.middleware.client_ip import client_ip_from_scope
 from aura.middleware.rate_limit_backends.base import RateLimitBackend
 from aura.middleware.rate_limit_backends.memory import MemoryBackend
 
@@ -27,6 +28,9 @@ class RateLimitMiddleware:
         key_func: Callable that returns the rate-limit key for a request.
                   Defaults to the client IP address extracted from the
                   ASGI scope.
+        trusted_proxies: IP addresses of reverse proxies allowed to set
+                         ``X-Forwarded-For``. When the direct client is in
+                         this set, the first forwarded IP is used as the key.
         backend: Storage backend for request counters.  Defaults to
                  :class:`~aura.middleware.rate_limit_backends.memory.MemoryBackend`.
         status_code: HTTP status code returned when limit is exceeded
@@ -49,6 +53,7 @@ class RateLimitMiddleware:
         max_requests: int = 100,
         window_seconds: int = 60,
         key_func: Callable[[Scope], str] | None = None,
+        trusted_proxies: list[str] | None = None,
         backend: RateLimitBackend | None = None,
         status_code: int = 429,
         message: str = "Too Many Requests",
@@ -56,7 +61,10 @@ class RateLimitMiddleware:
         self.app = app
         self.max_requests = max_requests
         self.window_seconds = window_seconds
-        self.key_func = key_func or self._default_key
+        self.key_func = key_func or self._make_default_key(trusted_proxies)
+        self._trusted_proxies = (
+            frozenset(trusted_proxies) if trusted_proxies else None
+        )
         self._backend = backend or MemoryBackend()
         self.status_code = status_code
         self.message = message
@@ -112,14 +120,17 @@ class RateLimitMiddleware:
         await send({"type": "http.response.body", "body": body, "more_body": False})
 
     @staticmethod
+    def _make_default_key(
+        trusted_proxies: list[str] | None,
+    ) -> Callable[[Scope], str]:
+        proxies = frozenset(trusted_proxies) if trusted_proxies else None
+
+        def _default_key(scope: Scope) -> str:
+            return client_ip_from_scope(scope, proxies)
+
+        return _default_key
+
+    @staticmethod
     def _default_key(scope: Scope) -> str:
         """Extract the client IP address as the rate-limit key."""
-        client = scope.get("client")
-        if client:
-            return cast(str, client[0])
-        # Fallback: try X-Forwarded-For from headers
-        headers: list[tuple[bytes, bytes]] = scope.get("headers", [])
-        for name, value in headers:
-            if name.lower() == b"x-forwarded-for":
-                return value.decode().split(",")[0].strip()
-        return "unknown"
+        return client_ip_from_scope(scope, None)
