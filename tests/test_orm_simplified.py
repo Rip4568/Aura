@@ -74,17 +74,6 @@ class PostRepository(Repository[SimplifiedPost]):
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
-async def db_manager() -> AsyncIterator[DatabaseManager]:
-    """Provide a fresh in-memory SQLite DatabaseManager for simplified ORM tests."""
-    manager = DatabaseManager()
-    manager.init("sqlite+aiosqlite:///:memory:", echo=False)
-    await manager.create_all(AuraModel)
-    yield manager
-    await manager.drop_all(AuraModel)
-    await manager.close()
-
-
-@pytest.fixture
 async def session(db_manager: DatabaseManager) -> AsyncIterator[AsyncSession]:
     """Provide an AsyncSession within a rollback transaction."""
     async with db_manager.session() as s:

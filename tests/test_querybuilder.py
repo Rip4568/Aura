@@ -52,19 +52,6 @@ class QBPost(AuraModel):
 
 
 @pytest.fixture
-async def db_manager() -> AsyncIterator[DatabaseManager]:
-    """Fresh in-memory SQLite DatabaseManager with qb_authors and qb_posts tables."""
-    manager = DatabaseManager()
-    manager.init("sqlite+aiosqlite:///:memory:", echo=False)
-    async with manager._engine.begin() as conn:  # type: ignore[union-attr]
-        await conn.run_sync(AuraModel.metadata.create_all)
-    yield manager
-    async with manager._engine.begin() as conn:  # type: ignore[union-attr]
-        await conn.run_sync(AuraModel.metadata.drop_all)
-    await manager.close()
-
-
-@pytest.fixture
 async def session(db_manager: DatabaseManager) -> AsyncIterator[AsyncSession]:
     """AsyncSession within a transaction rolled back after each test."""
     async with db_manager.session() as s:

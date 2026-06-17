@@ -1,15 +1,19 @@
 .PHONY: test typecheck lint check install
 
+# Prefer `python` (Windows-friendly); override with `make PYTHON=python3` on Unix if needed.
+PYTHON ?= python
+
 install:
-	pip install -e ".[dev,sqlalchemy,jwt,session,templates,uvicorn]" aiosqlite
+	$(PYTHON) -m pip install -e ".[dev,sqlalchemy,jwt,session,templates,uvicorn]" aiosqlite
 
 test:
-	python3 -m pytest tests/ -x -q
+	$(PYTHON) -m pytest tests/ -q
 
 typecheck:
-	python3 -m mypy aura/ --ignore-missing-imports
+	$(PYTHON) -m mypy aura/ --ignore-missing-imports
+	$(PYTHON) -m mypy tests/ --ignore-missing-imports
 
 lint:
-	python3 -m ruff check aura/ tests/
+	$(PYTHON) -m ruff check aura/ tests/
 
 check: typecheck lint test
