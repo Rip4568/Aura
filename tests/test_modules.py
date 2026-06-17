@@ -107,6 +107,25 @@ def test_registry_collects_routes() -> None:
     assert "/users/" in paths
 
 
+def test_registry_applies_global_prefix() -> None:
+    class UserController:
+        @get("/")
+        async def index(self) -> None:
+            pass
+
+    @Module(controllers=[UserController], prefix="/users")
+    class UserModule:
+        pass
+
+    container = DIContainer()
+    registry = ModuleRegistry(container)
+    registry.register(UserModule)
+
+    routes = registry.collect_routes(global_prefix="/api/v1")
+    paths = {str(r.path) for r in routes}
+    assert "/api/v1/users/" in paths
+
+
 def test_registry_registers_providers_in_container() -> None:
     @injectable()
     class MyService:

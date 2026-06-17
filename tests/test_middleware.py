@@ -94,6 +94,8 @@ class TestRateLimitMiddleware:
             assert r1.status_code == 200
             r2 = await c.get("/test")
             assert r2.status_code == 429
+            assert "retry-after" in r2.headers
+            assert r2.headers.get("x-ratelimit-remaining") == "0"
             assert "Custom rate limit message" in r2.text or r2.text != ""
 
 

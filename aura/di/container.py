@@ -193,6 +193,10 @@ class DIContainer:
         """
         return service_type in self._providers
 
+    def clear_scope_cache(self) -> None:
+        """Clear scoped instances for the current request scope."""
+        self._scoped_cache.clear()
+
     # ------------------------------------------------------------------
     # Scoped sub-container
     # ------------------------------------------------------------------
