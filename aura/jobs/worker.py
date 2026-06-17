@@ -23,6 +23,12 @@ class AuraWorker:
     worker delegates to SAQ's native worker loop.  Otherwise, the in-process
     :class:`~aura.jobs.backends.memory.MemoryBackend` is used.
 
+    **Multi-queue filtering:**
+    When using SAQBackend with Redis, multi-queue support is achieved by passing
+    a single Queue object to the SAQWorker (not the list of queue names).
+    The Queue object's internal list determines which queues are polled.
+    This is a SAQ worker design — it does not accept a ``queues`` parameter.
+
     Args:
         backend: The :class:`~aura.jobs.backends.base.TaskBackend` to use.
                  Defaults to the auto-detected backend (SAQ or Memory).
@@ -112,6 +118,9 @@ class AuraWorker:
         Collects all functions registered in the :class:`~aura.jobs.base.TaskRegistry`
         and hands them to SAQ's ``Worker``.  SAQ handles polling, retries,
         and concurrency internally.
+
+        Passes ``burst`` parameter to SAQ's Worker to enable:
+        - Burst mode (exit on empty): ``--burst``
         """
         try:
             from saq import Worker as SAQWorker
@@ -131,6 +140,7 @@ class AuraWorker:
             queue=self._backend._queue,
             functions=functions,
             concurrency=self._concurrency,
+            burst=self.burst,
         )
         console.print(
             f"[bold green]SAQ Worker[/] started — "

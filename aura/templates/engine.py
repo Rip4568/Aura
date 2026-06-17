@@ -28,7 +28,7 @@ class AuraTemplateEngine:
 
     - ``render(name, context)`` — validated Pydantic context.
     - ``render_string(source, context)`` — render from a string.
-    - ``component(name, **kwargs)`` — render a registered component.
+    - ``component(name, **kwargs)`` — render a registered component (use with ``await``).
     - ``url_for(name, **path_params)`` — reverse URL lookup.
     - ``static(path)`` — resolve static file URL.
     - Auto-reloading in debug mode (no server restart needed).
@@ -45,6 +45,11 @@ class AuraTemplateEngine:
 
         # In your Aura app startup:
         app.templates = engine
+
+    Note:
+        Components must be rendered with ``await`` in templates::
+
+            {{ await component('button', label='Click') }}
     """
 
     def __init__(
@@ -75,7 +80,7 @@ class AuraTemplateEngine:
 
         # Register built-in globals
         self._env.globals.update({
-            "component": self._render_component_sync,
+            "component": self.render_component,
             "static": self._static_url,
         })
 
@@ -176,17 +181,6 @@ class AuraTemplateEngine:
         props = cls.validate_props(**kwargs)
         instance = cls(self)
         return await instance.render(props)
-
-    def _render_component_sync(self, name: str, **kwargs: Any) -> str:
-        """Sync wrapper used from Jinja2 globals (Jinja2 calls these synchronously
-        but the env runs in async mode, so the coroutine is scheduled inline).
-        """
-        import asyncio
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-        return loop.run_until_complete(self.render_component(name, **kwargs))
 
     # ------------------------------------------------------------------
     # Helpers

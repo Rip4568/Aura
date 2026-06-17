@@ -2,9 +2,9 @@
 
 > Fonte da verdade para priorização. Marque `[x]` **somente** após verificar no código (`grep`) e nos testes.
 
-**Branch atual:** `fix/wave2-inject-saq-admin-mypy`  
-**Baseline de testes (2026-06-17):** 611 passed · 2 skipped · mypy `tests/` 0 erros · ruff clean
-**Versão:** `1.2.0` (`pyproject.toml`)
+**Branch atual:** `fix/wave3-production-stability`  
+**Baseline de testes (2026-06-17):** 611 passed · 2 skipped · mypy `aura/` + `tests/` 0 erros · ruff clean  
+**Versão:** `1.3.0` (target Wave 3; `pyproject.toml` ainda em `1.2.0` até release)
 
 ---
 
@@ -46,17 +46,29 @@ Concluída na branch `fix/wave2-inject-saq-admin-mypy`.
 
 ---
 
+## Wave 3 — Produção & Estabilidade ✅
+
+Concluída na branch `fix/wave3-production-stability`.
+
+| ID | Item | Status | Verificação |
+|----|------|--------|-------------|
+| W3-C12 | `DatabaseMiddleware` fail-fast (500 se lazy-init falhar) | [x] | `aura/orm/middleware.py`, `tests/test_orm.py` |
+| W3-C15 | Templates: remover `_render_component_sync`, exigir `await component(...)` | [x] | `aura/templates/engine.py`, ADR-002 |
+| W3-C3 | `RateLimitGuard`: LRU (`max_tracked_keys`) + headers 429 | [x] | `aura/guards/rate_limit.py`, `tests/test_guards_auth.py` |
+| W3-A7 | `AuraWorker`: repassar `queues`/`burst` ao SAQ | [x] | `aura/jobs/worker.py`, `tests/test_jobs_worker.py` |
+| W3-A8 | `TaskRegistry.clear()` + fixture de isolamento | [x] | `aura/jobs/base.py`, `tests/conftest.py` |
+| W3-M1 | mypy `aura/` — 0 erros residuais | [x] | `python -m mypy aura/` |
+| W3-T1 | `test_tinker` — falhas corrigidas | [x] | `tests/test_tinker.py` |
+
+**Breaking change:** C15 — ver [ADR-002](decisions/ADR-002-async-templates-only.md) e `CHANGELOG.md`.
+
+---
+
 ## Pendentes pós-hardening (análise 2026-06-16)
 
-Itens críticos/altos **não** cobertos pelas waves 1–2.
+Itens críticos/altos **não** cobertos pelas waves 1–3.
 
 ### Crítico / alto
-
-- [ ] `RateLimitGuard` — estado em memória, sem headers padrão (middleware já melhorado)
-- [ ] `DatabaseMiddleware` — prossegue sem sessão se lazy init falhar
-- [ ] Componentes síncronos em templates async (`aura/templates/engine.py`)
-- [ ] `AuraWorker` ignora `queues`/`burst` no path SAQ
-- [ ] `TaskRegistry` singleton global — isolamento fraco entre testes
 - [ ] Admin: reutilizar `AuraForm`/`ModelForm` (duplicação de parsing)
 - [ ] OpenAPI: `securitySchemes` e merge de `Router.tags`
 - [ ] Backend Redis compartilhado para rate limit multi-processo
@@ -80,8 +92,10 @@ Itens críticos/altos **não** cobertos pelas waves 1–2.
 | `QuerySet.delete()` / `Repository` sem filtros | Passar `allow_unfiltered=True` explicitamente |
 | Extra `[jwt]` | `pip install "aura-web[jwt]"` instala **PyJWT**, não `python-jose` |
 | `redirect(url)` | Apenas URLs relativas (`/path`); URLs absolutas lançam `BadRequestException` |
+| `component(...)` em templates Jinja2 (v1.3.0) | Usar `{{ await component(...) }}` — ver ADR-002 |
 
-Ver `docs/decisions/ADR-001-security-hardening.md`.
+Ver `docs/decisions/ADR-001-security-hardening.md` e `docs/decisions/ADR-002-async-templates-only.md`.  
+Release notes: `CHANGELOG.md`.
 
 ---
 

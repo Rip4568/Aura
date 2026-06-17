@@ -477,6 +477,60 @@ class TestDatabaseMiddleware:
         finally:
             await db.close()
 
+    async def test_middleware_fail_fast_on_lazy_init_failure(self) -> None:
+        """Test that DatabaseMiddleware returns 500 when lazy-init fails."""
+        from starlette.types import Receive, Scope, Send
+
+        from aura.orm.middleware import DatabaseMiddleware
+        from aura.orm.session import db
+
+        # Temporarily reset db state to test lazy-init failure
+        db._engine = None
+        db._session_factory = None
+
+        # Create middleware (it will accept the app)
+        class MockApp:
+            async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+                pass
+
+        middleware = DatabaseMiddleware(MockApp())
+
+        # Simulate a failed lazy-init by manually setting the flag
+        middleware._init_attempted = True
+        middleware._lazy_init_failed = True
+
+        # Create mock ASGI scope
+        scope: Scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/test",
+        }
+
+        # Mock receive and send
+        async def mock_receive() -> dict[str, str]:
+            return {"type": "http.disconnect"}
+
+        response_started = False
+        response_status = 0
+        response_body = b""
+
+        async def mock_send(message: MutableMapping[str, Any]) -> None:
+            nonlocal response_started, response_status, response_body
+            if message.get("type") == "http.response.start":
+                response_started = True
+                response_status = cast(int, message.get("status"))
+            elif message.get("type") == "http.response.body":
+                response_body = cast(bytes, message.get("body", b""))
+
+        # Call middleware
+        await middleware(scope, mock_receive, mock_send)
+
+        # Verify fail-fast response
+        assert response_started, "Response should have started"
+        assert response_status == 500, f"Expected 500 status, got {response_status}"
+        msg = "Response body should mention Service Unavailable"
+        assert b"Service Unavailable" in response_body, msg
+
     async def test_captive_dependency_protection(self) -> None:
         """Test captive dependency protection error."""
         from aura.di.container import DIContainer, Lifetime

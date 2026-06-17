@@ -31,6 +31,7 @@ class DatabaseMiddleware:
             )
         self.app = app
         self._init_attempted = False
+        self._lazy_init_failed = False
 
     def _try_lazy_init(self) -> None:
         """Attempt to auto-initialize the database from config.
@@ -57,6 +58,7 @@ class DatabaseMiddleware:
             pass
         except Exception:
             logger.exception("Failed to lazy-initialize database")
+            self._lazy_init_failed = True
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] not in ("http", "websocket"):
@@ -71,11 +73,34 @@ class DatabaseMiddleware:
                 self._init_attempted = True
                 self._try_lazy_init()
 
+            # Fail-fast if lazy init was attempted and failed
+            if self._lazy_init_failed and db._session_factory is None:
+                logger.error(
+                    "DatabaseMiddleware: lazy-initialization failed and "
+                    "db._session_factory is None. Cannot process request."
+                )
+                # Return 500 Service Unavailable
+                await send({
+                    "type": "http.response.start",
+                    "status": 500,
+                    "headers": [(b"content-type", b"text/plain")],
+                })
+                await send({
+                    "type": "http.response.body",
+                    "body": (
+                        b"Service Unavailable: Database initialization failed.\n"
+                        b"Set AURA__DATABASE__URL env var or configure "
+                        b"[database] url in aura.toml."
+                    ),
+                })
+                return
+
             if db._session_factory is None:
                 logger.warning(
                     "DatabaseMiddleware is active but db._session_factory is None. "
                     "Database operations will fail. "
-                    "Set AURA__DATABASE__URL env var or configure [database] url in aura.toml."
+                    "Set AURA__DATABASE__URL env var or configure "
+                    "[database] url in aura.toml."
                 )
             await self.app(scope, receive, send)
             return
