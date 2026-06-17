@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from aura.jobs.backends.saq_backend import SAQBackend
+from aura.jobs.backends.saq_backend import AURA_ARGS_KEY, SAQBackend, wrap_saq_task
 from aura.jobs.base import TaskDefinition, TaskStatus
 
 
@@ -53,6 +53,34 @@ async def test_saq_backend_enqueue_uses_seconds_not_milliseconds() -> None:
     assert kwargs["retries"] == 2
     assert kwargs["scheduled"] == 1_700_000_010
     assert kwargs["user_id"] == 1
+
+
+@pytest.mark.asyncio
+async def test_saq_backend_enqueue_stores_positional_args() -> None:
+    async def sample_task(user_id: int, name: str) -> str:
+        return f"{user_id}:{name}"
+
+    task = TaskDefinition(name="sample_task", func=sample_task)
+    backend = SAQBackend()
+    mock_queue = MagicMock()
+    mock_queue.enqueue = AsyncMock()
+    backend._queue = mock_queue
+
+    await backend.enqueue(task, args=(42, "alice"))
+
+    mock_queue.enqueue.assert_awaited_once()
+    _, kwargs = mock_queue.enqueue.await_args
+    assert kwargs[AURA_ARGS_KEY] == [42, "alice"]
+
+
+@pytest.mark.asyncio
+async def test_wrap_saq_task_unpacks_positional_args() -> None:
+    async def sample_task(user_id: int, name: str, *, extra: str = "") -> str:
+        return f"{user_id}:{name}:{extra}"
+
+    wrapped = wrap_saq_task(sample_task)
+    result = await wrapped(**{AURA_ARGS_KEY: [7, "bob"], "extra": "ok"})
+    assert result == "7:bob:ok"
 
 
 @pytest.mark.asyncio
