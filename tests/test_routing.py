@@ -422,8 +422,156 @@ async def test_cookie_binding() -> None:
         assert data["session"] == "abc"
 
 
+# ---------------------------------------------------------------------------
+# Security: invalid coercion, empty body, invalid JSON, missing required params
+# ---------------------------------------------------------------------------
+
+
+class CoercionErrorController:
+    @get("/items")
+    async def list_items(self, page: Query[int]) -> dict[str, int]:
+        return {"page": page}
+
+
 @pytest.mark.asyncio
-async def test_high_performance_serialization() -> None:
+async def test_invalid_query_int_coercion_returns_422() -> None:
+    """Test that invalid query int coercion returns HTTP 422."""
+    from httpx import ASGITransport, AsyncClient
+
+    from aura.core.app import Aura
+    from aura.modules.base import Module
+
+    @Module(controllers=[CoercionErrorController], prefix="")
+    class CoercionModule:
+        pass
+
+    app = Aura(modules=[CoercionModule])
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as c:
+        r = await c.get("/items?page=invalid_int")
+        assert r.status_code == 422
+        data = r.json()
+        assert "error" in data
+
+
+class RequiredBodyController:
+    @post("/data")
+    async def create_data(self, body: Body[UserSchema]) -> UserSchema:
+        return body
+
+
+@pytest.mark.asyncio
+async def test_empty_required_body_returns_422() -> None:
+    """Test that empty required body returns HTTP 422."""
+    from httpx import ASGITransport, AsyncClient
+
+    from aura.core.app import Aura
+    from aura.modules.base import Module
+
+    @Module(controllers=[RequiredBodyController], prefix="")
+    class RequiredBodyModule:
+        pass
+
+    app = Aura(modules=[RequiredBodyModule])
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as c:
+        r = await c.post("/data", content="")
+        assert r.status_code == 422
+        data = r.json()
+        assert "error" in data
+
+
+@pytest.mark.asyncio
+async def test_invalid_json_body_returns_422() -> None:
+    """Test that invalid JSON body returns HTTP 422."""
+    from httpx import ASGITransport, AsyncClient
+
+    from aura.core.app import Aura
+    from aura.modules.base import Module
+
+    @Module(controllers=[RequiredBodyController], prefix="")
+    class RequiredBodyModule2:
+        pass
+
+    app = Aura(modules=[RequiredBodyModule2])
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as c:
+        r = await c.post(
+            "/data",
+            content="{invalid json",
+            headers={"Content-Type": "application/json"},
+        )
+        assert r.status_code == 422
+        data = r.json()
+        assert "error" in data
+
+
+class RequiredHeaderController:
+    @get("/secure-header")
+    async def secure_endpoint(
+        self, x_token: Annotated[str, HeaderMarker(required=True)]
+    ) -> dict[str, str]:
+        return {"token": x_token}
+
+
+@pytest.mark.asyncio
+async def test_missing_required_header_returns_422() -> None:
+    """Test that missing required header returns HTTP 422."""
+    from httpx import ASGITransport, AsyncClient
+
+    from aura.core.app import Aura
+    from aura.modules.base import Module
+
+    @Module(controllers=[RequiredHeaderController], prefix="")
+    class RequiredHeaderModule:
+        pass
+
+    app = Aura(modules=[RequiredHeaderModule])
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as c:
+        r = await c.get("/secure-header")
+        assert r.status_code == 422
+        data = r.json()
+        assert "error" in data
+
+
+class RequiredCookieController:
+    @get("/profile-secure")
+    async def get_profile(
+        self, session: Annotated[str, CookieMarker(required=True)]
+    ) -> dict[str, str]:
+        return {"session": session}
+
+
+@pytest.mark.asyncio
+async def test_missing_required_cookie_returns_422() -> None:
+    """Test that missing required cookie returns HTTP 422."""
+    from httpx import ASGITransport, AsyncClient
+
+    from aura.core.app import Aura
+    from aura.modules.base import Module
+
+    @Module(controllers=[RequiredCookieController], prefix="")
+    class RequiredCookieModule:
+        pass
+
+    app = Aura(modules=[RequiredCookieModule])
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as c:
+        r = await c.get("/profile-secure")
+        assert r.status_code == 422
+        data = r.json()
+        assert "error" in data
     """Test that response schemas automatically serialize ORM-like objects at C-speed."""
     from httpx import ASGITransport, AsyncClient
 

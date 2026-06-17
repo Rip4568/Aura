@@ -61,6 +61,7 @@ class ParamMarker:
     """
 
     alias: str | None = field(default=None)
+    required: bool = field(default=False)
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,7 @@ class HeaderMarker:
 
     alias: str | None = field(default=None)
     convert_underscores: bool = field(default=True)
+    required: bool = field(default=False)
 
 
 @dataclass(frozen=True)
@@ -92,6 +94,7 @@ class CookieMarker:
     """
 
     alias: str | None = field(default=None)
+    required: bool = field(default=False)
 
 
 # ---------------------------------------------------------------------------

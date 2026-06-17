@@ -66,11 +66,7 @@ def _compute_binding_plan(
             'inner_type': inner_type,
             'has_default': has_default,
             'param_default': param.default if has_default else None,
-            'required': (
-                getattr(marker, 'required', False)
-                if isinstance(marker, QueryMarker)
-                else False
-            ),
+            'required': getattr(marker, 'required', False),
         }
     return plan
 
@@ -786,6 +782,10 @@ async def _resolve_params(
     Returns:
         Dictionary mapping parameter name → resolved value.
     """
+    import json as _json_module
+
+    from aura.exceptions.http import UnprocessableEntityException
+    
     kwargs: dict[str, Any] = {}
 
     # F-06: Use pre-computed binding plan if available
@@ -829,14 +829,25 @@ async def _resolve_params(
         if isinstance(marker, BodyMarker):
             body_bytes = await request.body()
             if body_bytes:
-                import json
-                body_data = json.loads(body_bytes)
+                content_type = request.headers.get("content-type", "")
+                if "application/json" not in content_type:
+                    raise UnprocessableEntityException(
+                        "Content-Type must contain application/json"
+                    )
+                try:
+                    body_data = _json_module.loads(body_bytes)
+                except _json_module.JSONDecodeError as e:
+                    raise UnprocessableEntityException(
+                        "Invalid JSON in request body"
+                    ) from e
                 if inspect.isclass(inner_type) and hasattr(inner_type, "model_validate"):
                     kwargs[param_name] = inner_type.model_validate(body_data)
                 else:
                     kwargs[param_name] = body_data
             elif has_default:
                 kwargs[param_name] = param_default
+            else:
+                raise UnprocessableEntityException("Request body is required")
 
         elif isinstance(marker, QueryMarker):
             alias = marker.alias or param_name
@@ -845,7 +856,6 @@ async def _resolve_params(
                 kwargs[param_name] = _coerce(value, inner_type)
             elif required:
                 # F-09: Enforce QueryMarker.required
-                from aura.exceptions.http import UnprocessableEntityException
                 raise UnprocessableEntityException(f"Query parameter '{alias}' is required")
             elif has_default:
                 kwargs[param_name] = param_default
@@ -857,6 +867,8 @@ async def _resolve_params(
             value = request.path_params.get(alias)
             if value is not None:
                 kwargs[param_name] = _coerce(value, inner_type)
+            elif required:
+                raise UnprocessableEntityException(f"Path parameter '{alias}' is required")
 
         elif isinstance(marker, HeaderMarker):
             alias = marker.alias or param_name
@@ -865,6 +877,8 @@ async def _resolve_params(
             value = request.headers.get(alias)
             if value is not None:
                 kwargs[param_name] = _coerce(value, inner_type)
+            elif required:
+                raise UnprocessableEntityException(f"Header '{alias}' is required")
             elif has_default:
                 kwargs[param_name] = param_default
 
@@ -873,6 +887,8 @@ async def _resolve_params(
             value = request.cookies.get(alias)
             if value is not None:
                 kwargs[param_name] = _coerce(value, inner_type)
+            elif required:
+                raise UnprocessableEntityException(f"Cookie '{alias}' is required")
             elif has_default:
                 kwargs[param_name] = param_default
 
@@ -923,8 +939,13 @@ def _coerce(value: str, target_type: Any) -> Any:
         target_type: The target Python type.
 
     Returns:
-        The coerced value, or the original string if coercion fails.
+        The coerced value.
+
+    Raises:
+        UnprocessableEntityException: If coercion fails for int/float/bool.
     """
+    from aura.exceptions.http import UnprocessableEntityException
+
     try:
         if target_type is int:
             return int(value)
@@ -933,8 +954,10 @@ def _coerce(value: str, target_type: Any) -> Any:
         if target_type is bool:
             return value.lower() in ("true", "1", "yes")
         return value
-    except (ValueError, TypeError):
-        return value
+    except (ValueError, TypeError) as e:
+        raise UnprocessableEntityException(
+            f"Failed to coerce '{value}' to {target_type.__name__}"
+        ) from e
 
 
 def _serialize(obj: Any) -> Any:
