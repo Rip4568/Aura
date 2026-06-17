@@ -183,7 +183,8 @@ def run_ipython_shell(namespace: dict[str, Any]) -> None:
     c.InteractiveShellApp.gui = "asyncio"
     c.TerminalInteractiveShell.colors = "Neutral"
 
-    IPython.start_ipython(argv=[], user_ns=namespace, config=c)
+    start_ipython: Any = IPython.start_ipython
+    start_ipython(argv=[], user_ns=namespace, config=c)
 
 
 def run_bpython_shell(namespace: dict[str, Any]) -> None:
