@@ -6,7 +6,7 @@ import contextlib
 import logging
 import os
 from collections.abc import AsyncIterator, Sequence
-from typing import Any
+from typing import Any, cast
 
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
@@ -498,12 +498,12 @@ class Aura:
             ) from exc
 
         Granian(
-            target=self,  # type: ignore[arg-type]
+            target=cast(Any, self),
             address=host,
             port=port,
             workers=workers,
             reload=reload,
-            interface="asgi",  # type: ignore[arg-type]
+            interface=cast(Any, "asgi"),
         ).serve()
 
 
