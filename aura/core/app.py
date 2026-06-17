@@ -46,7 +46,9 @@ def _redact_sensitive_values(data: Any) -> Any:
 
 def _safe_config_dump(cfg: AuraConfig) -> dict[str, Any]:
     """Return a log-safe representation of application config."""
-    return _redact_sensitive_values(cfg.model_dump())
+    result = _redact_sensitive_values(cfg.model_dump())
+    assert isinstance(result, dict)
+    return result
 
 
 def _load_dotenv(env_path: str = ".env") -> None:
@@ -496,12 +498,12 @@ class Aura:
             ) from exc
 
         Granian(
-            target=self,
+            target=self,  # type: ignore[arg-type]
             address=host,
             port=port,
             workers=workers,
             reload=reload,
-            interface="asgi",
+            interface="asgi",  # type: ignore[arg-type]
         ).serve()
 
 

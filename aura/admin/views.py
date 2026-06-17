@@ -79,7 +79,7 @@ class AdminController:
         raise NotFoundException(f"Model '{model_name}' not found in registry.")
 
     def _session(self, request: AuraRequest) -> dict[str, Any]:
-        sess = getattr(request.state, "session", None)
+        sess: dict[str, Any] | None = getattr(request.state, "session", None)
         if sess is None:
             raise RuntimeError(
                 "SessionMiddleware is required for Aura Admin security. "
