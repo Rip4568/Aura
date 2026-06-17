@@ -24,6 +24,30 @@ from aura.schema.openapi import OpenAPIGenerator
 
 logger = logging.getLogger("aura")
 
+_SENSITIVE_CONFIG_KEYS = frozenset(
+    {"secret_key", "password", "token", "url", "broker_url", "dsn"}
+)
+
+
+def _redact_sensitive_values(data: Any) -> Any:
+    """Recursively redact sensitive configuration values for logging."""
+    if isinstance(data, dict):
+        redacted: dict[str, Any] = {}
+        for key, value in data.items():
+            if key.lower() in _SENSITIVE_CONFIG_KEYS:
+                redacted[key] = "***"
+            else:
+                redacted[key] = _redact_sensitive_values(value)
+        return redacted
+    if isinstance(data, list):
+        return [_redact_sensitive_values(item) for item in data]
+    return data
+
+
+def _safe_config_dump(cfg: AuraConfig) -> dict[str, Any]:
+    """Return a log-safe representation of application config."""
+    return _redact_sensitive_values(cfg.model_dump())
+
 
 def _load_dotenv(env_path: str = ".env") -> None:
     """Load variables from a .env file into os.environ if present, without overwriting."""
@@ -154,6 +178,7 @@ class Aura:
         routes = self.registry.collect_routes(
             openapi_gen=self.openapi,
             global_guards=self._global_guards,
+            global_prefix=self.prefix,
         )
 
         # Meta routes: OpenAPI, docs
@@ -249,7 +274,7 @@ class Aura:
         try:
             cfg = self._config_class()
             self.container.register_instance(self._config_class, cfg)
-            logger.debug("Config loaded: %s", cfg.model_dump())
+            logger.debug("Config loaded: %s", _safe_config_dump(cfg))
         except Exception:
             logger.exception("Failed to load config — using defaults")
             cfg = AuraConfig()
