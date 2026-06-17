@@ -91,7 +91,9 @@ class JWTGuard(Guard):
 
             options: dict[str, Any] = {
                 "verify_signature": True,
+                "verify_exp": True,
                 "require": ["exp"] if self.require_exp else [],
+                "enforce_minimum_key_length": True,
             }
             payload = jwt.decode(
                 token,

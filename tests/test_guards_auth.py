@@ -13,6 +13,11 @@ from aura.guards.rate_limit import RateLimitGuard
 # ---------------------------------------------------------------------------
 
 
+# 32+ bytes — satisfies PyJWT enforce_minimum_key_length for HS256
+_TEST_JWT_SECRET = "aura-jwt-test-secret-key-32chars!!"
+_WRONG_JWT_SECRET = "wrong-jwt-test-secret-key-32chars!!"
+
+
 def make_jwt_token(secret: str, payload: dict) -> str:  # type: ignore[type-arg]
     import jwt
 
@@ -31,7 +36,7 @@ def jwt_app() -> Aura:
     except ImportError:
         pytest.skip("PyJWT not installed")
 
-    guard = JWTGuard(secret="test-secret")
+    guard = JWTGuard(secret=_TEST_JWT_SECRET)
 
     class TestController:
         def __init__(self) -> None:
@@ -54,7 +59,7 @@ def jwt_app() -> Aura:
 
 @pytest.mark.asyncio
 async def test_jwt_valid_token(jwt_app: Aura) -> None:
-    token = make_jwt_token("test-secret", {"sub": "user1", "role": "admin"})
+    token = make_jwt_token(_TEST_JWT_SECRET, {"sub": "user1", "role": "admin"})
     async with AsyncClient(transport=ASGITransport(app=jwt_app), base_url="http://test") as c:
         r = await c.get("/protected", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200
@@ -84,8 +89,62 @@ async def test_jwt_public_route_no_token_needed(jwt_app: Aura) -> None:
 
 @pytest.mark.asyncio
 async def test_jwt_wrong_secret_returns_401(jwt_app: Aura) -> None:
-    token = make_jwt_token("wrong-secret", {"sub": "user1"})
+    token = make_jwt_token(_WRONG_JWT_SECRET, {"sub": "user1"})
     async with AsyncClient(transport=ASGITransport(app=jwt_app), base_url="http://test") as c:
+        r = await c.get("/protected", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_jwt_expired_token_returns_401(jwt_app: Aura) -> None:
+    import time
+
+    token = make_jwt_token(
+        _TEST_JWT_SECRET,
+        {"sub": "user1", "exp": int(time.time()) - 60},
+    )
+    async with AsyncClient(transport=ASGITransport(app=jwt_app), base_url="http://test") as c:
+        r = await c.get("/protected", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_jwt_none_algorithm_rejected(jwt_app: Aura) -> None:
+    import base64
+    import json
+
+    header = base64.urlsafe_b64encode(
+        json.dumps({"alg": "none", "typ": "JWT"}).encode()
+    ).rstrip(b"=").decode()
+    payload = base64.urlsafe_b64encode(
+        json.dumps({"sub": "user1"}).encode()
+    ).rstrip(b"=").decode()
+    token = f"{header}.{payload}."
+
+    async with AsyncClient(transport=ASGITransport(app=jwt_app), base_url="http://test") as c:
+        r = await c.get("/protected", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_jwt_require_exp_rejects_token_without_exp() -> None:
+    from aura.guards.jwt import JWTGuard
+
+    guard = JWTGuard(secret=_TEST_JWT_SECRET, require_exp=True)
+
+    class TestController:
+        @get("/protected", guards=[guard])
+        async def protected(self, request: Request) -> dict:  # type: ignore[type-arg]
+            return {"user": request.state.user}
+
+    @Module(controllers=[TestController], prefix="")
+    class TestModule:
+        pass
+
+    app = Aura(modules=[TestModule])
+    token = make_jwt_token(_TEST_JWT_SECRET, {"sub": "user1"})
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         r = await c.get("/protected", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 401
 
@@ -101,7 +160,7 @@ class TestJWTGuard:
         except ImportError:
             pytest.skip("PyJWT not installed")
 
-        guard = JWTGuard(secret="test-secret", auto_error=False)
+        guard = JWTGuard(secret=_TEST_JWT_SECRET, auto_error=False)
 
         class TestController:
             def __init__(self) -> None:
@@ -133,7 +192,7 @@ class TestJWTGuard:
         except ImportError:
             pytest.skip("PyJWT not installed")
 
-        guard = JWTGuard(secret="test-secret", auto_error=False)
+        guard = JWTGuard(secret=_TEST_JWT_SECRET, auto_error=False)
 
         class TestController:
             def __init__(self) -> None:
