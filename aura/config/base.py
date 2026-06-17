@@ -67,9 +67,12 @@ class EventsConfig(BaseSettings):
 
     Attributes:
         enabled: Whether the event bus is active.
-        backend: Bus backend identifier (``memory`` or ``redis_streams``).
+        backend: Bus backend identifier (``memory``, ``redis_streams``, ``rabbitmq``, ``kafka``).
         redis_url: Redis connection URL (used when backend is ``redis_streams``).
         stream_prefix: Key prefix for Redis stream names.
+        rabbitmq_url: AMQP connection URL (used when backend is ``rabbitmq``).
+        kafka_bootstrap_servers: Kafka broker list (used when backend is ``kafka``).
+        kafka_consumer_group: Kafka consumer group id.
     """
 
     model_config = SettingsConfigDict(env_prefix="EVENTS_", extra="ignore")
@@ -78,6 +81,9 @@ class EventsConfig(BaseSettings):
     backend: str = "memory"
     redis_url: str = "redis://localhost:6379"
     stream_prefix: str = "aura:events:"
+    rabbitmq_url: str = "amqp://guest:guest@localhost/"
+    kafka_bootstrap_servers: str = "localhost:9092"
+    kafka_consumer_group: str = "aura"
 
 
 class AuraConfig(BaseSettings):
