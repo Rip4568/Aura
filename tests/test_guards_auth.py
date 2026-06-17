@@ -14,7 +14,7 @@ from aura.guards.rate_limit import RateLimitGuard
 
 
 def make_jwt_token(secret: str, payload: dict) -> str:  # type: ignore[type-arg]
-    from jose import jwt
+    import jwt
 
     return str(jwt.encode(payload, secret, algorithm="HS256"))
 
@@ -29,7 +29,7 @@ def jwt_app() -> Aura:
     try:
         from aura.guards.jwt import JWTGuard
     except ImportError:
-        pytest.skip("python-jose not installed")
+        pytest.skip("PyJWT not installed")
 
     guard = JWTGuard(secret="test-secret")
 
@@ -99,7 +99,7 @@ class TestJWTGuard:
         try:
             from aura.guards.jwt import JWTGuard
         except ImportError:
-            pytest.skip("python-jose not installed")
+            pytest.skip("PyJWT not installed")
 
         guard = JWTGuard(secret="test-secret", auto_error=False)
 
@@ -131,7 +131,7 @@ class TestJWTGuard:
         try:
             from aura.guards.jwt import JWTGuard
         except ImportError:
-            pytest.skip("python-jose not installed")
+            pytest.skip("PyJWT not installed")
 
         guard = JWTGuard(secret="test-secret", auto_error=False)
 
