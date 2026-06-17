@@ -19,13 +19,21 @@ _default_backend: Any = None
 def _get_default_backend() -> Any:
     """Instantiate the correct backend based on environment configuration.
 
-    If the ``AURA__JOBS__BROKER_URL`` environment variable is set, a
+    If ``AURA__JOBS__BACKEND`` is ``database``, a
+    :class:`~aura.jobs.backends.database.DatabaseBackend` is returned.
+    If ``AURA__JOBS__BROKER_URL`` is set, a
     :class:`~aura.jobs.backends.saq_backend.SAQBackend` is returned.
     Otherwise the in-process :class:`~aura.jobs.backends.memory.MemoryBackend`
     is used.
 
-    SAQ/redis packages are imported lazily to avoid hard dependencies.
+    Optional packages are imported lazily to avoid hard dependencies.
     """
+    backend_type = os.environ.get("AURA__JOBS__BACKEND", "memory").lower()
+    if backend_type == "database":
+        from aura.jobs.backends.database import DatabaseBackend
+
+        return DatabaseBackend()
+
     broker_url = os.environ.get("AURA__JOBS__BROKER_URL")
     if broker_url:
         from aura.jobs.backends.saq_backend import SAQBackend

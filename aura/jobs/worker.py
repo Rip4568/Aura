@@ -94,6 +94,8 @@ class AuraWorker:
         try:
             if self._is_saq_backend():
                 await self._run_saq_worker()
+            elif self._is_database_backend():
+                await self._run_database_worker()
             else:
                 await self._process_loop()
         finally:
@@ -109,6 +111,15 @@ class AuraWorker:
             from aura.jobs.backends.saq_backend import SAQBackend
 
             return isinstance(self._backend, SAQBackend)
+        except ImportError:
+            return False
+
+    def _is_database_backend(self) -> bool:
+        """Return True when the active backend is DatabaseBackend."""
+        try:
+            from aura.jobs.backends.database import DatabaseBackend
+
+            return isinstance(self._backend, DatabaseBackend)
         except ImportError:
             return False
 
@@ -164,6 +175,87 @@ class AuraWorker:
                 await asyncio.sleep(0.5)
         except asyncio.CancelledError:
             pass
+
+    async def _run_database_worker(self) -> None:
+        """Poll the database for pending jobs and execute them."""
+        from aura.jobs.backends.database import DatabaseBackend
+        from aura.jobs.base import TaskRegistry
+
+        backend = self._backend
+        if not isinstance(backend, DatabaseBackend):
+            return
+
+        console.print(
+            f"[bold green]Database Worker[/] started — "
+            f"[cyan]{len(TaskRegistry.all())}[/] task(s) registered."
+        )
+
+        workers = [
+            asyncio.create_task(self._database_worker_loop(backend))
+            for _ in range(self._concurrency)
+        ]
+        try:
+            await asyncio.gather(*workers)
+        except asyncio.CancelledError:
+            pass
+
+    async def _database_worker_loop(self, backend: Any) -> None:
+        """Consume pending jobs from the database for a single worker slot."""
+        while self._running:
+            jobs = await backend.claim_pending_jobs(self.queues, limit=1)
+            if not jobs:
+                if self.burst and not await backend.has_pending_jobs(self.queues):
+                    return
+                await asyncio.sleep(0.5)
+                continue
+
+            await self._execute_database_job(backend, jobs[0])
+
+    async def _execute_database_job(self, backend: Any, job: Any) -> None:
+        """Execute a claimed database job via :class:`~aura.jobs.base.TaskRegistry`."""
+        from aura.jobs.backends.database import ClaimedJob, DatabaseBackend
+        from aura.jobs.base import TaskRegistry
+
+        if not isinstance(backend, DatabaseBackend) or not isinstance(job, ClaimedJob):
+            return
+
+        task_def = TaskRegistry.get(job.task_name)
+        if task_def is None:
+            await backend.mark_failed(
+                job.id,
+                f"Task {job.task_name!r} not found in TaskRegistry",
+            )
+            return
+
+        max_attempts = job.max_retries + 1
+        attempts = 0
+
+        while attempts < max_attempts:
+            try:
+                coro = task_def.func(*job.args, **job.kwargs)
+                if task_def.timeout is not None:
+                    raw = await asyncio.wait_for(coro, timeout=task_def.timeout)
+                else:
+                    raw = await coro
+
+                await backend.mark_success(job.id, raw)
+                return
+
+            except asyncio.TimeoutError:
+                attempts += 1
+                error = f"Task timed out after {task_def.timeout}s"
+                if attempts < max_attempts:
+                    await backend.mark_retry(job.id, error, attempts)
+                else:
+                    await backend.mark_failed(job.id, error)
+
+            except Exception as exc:  # noqa: BLE001
+                attempts += 1
+                error = f"{type(exc).__name__}: {exc}"
+                if attempts < max_attempts:
+                    await backend.mark_retry(job.id, error, attempts)
+                else:
+                    await backend.mark_failed(job.id, error)
 
     def _setup_signal_handlers(self) -> None:
         """Register OS signal handlers for graceful shutdown."""
