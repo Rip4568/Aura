@@ -101,7 +101,7 @@ class JWTGuard(Guard):
                 algorithms=[self.algorithm],
                 issuer=self.issuer,
                 audience=self.audience,
-                options=options,
+                options=options,  # type: ignore[arg-type]
             )
             if not isinstance(payload, dict):
                 return None
