@@ -7,6 +7,7 @@ from typing import Any
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from aura.admin.base import ModelAdmin, _registry
+from aura.admin.security import ensure_csrf_token, validate_csrf, verify_password
 from aura.core.request import AuraRequest
 from aura.core.response import redirect
 from aura.di.decorators import injectable
@@ -77,6 +78,35 @@ class AdminController:
                 return model, admin
         raise NotFoundException(f"Model '{model_name}' not found in registry.")
 
+    def _session(self, request: AuraRequest) -> dict[str, Any]:
+        sess = getattr(request.state, "session", None)
+        if sess is None:
+            raise RuntimeError(
+                "SessionMiddleware is required for Aura Admin security. "
+                "Please add SessionMiddleware to your application's middleware list in main.py."
+            )
+        return sess
+
+    def _csrf_context(self, request: AuraRequest) -> dict[str, str]:
+        sess = getattr(request.state, "session", None)
+        if sess is None:
+            return {}
+        return {"csrf_token": ensure_csrf_token(sess)}
+
+    def _csrf_from_request(self, request: AuraRequest, form_data: Any = None) -> str | None:
+        token = None
+        if form_data is not None:
+            token = form_data.get("csrf_token")
+        if not token:
+            token = request.headers.get("X-CSRF-Token")
+        return str(token) if token else None
+
+    def _require_csrf(self, request: AuraRequest, form_data: Any = None) -> None:
+        from aura.exceptions.http import BadRequestException
+
+        if not validate_csrf(self._session(request), self._csrf_from_request(request, form_data)):
+            raise BadRequestException("Invalid or missing CSRF token")
+
     def check_auth(self, request: AuraRequest) -> Any | None:
         """Check if password security is active and the user is authenticated.
 
@@ -119,7 +149,7 @@ class AdminController:
             from aura.core.response import redirect
             return redirect("/admin")
 
-        return await render_admin("login.html", {"error": None})
+        return await render_admin("login.html", {"error": None, **self._csrf_context(request)})
 
     @post("/admin/login")
     async def auth_login_post(self, request: AuraRequest) -> Any:
@@ -137,23 +167,30 @@ class AdminController:
             )
 
         form_data = await request.form()
+        self._require_csrf(request, form_data)
         submitted = form_data.get("password")
 
-        if submitted == password:
+        if submitted and verify_password(str(submitted), password):
             sess["admin_authenticated"] = True
+            ensure_csrf_token(sess)
             from aura.core.response import redirect
             return redirect("/admin")
 
         return await render_admin(
             "login.html",
-            {"error": "Chave de acesso incorreta. Tente novamente."},
+            {
+                "error": "Chave de acesso incorreta. Tente novamente.",
+                **self._csrf_context(request),
+            },
         )
 
-    @get("/admin/logout")
+    @post("/admin/logout")
     async def auth_logout(self, request: AuraRequest) -> Any:
         """Log out from the administrative panel."""
         sess = getattr(request.state, "session", None)
+        form_data = await request.form()
         if sess is not None:
+            self._require_csrf(request, form_data)
             sess.pop("admin_authenticated", None)
 
         from aura.core.response import redirect
@@ -217,6 +254,7 @@ class AdminController:
 
         return await render_admin("dashboard.html", {
             "counts": counts,
+            **self._csrf_context(request),
         })
 
     @get("/admin/{model_name}")
@@ -306,6 +344,7 @@ class AdminController:
             "q": q_param,
             "active_filters": active_filters,
             "filter_options": filter_options,
+            **self._csrf_context(request),
         }
 
         if request.htmx.is_htmx:
@@ -702,6 +741,11 @@ class AdminController:
         auth_res = self.check_auth(request)
         if auth_res:
             return auth_res
+
+        form_data = None
+        if request.method == "POST":
+            form_data = await request.form()
+        self._require_csrf(request, form_data)
 
         from sqlalchemy import select
         model, admin = self.get_model_and_admin(model_name)

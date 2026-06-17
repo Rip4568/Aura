@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -37,26 +38,24 @@ class SAQBackend(TaskBackend):
         self._redis_url = redis_url
         self._queue_name = queue_name
         self._queue: Any = None
-        self._redis: Any = None
 
     async def startup(self) -> None:
-        """Initialise the Redis connection and SAQ queue."""
+        """Initialise the SAQ queue from the Redis URL."""
         try:
-            import redis.asyncio as aioredis
-            import saq
+            from saq import Queue
         except ImportError as exc:
             raise RuntimeError(
                 "SAQBackend requires 'saq' and 'redis' packages. "
                 "Install with: pip install aura-framework[saq,redis]"
             ) from exc
 
-        self._redis = aioredis.from_url(self._redis_url)
-        self._queue = saq.Queue(self._redis, name=self._queue_name)
+        self._queue = Queue.from_url(self._redis_url, name=self._queue_name)
 
     async def shutdown(self) -> None:
-        """Close the Redis connection."""
-        if self._redis is not None:
-            await self._redis.aclose()
+        """Disconnect the SAQ queue."""
+        if self._queue is not None:
+            await self._queue.disconnect()
+            self._queue = None
 
     async def enqueue(
         self,
@@ -80,17 +79,20 @@ class SAQBackend(TaskBackend):
             raise RuntimeError("SAQBackend not started. Call startup() first.")
 
         task_id = str(uuid.uuid4())
-        scheduled = int(delay * 1000) if delay > 0 else 0  # SAQ uses milliseconds
+        job_kwargs: dict[str, Any] = dict(kwargs or {})
+        if args:
+            job_kwargs["__aura_args__"] = list(args)
 
-        await self._queue.enqueue(
-            task.name,
-            _task_id=task_id,
-            _scheduled=scheduled,
-            _timeout=task.timeout * 1000 if task.timeout else None,
-            _retries=task.retry,
-            args=args,
-            **(kwargs or {}),
-        )
+        enqueue_opts: dict[str, Any] = {
+            "key": task_id,
+            "retries": task.retry,
+        }
+        if task.timeout is not None:
+            enqueue_opts["timeout"] = task.timeout
+        if delay > 0:
+            enqueue_opts["scheduled"] = int(time.time()) + delay
+
+        await self._queue.enqueue(task.name, **job_kwargs, **enqueue_opts)
 
         return TaskResult(
             task_id=task_id,
@@ -131,10 +133,12 @@ class SAQBackend(TaskBackend):
             result=job.result,
             error=str(job.error) if job.error else None,
             started_at=(
-                datetime.fromtimestamp(job.started / 1000, tz=timezone.utc) if job.started else None
+                datetime.fromtimestamp(job.started, tz=timezone.utc)
+                if job.started
+                else None
             ),
             completed_at=(
-                datetime.fromtimestamp(job.completed / 1000, tz=timezone.utc)
+                datetime.fromtimestamp(job.completed, tz=timezone.utc)
                 if job.completed
                 else None
             ),

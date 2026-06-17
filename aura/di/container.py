@@ -283,6 +283,8 @@ class DIContainer:
                 if param_name == "return":
                     continue
 
+                param_type, _inject_marker = _parse_dependency_type(param_type)
+
                 # Determine if this parameter is optional
                 is_optional = _is_optional_type(param_type)
                 param_obj = sig.parameters.get(param_name)
@@ -321,6 +323,25 @@ class DIContainer:
             return impl(**kwargs)
 
         return factory
+
+
+def _parse_dependency_type(type_hint: Any) -> tuple[Any, Any | None]:
+    """Unwrap ``Annotated[T, inject()]`` into the inner type and optional marker."""
+    from typing import Annotated, get_args, get_origin
+
+    from aura.di.decorators import InjectMarker
+
+    if get_origin(type_hint) is Annotated:
+        args = get_args(type_hint)
+        if not args:
+            return type_hint, None
+        inner_type = args[0]
+        marker: Any | None = None
+        for meta in args[1:]:
+            if isinstance(meta, InjectMarker):
+                marker = meta
+        return inner_type, marker
+    return type_hint, None
 
 
 def _is_optional_type(type_hint: Any) -> bool:
