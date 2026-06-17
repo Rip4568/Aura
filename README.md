@@ -9,7 +9,7 @@
     <img src="https://img.shields.io/badge/pydantic-v2-orange?style=flat-square" />
     <img src="https://img.shields.io/badge/pypi-aura--web-purple?style=flat-square" />
     <img src="https://img.shields.io/pypi/v/aura-web?style=flat-square&color=blue" />
-    <img src="https://img.shields.io/badge/tests-589%20passing-brightgreen?style=flat-square" />
+    <img src="https://img.shields.io/badge/tests-607%20passing-brightgreen?style=flat-square" />
     <img src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square" />
     <img src="https://img.shields.io/badge/status-alpha-red?style=flat-square" />
   </p>
@@ -385,7 +385,11 @@ published_posts = await published_factory.create_many(3)
 
 ## 🔐 Auth, Guards e Segurança
 
+> **Hardening (v1.2.x):** parâmetros inválidos retornam **422**; `redirect()` aceita só paths relativos; logs de startup redactam secrets; extra `[jwt]` usa **PyJWT**. Ver [ADR-001](docs/decisions/ADR-001-security-hardening.md).
+
 ### JWTGuard — autenticação Bearer
+
+Requer `pip install "aura-web[jwt]"` (instala **PyJWT[crypto]**, não `python-jose`).
 
 ```python
 from aura import get, Module
@@ -468,6 +472,29 @@ class AdminGuard(Guard):
 
     async def on_denied(self, request: Request) -> None:
         raise ForbiddenException("Acesso restrito a administradores")
+```
+
+### Admin panel — PBKDF2, CSRF e logout seguro
+
+O painel admin (`aura/admin/`) aplica hardening da wave 2:
+
+- Senhas verificadas com **PBKDF2-HMAC-SHA256** (`aura/admin/security.py`); hashes legados em texto puro ainda aceitos na migração
+- Mutações (create/update/delete via htmx) exigem header `X-CSRF-Token` da sessão
+- Logout via **POST** `/admin/logout` (não GET)
+
+Configure credenciais via variáveis de ambiente (`AURA__ADMIN__*`); nunca commite senhas no repositório.
+
+### ORM — delete sem filtro (breaking change)
+
+`QuerySet.delete()` e equivalentes no `Repository` **não** apagam a tabela inteira por padrão:
+
+```python
+# Erro — sem filtros
+await Post.objects.delete()  # ValueError
+
+# Correto — com filtro ou opt-in explícito
+await Post.objects.filter(archived=True).delete()
+await Post.objects.delete(allow_unfiltered=True)  # intencional
 ```
 
 ---
@@ -961,6 +988,7 @@ Confira a [Documentação Detalhada do Aura Tinker](docs/tinker.md) para ver exe
 - [x] `DIContainer` com lifetimes SINGLETON, SCOPED, TRANSIENT
 - [x] Scoped container por request HTTP/WS e transações implícitas via ContextVar (sem boilerplate manual)
 - [x] `@injectable` (com e sem parênteses)
+- [x] `inject()` — `Annotated[T, inject()]` para injeção explícita por type hint
 - [x] `Schema` e `ResponseSchema` (Pydantic v2)
 - [x] Hierarquia completa de `HTTPException` (400–504)
 - [x] `Guard` interface com `can_activate` / `on_denied`
@@ -984,10 +1012,10 @@ Confira a [Documentação Detalhada do Aura Tinker](docs/tinker.md) para ver exe
 
 ### Auth & Segurança
 
-- [x] `JWTGuard` — valida `Authorization: Bearer`, popula `request.state.user` (requer `aura-web[jwt]`)
+- [x] `JWTGuard` — valida `Authorization: Bearer`, popula `request.state.user` (requer `aura-web[jwt]` / PyJWT)
 - [x] `RateLimitGuard` — rate limit por rota (sliding window, só stdlib)
 - [x] `SessionMiddleware` — sessões assinadas em cookie (requer `aura-web[session]`)
-- [x] `RateLimitMiddleware` — rate limit global por IP
+- [x] `RateLimitMiddleware` — rate limit global por IP (atômico, headers `X-RateLimit-*`)
 - [x] `CORSMiddleware`
 - [x] `CompressionMiddleware`
 
@@ -995,7 +1023,7 @@ Confira a [Documentação Detalhada do Aura Tinker](docs/tinker.md) para ver exe
 
 - [x] `@task` e `@periodic` decorators
 - [x] `MemoryBackend` (dev/test — sem dependências externas)
-- [x] `SAQBackend` — Redis via SAQ (requer `aura-web[saq]`)
+- [x] `SAQBackend` — Redis via SAQ (`Queue.from_url`, timeout/scheduled em segundos)
 - [x] Backend auto-detectado por `AURA__JOBS__BROKER_URL`
 - [x] `aura worker` funcional com SAQ native worker e TaskRegistry
 
@@ -1047,8 +1075,8 @@ Confira a [Documentação Detalhada do Aura Tinker](docs/tinker.md) para ver exe
 
 ### Qualidade
 
-- [x] 347 testes passando
-- [x] mypy strict (0 erros em 86 arquivos)
+- [x] 607 testes passando
+- [x] mypy strict (0 erros em `aura/`)
 - [x] ruff (0 warnings)
 - [x] GitHub Actions CI (Python 3.10 + 3.12)
 - [x] Publicado no PyPI como `aura-web`
@@ -1092,6 +1120,8 @@ Confira a [Documentação Detalhada do Aura Tinker](docs/tinker.md) para ver exe
 | Limitação                                                  | Impacto                        | Workaround                               |
 | ---------------------------------------------------------- | ------------------------------ | ---------------------------------------- |
 | `static()` em templates retorna `/static/{path}` hardcoded | Baixo                          | Usar Starlette `StaticFiles` diretamente |
+| `QuerySet.delete()` sem filtros exige `allow_unfiltered=True` | Médio — breaking v1.2.x | Usar `.filter()` ou opt-in explícito |
+| `redirect()` rejeita URLs absolutas | Baixo | Usar `RedirectResponse` para externos |
 | `aura run --reload` reinicia o processo inteiro            | Baixo em dev                   | Comportamento normal do uvicorn          |
 
 
@@ -1106,7 +1136,7 @@ pip install "aura-web[templates]"    # Jinja2 + HTML rendering
 pip install "aura-web[sqlalchemy]"   # ORM async + migrations (Alembic)
 pip install "aura-web[saq]"          # async job queue (Redis via SAQ)
 pip install "aura-web[redis]"        # Redis client async
-pip install "aura-web[jwt]"          # JWT auth (python-jose)
+pip install "aura-web[jwt]"          # JWT auth (PyJWT[crypto])
 pip install "aura-web[session]"      # sessões em cookie (itsdangerous)
 pip install "aura-web[all]"          # tudo acima
 ```

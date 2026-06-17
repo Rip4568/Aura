@@ -12,7 +12,7 @@ Resolve as dores reais do Django (ORM síncrono, sem DI real) e do FastAPI (sem 
 
 **PyPI:** `pip install aura-web`
 **Versão:** Definida em `pyproject.toml` (fonte canônica) · `aura.__version__` lê via `importlib.metadata`
-**Testes:** 589 passando · mypy strict 0 erros · ruff clean
+**Testes:** 607 passando · mypy strict 0 erros em `aura/` · ruff clean · wave 2 estabilizando `tests/` (mypy parcial)
 
 ---
 
@@ -37,7 +37,7 @@ Resolve as dores reais do Django (ORM síncrono, sem DI real) e do FastAPI (sem 
 aura/
 ├── core/        # Aura app, request, response — zero deps de subsistemas opcionais
 ├── modules/     # @Module decorator, ModuleRegistry, on_startup
-├── di/          # DIContainer SINGLETON/SCOPED/TRANSIENT, @injectable
+├── di/          # DIContainer SINGLETON/SCOPED/TRANSIENT, @injectable, inject()
 ├── routing/     # @get @post @put @delete @patch @ws @html @sse + param binding
 ├── orm/         # AuraModel, Repository[T] (+bulk, +paginate), DatabaseManager
 ├── guards/      # Guard base, JWTGuard, RateLimitGuard
@@ -111,9 +111,10 @@ Mudanças breaking → revisão obrigatória do Arquiteto + nota no changelog.
 ### 5. Zero tolerância para degradação de qualidade
 
 ```bash
-# Esses três comandos DEVEM passar antes de qualquer commit:
+# Esses comandos DEVEM passar antes de qualquer commit:
 python3 -m pytest tests/ -q --tb=short
 python3 -m mypy aura/ --ignore-missing-imports
+python3 -m mypy tests/ --ignore-missing-imports   # wave 2 — meta: 0 erros
 python3 -m ruff check aura/ tests/
 ```
 
@@ -172,6 +173,21 @@ Ao final de cada sessão produtiva, atualize:
 - Para publicar: `PYPI_TOKEN=pypi-... python3 build_to_pypi.py` (lê `.env` automaticamente)
 - **Nunca** passar token como `--password` ou `--token` na linha de comando
 
+### Hardening Waves 1–2 (2026-06)
+
+| Área | Mudança | Breaking? |
+|------|---------|-----------|
+| Routing | Coerção/body inválidos → 422 | Não |
+| ORM | `delete(allow_unfiltered=True)` obrigatório sem filtros | **Sim** |
+| Core | `redirect()` só paths `/…`; logs de config redactam secrets | Parcial |
+| JWT | Extra `[jwt]` usa **PyJWT**, não `python-jose` | **Sim** (dep) |
+| Middleware | Rate limit atômico + headers; DI scope cleanup; `Aura(prefix=…)` | Não |
+| SAQ | `Queue.from_url`; timeout/scheduled em segundos | Não |
+| Migrations | `generate_env_py` sem `os.walk` | Parcial |
+| Admin | PBKDF2, CSRF, logout POST | Não (wave 2) |
+
+Detalhes: `docs/decisions/ADR-001-security-hardening.md` · roadmap: `docs/pending.md`
+
 ---
 
 ## Comandos Úteis de Referência Rápida
@@ -183,6 +199,7 @@ pip install -e ".[dev,sqlalchemy,jwt,session,templates]" aiosqlite
 # Qualidade (deve passar antes de qualquer commit)
 python3 -m pytest tests/ -q --tb=short
 python3 -m mypy aura/ --ignore-missing-imports
+python3 -m mypy tests/ --ignore-missing-imports
 python3 -m ruff check aura/ tests/
 
 # Publicar (use .env com PYPI_TOKEN)

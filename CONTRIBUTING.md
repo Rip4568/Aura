@@ -7,8 +7,8 @@ Thank you for your interest in contributing to Aura! This document describes the
 1. **Clone the repository**
 
 ```bash
-git clone https://github.com/your-org/aura-framework.git
-cd aura-framework
+git clone https://github.com/jonathasdavidd/Aura.git
+cd Aura
 ```
 
 2. **Create a virtual environment**
@@ -19,39 +19,53 @@ source .venv/bin/activate  # Linux/macOS
 .venv\Scripts\activate     # Windows
 ```
 
-3. **Install in development mode with dev dependencies**
+3. **Install in development mode with all optional extras**
 
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[dev,sqlalchemy,jwt,session,templates,saq]" aiosqlite
 ```
 
 4. **Run tests**
 
 ```bash
-pytest tests/ -v
+python -m pytest tests/ -q --tb=short
 ```
 
 5. **Run linting and type checks**
 
 ```bash
-ruff check aura/
-mypy aura/
+python -m ruff check aura/ tests/
+python -m mypy aura/ --ignore-missing-imports
+python -m mypy tests/ --ignore-missing-imports
 ```
+
+> **Nota (wave 2):** `mypy` em `tests/` está sendo tipado incrementalmente. `aura/` deve permanecer com 0 erros em strict mode. Consulte `docs/pending.md` para o estado do roadmap.
 
 ## Code Style
 
 - Use **ruff** for linting (line length: 100)
-- Use **mypy** with strict mode for type checking
+- Use **mypy** with strict mode for type checking (`aura/` obrigatório; `tests/` em progresso)
 - All public APIs must have **type hints** and **docstrings** in English
 - Follow PEP 8 and PEP 526 conventions
 
 ## Pull Request Process
 
 1. Fork the repository and create a feature branch from `main`
-2. Write tests for new functionality
-3. Ensure all tests pass and type checks succeed
-4. Update documentation if needed
-5. Submit a pull request with a clear description
+2. Read `docs/pending.md` before starting — evite duplicar trabalho em andamento
+3. Write tests for new functionality
+4. Ensure all tests pass and type checks succeed for `aura/`
+5. Update documentation if you change public API or breaking behavior (see `docs/decisions/`)
+6. Submit a pull request with a clear description
+
+## Breaking Changes
+
+Mudanças breaking exigem:
+
+- Entrada em `docs/decisions/ADR-*.md`
+- Nota em `docs/pending.md` e README (seção limitações ou segurança)
+- Testes de migração/contrato
+
+Exemplos recentes (v1.2.x): `QuerySet.delete(allow_unfiltered=True)`, extra `[jwt]` com PyJWT.
 
 ## Commit Messages
 
@@ -59,9 +73,10 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
 feat(di): add scoped lifetime support
-fix(routing): handle missing path parameters correctly
+fix(routing): return 422 on invalid param coercion
+fix(orm): require allow_unfiltered for unfiltered delete
 docs(schema): clarify Schema vs ResponseSchema usage
-test(guards): add integration tests for JWTGuard
+test(guards): add integration tests for JWTGuard with PyJWT
 ```
 
 ## Architecture Guidelines
@@ -71,12 +86,13 @@ test(guards): add integration tests for JWTGuard
 - **Modular**: keep modules decoupled and independently testable
 - **No circular imports**: use `TYPE_CHECKING` guards when needed
 - **SDD**: the spec defines the contract, implementation follows
+- **Verify before marking done**: `grep` + `pytest` no módulo alterado
 
 ## Reporting Issues
 
 Please include:
 - Python version and OS
-- Aura version
+- Aura version (`aura version` or `pyproject.toml`)
 - Minimal reproducible example
 - Full traceback
 
