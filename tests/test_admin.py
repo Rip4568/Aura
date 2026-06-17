@@ -75,6 +75,12 @@ async def admin_client(admin_app: Aura) -> AsyncGenerator[AuraTestClient, None]:
         yield client
 
 
+def _csrf_from_html(html: str) -> str:
+    match = re.search(r'name="csrf_token"\s+value="([^"]+)"', html)
+    assert match is not None, "CSRF token not found in page"
+    return match.group(1)
+
+
 class TestAdminPanel:
     """Integration and unit tests for Aura's Async Administrative Panel."""
 
@@ -109,11 +115,17 @@ class TestAdminPanel:
         assert form_response.status_code == 200
         assert 'name="name"' in form_response.text
         assert 'name="description"' in form_response.text
+        csrf = _csrf_from_html(form_response.text)
 
         # 2. POST with missing required 'name' should fail and re-render errors
         err_response = await admin_client.post(
             "/admin/admintestitem/create",
-            data={"name": "", "price": "19.99", "is_available": "on"},
+            data={
+                "csrf_token": csrf,
+                "name": "",
+                "price": "19.99",
+                "is_available": "on",
+            },
         )
         assert err_response.status_code == 200
         assert "is required" in err_response.text
@@ -122,6 +134,7 @@ class TestAdminPanel:
         success_response = await admin_client.post(
             "/admin/admintestitem/create",
             data={
+                "csrf_token": csrf,
                 "name": "Super Widget",
                 "description": "Blazing fast aura widget",
                 "price": "49.99",
@@ -138,12 +151,24 @@ class TestAdminPanel:
         assert "Super Widget" in list_response.text
         assert "49.99" in list_response.text
 
+    async def test_create_rejects_missing_csrf(self, admin_client: AuraTestClient) -> None:
+        """POST create without CSRF token must be rejected."""
+        res = await admin_client.post(
+            "/admin/admintestitem/create",
+            data={"name": "No CSRF", "price": "1.00"},
+        )
+        assert res.status_code == 403
+
     async def test_edit_record(self, admin_client: AuraTestClient) -> None:
         """Test editing a record and updating attributes."""
+        create_form = await admin_client.get("/admin/admintestitem/create")
+        csrf = _csrf_from_html(create_form.text)
+
         # Create a record first
         await admin_client.post(
             "/admin/admintestitem/create",
             data={
+                "csrf_token": csrf,
                 "name": "Original Name",
                 "description": "Old description",
                 "price": "100.00",
@@ -164,11 +189,13 @@ class TestAdminPanel:
         edit_form_res = await admin_client.get(f"/admin/admintestitem/{record_id}/edit")
         assert edit_form_res.status_code == 200
         assert "Original Name" in edit_form_res.text
+        edit_csrf = _csrf_from_html(edit_form_res.text)
 
         # Update record attributes via POST edit
         update_res = await admin_client.post(
             f"/admin/admintestitem/{record_id}/edit",
             data={
+                "csrf_token": edit_csrf,
                 "name": "Updated Name",
                 "description": "New description",
                 "price": "150.00",
@@ -185,12 +212,39 @@ class TestAdminPanel:
             assert updated_item.price == 150.00
             assert updated_item.is_available is True
 
+    async def test_edit_rejects_missing_csrf(self, admin_client: AuraTestClient) -> None:
+        """POST edit without CSRF token must be rejected."""
+        create_form = await admin_client.get("/admin/admintestitem/create")
+        csrf = _csrf_from_html(create_form.text)
+        await admin_client.post(
+            "/admin/admintestitem/create",
+            data={"csrf_token": csrf, "name": "CSRF Edit Test", "price": "5.00"},
+        )
+
+        async with db.session() as s:
+            from sqlalchemy import select
+
+            stmt = select(AdminTestItem).where(AdminTestItem.name == "CSRF Edit Test")
+            res = await s.execute(stmt)
+            item = res.scalar()
+            assert item is not None
+            record_id = item.id
+
+        res = await admin_client.post(
+            f"/admin/admintestitem/{record_id}/edit",
+            data={"name": "Hacked", "price": "0.00"},
+        )
+        assert res.status_code == 403
+
     async def test_delete_record(self, admin_client: AuraTestClient) -> None:
         """Test deleting a record via POST and DELETE requests."""
+        create_form = await admin_client.get("/admin/admintestitem/create")
+        csrf = _csrf_from_html(create_form.text)
+
         # Create an item to delete
         await admin_client.post(
             "/admin/admintestitem/create",
-            data={"name": "To Be Deleted", "price": "10.00"},
+            data={"csrf_token": csrf, "name": "To Be Deleted", "price": "10.00"},
         )
 
         async with db.session() as s:
@@ -205,12 +259,7 @@ class TestAdminPanel:
         # Get the list page to extract CSRF token
         list_res = await admin_client.get("/admin/admintestitem")
         assert list_res.status_code == 200
-        
-        # Extract CSRF token from the page - look for value="..." in hidden input
-        import re
-        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', list_res.text)
-        csrf_token = match.group(1) if match else ""
-        assert csrf_token, "CSRF token not found in page"
+        csrf_token = _csrf_from_html(list_res.text)
 
         # Delete the item with CSRF token
         delete_res = await admin_client.post(
@@ -226,10 +275,13 @@ class TestAdminPanel:
 
     async def test_htmx_partial_rendering(self, admin_client: AuraTestClient) -> None:
         """Test HTMX request header returns only partial HTML (table body)."""
+        create_form = await admin_client.get("/admin/admintestitem/create")
+        csrf = _csrf_from_html(create_form.text)
+
         # Create an item
         await admin_client.post(
             "/admin/admintestitem/create",
-            data={"name": "HTMX Widget", "price": "2.99"},
+            data={"csrf_token": csrf, "name": "HTMX Widget", "price": "2.99"},
         )
 
         # GET request with HX-Request header
@@ -316,7 +368,7 @@ class TestAdminPasswordSecurity:
 
     async def test_login_rejects_missing_csrf(self, secure_client: AuraTestClient) -> None:
         res = await secure_client.post("/admin/login", data={"password": "super-secret-key"})
-        assert res.status_code == 400
+        assert res.status_code == 403
 
     async def test_successful_login_session_flow(self, secure_client: AuraTestClient) -> None:
         """Submitting correct password authenticates user, redirects to admin, and allows access."""

@@ -28,6 +28,7 @@
         <form method="POST" 
               action="{% if is_create %}/admin/{{ model_name_lower }}/create{% else %}/admin/{{ model_name_lower }}/{{ record_id }}/edit{% endif %}"
               class="p-6 space-y-6">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             
             {% if errors %}
                 <div class="p-4 bg-rose-950/40 border border-rose-900/50 rounded-lg flex gap-3 text-rose-300">

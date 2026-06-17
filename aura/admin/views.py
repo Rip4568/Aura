@@ -12,6 +12,7 @@ from aura.core.request import AuraRequest
 from aura.core.response import redirect
 from aura.di.decorators import injectable
 from aura.exceptions.http import NotFoundException
+from aura.forms.modelform import build_admin_form_fields, parse_model_form_data
 from aura.orm.base import AuraModel
 from aura.routing.decorators import delete, get, post
 from aura.templates.response import HtmlResponse
@@ -102,10 +103,10 @@ class AdminController:
         return str(token) if token else None
 
     def _require_csrf(self, request: AuraRequest, form_data: Any = None) -> None:
-        from aura.exceptions.http import BadRequestException
+        from aura.exceptions.http import ForbiddenException
 
         if not validate_csrf(self._session(request), self._csrf_from_request(request, form_data)):
-            raise BadRequestException("Invalid or missing CSRF token")
+            raise ForbiddenException("Invalid or missing CSRF token")
 
     def check_auth(self, request: AuraRequest) -> Any | None:
         """Check if password security is active and the user is authenticated.
@@ -360,49 +361,12 @@ class AdminController:
 
         model, admin = self.get_model_and_admin(model_name)
 
-        from sqlalchemy.sql.sqltypes import Boolean, Date, DateTime, Float, Integer, String, Text
-
-        fields = []
-        for col in model.__table__.columns:
-            if col.primary_key or col.name in ("created_at", "updated_at"):
-                continue
-
-            input_type = "text"
-            is_textarea = False
-            is_checkbox = False
-
-            if isinstance(col.type, Boolean):
-                is_checkbox = True
-                input_type = "checkbox"
-            elif isinstance(col.type, (Integer, Float)):
-                input_type = "number"
-            elif isinstance(col.type, Text):
-                is_textarea = True
-            elif isinstance(col.type, String):
-                if col.type.length is None:
-                    is_textarea = True
-                else:
-                    input_type = "text"
-            elif isinstance(col.type, DateTime):
-                input_type = "datetime-local"
-            elif isinstance(col.type, Date):
-                input_type = "date"
-
-            fields.append({
-                "name": col.name,
-                "label": col.name.replace("_", " ").title(),
-                "input_type": input_type,
-                "is_textarea": is_textarea,
-                "is_checkbox": is_checkbox,
-                "required": not col.nullable and col.default is None and col.server_default is None,
-                "value": None,
-            })
-
         return await render_admin("form.html", {
             "model_name": model.__name__,
             "model_name_lower": model.__name__.lower(),
-            "fields": fields,
+            "fields": build_admin_form_fields(model),
             "is_create": True,
+            **self._csrf_context(request),
         })
 
     @post("/admin/{model_name}/create")
@@ -414,108 +378,25 @@ class AdminController:
 
         model, admin = self.get_model_and_admin(model_name)
         form_data = await request.form()
+        self._require_csrf(request, form_data)
 
-        from sqlalchemy.sql.sqltypes import Boolean, Date, DateTime, Float, Integer, String, Text
-
-        errors: dict[str, str] = {}
-        insert_data: dict[str, Any] = {}
-
-        for col in model.__table__.columns:
-            if col.primary_key or col.name in ("created_at", "updated_at"):
-                continue
-
-            val = form_data.get(col.name)
-            parsed_val: Any = None
-
-            if isinstance(col.type, Boolean):
-                parsed_val = col.name in form_data
-            elif val is None or val == "":
-                if not col.nullable and col.default is None and col.server_default is None:
-                    errors[col.name] = f"Field '{col.name}' is required."
-                    parsed_val = None
-                else:
-                    parsed_val = None
-            else:
-                try:
-                    if isinstance(col.type, Integer):
-                        parsed_val = int(str(val))
-                    elif isinstance(col.type, Float):
-                        parsed_val = float(str(val))
-                    elif isinstance(col.type, DateTime):
-                        try:
-                            parsed_val = datetime.fromisoformat(str(val))
-                        except ValueError:
-                            parsed_val = datetime.strptime(str(val), "%Y-%m-%dT%H:%M:%S")
-                    elif isinstance(col.type, Date):
-                        parsed_val = date.fromisoformat(str(val))
-                    else:
-                        parsed_val = str(val)
-                except Exception as e:
-                    errors[col.name] = f"Invalid value: {str(e)}"
-                    parsed_val = None
-
-            if col.name not in errors:
-                insert_data[col.name] = parsed_val
+        insert_data, errors = await parse_model_form_data(model, form_data)
 
         if errors:
-            # Re-render form with validation errors and preserved input data
-            fields = []
-            for col in model.__table__.columns:
-                if col.primary_key or col.name in ("created_at", "updated_at"):
-                    continue
-
-                input_type = "text"
-                is_textarea = False
-                is_checkbox = False
-
-                if isinstance(col.type, Boolean):
-                    is_checkbox = True
-                    input_type = "checkbox"
-                elif isinstance(col.type, (Integer, Float)):
-                    input_type = "number"
-                elif isinstance(col.type, Text):
-                    is_textarea = True
-                elif isinstance(col.type, String):
-                    if col.type.length is None:
-                        is_textarea = True
-                    else:
-                        input_type = "text"
-                elif isinstance(col.type, DateTime):
-                    input_type = "datetime-local"
-                elif isinstance(col.type, Date):
-                    input_type = "date"
-
-                fields.append({
-                    "name": col.name,
-                    "label": col.name.replace("_", " ").title(),
-                    "input_type": input_type,
-                    "is_textarea": is_textarea,
-                    "is_checkbox": is_checkbox,
-                    "required": (
-                        not col.nullable
-                        and col.default is None
-                        and col.server_default is None
-                    ),
-                    "value": (
-                        form_data.get(col.name)
-                        if not is_checkbox
-                        else (col.name in form_data)
-                    ),
-                    "error": errors.get(col.name),
-                })
-
             return await render_admin("form.html", {
                 "model_name": model.__name__,
                 "model_name_lower": model.__name__.lower(),
-                "fields": fields,
+                "fields": build_admin_form_fields(
+                    model, form_data=form_data, errors=errors
+                ),
                 "is_create": True,
                 "errors": errors,
+                **self._csrf_context(request),
             })
 
         obj = model(**insert_data)
         self.session.add(obj)
         await self.session.flush()
-        await self.session.commit()
 
         if request.htmx.is_htmx:
             res = HtmlResponse()
@@ -541,62 +422,23 @@ class AdminController:
         if not record:
             raise NotFoundException(f"Record with ID {record_id} not found.")
 
-        from sqlalchemy.sql.sqltypes import Boolean, Date, DateTime, Float, Integer, String, Text
-
-        fields = []
-        for col in model.__table__.columns:
-            if col.primary_key or col.name in ("created_at", "updated_at"):
-                continue
-
-            input_type = "text"
-            is_textarea = False
-            is_checkbox = False
-
-            if isinstance(col.type, Boolean):
-                is_checkbox = True
-                input_type = "checkbox"
-            elif isinstance(col.type, (Integer, Float)):
-                input_type = "number"
-            elif isinstance(col.type, Text):
-                is_textarea = True
-            elif isinstance(col.type, String):
-                if col.type.length is None:
-                    is_textarea = True
-                else:
-                    input_type = "text"
-            elif isinstance(col.type, DateTime):
-                input_type = "datetime-local"
-            elif isinstance(col.type, Date):
-                input_type = "date"
-
-            val = getattr(record, col.name)
-            if val is not None:
-                if isinstance(col.type, DateTime):
-                    val = val.strftime("%Y-%m-%dT%H:%M")
-                elif isinstance(col.type, Date):
-                    val = val.isoformat()
-
-            fields.append({
-                "name": col.name,
-                "label": col.name.replace("_", " ").title(),
-                "input_type": input_type,
-                "is_textarea": is_textarea,
-                "is_checkbox": is_checkbox,
-                "required": not col.nullable and col.default is None and col.server_default is None,
-                "value": val,
-            })
+        values = {
+            col.name: getattr(record, col.name)
+            for col in model.__table__.columns
+        }
 
         return await render_admin("form.html", {
             "model_name": model.__name__,
             "model_name_lower": model.__name__.lower(),
-            "fields": fields,
+            "fields": build_admin_form_fields(model, values=values),
             "is_create": False,
             "record_id": record_id,
+            **self._csrf_context(request),
         })
 
     @post("/admin/{model_name}/{record_id}/edit")
     async def edit_record(self, request: AuraRequest, model_name: str, record_id: int) -> Any:
-        """Validate edit form, update record attributes, flush, commit, and redirect."""
+        """Validate edit form, update record attributes, flush, and redirect."""
         auth_res = self.check_auth(request)
         if auth_res:
             return auth_res
@@ -611,110 +453,27 @@ class AdminController:
             raise NotFoundException(f"Record with ID {record_id} not found.")
 
         form_data = await request.form()
+        self._require_csrf(request, form_data)
 
-        from sqlalchemy.sql.sqltypes import Boolean, Date, DateTime, Float, Integer, String, Text
-
-        errors: dict[str, str] = {}
-        update_data: dict[str, Any] = {}
-
-        for col in model.__table__.columns:
-            if col.primary_key or col.name in ("created_at", "updated_at"):
-                continue
-
-            val = form_data.get(col.name)
-            parsed_val: Any = None
-
-            if isinstance(col.type, Boolean):
-                parsed_val = col.name in form_data
-            elif val is None or val == "":
-                if not col.nullable and col.default is None and col.server_default is None:
-                    errors[col.name] = f"Field '{col.name}' is required."
-                    parsed_val = None
-                else:
-                    parsed_val = None
-            else:
-                try:
-                    if isinstance(col.type, Integer):
-                        parsed_val = int(str(val))
-                    elif isinstance(col.type, Float):
-                        parsed_val = float(str(val))
-                    elif isinstance(col.type, DateTime):
-                        try:
-                            parsed_val = datetime.fromisoformat(str(val))
-                        except ValueError:
-                            parsed_val = datetime.strptime(str(val), "%Y-%m-%dT%H:%M:%S")
-                    elif isinstance(col.type, Date):
-                        parsed_val = date.fromisoformat(str(val))
-                    else:
-                        parsed_val = str(val)
-                except Exception as e:
-                    errors[col.name] = f"Invalid value: {str(e)}"
-                    parsed_val = None
-
-            if col.name not in errors:
-                update_data[col.name] = parsed_val
+        update_data, errors = await parse_model_form_data(model, form_data)
 
         if errors:
-            # Re-render form with validation errors and preserved input data
-            fields = []
-            for col in model.__table__.columns:
-                if col.primary_key or col.name in ("created_at", "updated_at"):
-                    continue
-
-                input_type = "text"
-                is_textarea = False
-                is_checkbox = False
-
-                if isinstance(col.type, Boolean):
-                    is_checkbox = True
-                    input_type = "checkbox"
-                elif isinstance(col.type, (Integer, Float)):
-                    input_type = "number"
-                elif isinstance(col.type, Text):
-                    is_textarea = True
-                elif isinstance(col.type, String):
-                    if col.type.length is None:
-                        is_textarea = True
-                    else:
-                        input_type = "text"
-                elif isinstance(col.type, DateTime):
-                    input_type = "datetime-local"
-                elif isinstance(col.type, Date):
-                    input_type = "date"
-
-                fields.append({
-                    "name": col.name,
-                    "label": col.name.replace("_", " ").title(),
-                    "input_type": input_type,
-                    "is_textarea": is_textarea,
-                    "is_checkbox": is_checkbox,
-                    "required": (
-                        not col.nullable
-                        and col.default is None
-                        and col.server_default is None
-                    ),
-                    "value": (
-                        form_data.get(col.name)
-                        if not is_checkbox
-                        else (col.name in form_data)
-                    ),
-                    "error": errors.get(col.name),
-                })
-
             return await render_admin("form.html", {
                 "model_name": model.__name__,
                 "model_name_lower": model.__name__.lower(),
-                "fields": fields,
+                "fields": build_admin_form_fields(
+                    model, form_data=form_data, errors=errors
+                ),
                 "is_create": False,
                 "record_id": record_id,
                 "errors": errors,
+                **self._csrf_context(request),
             })
 
         for key, value in update_data.items():
             setattr(record, key, value)
 
         await self.session.flush()
-        await self.session.commit()
 
         if request.htmx.is_htmx:
             res = HtmlResponse()
@@ -758,7 +517,6 @@ class AdminController:
 
         await self.session.delete(record)
         await self.session.flush()
-        await self.session.commit()
 
         if request.htmx.is_htmx:
             res = HtmlResponse()
