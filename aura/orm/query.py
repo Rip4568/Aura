@@ -181,9 +181,30 @@ class QuerySet(Generic[ModelT]):
         return cast(ModelT, row) if row is not None else None
 
     async def last(self) -> ModelT | None:
-        """Return the last result (by primary key desc) or None."""
+        """Return the last result or None.
+
+        If order_by clauses exist, reverses them to get the last item in that order.
+        Otherwise defaults to desc(id).
+        """
+        from sqlalchemy.sql import operators
+        from sqlalchemy.sql.elements import UnaryExpression
+
         qs = self._clone()
-        qs._order_by_clauses = [desc(self._model.id)]
+        if qs._order_by_clauses:
+            reversed_clauses: builtins.list[Any] = []
+            for clause in qs._order_by_clauses:
+                if isinstance(clause, UnaryExpression):
+                    if clause.modifier is operators.desc_op:
+                        reversed_clauses.append(asc(clause.element))
+                    elif clause.modifier is operators.asc_op:
+                        reversed_clauses.append(desc(clause.element))
+                    else:
+                        reversed_clauses.append(clause)
+                else:
+                    reversed_clauses.append(clause)
+            qs._order_by_clauses = reversed_clauses
+        else:
+            qs._order_by_clauses = [desc(self._model.id)]
         qs._limit_val = 1
         stmt = qs._build_stmt()
         result = await self._get_session().execute(stmt)
@@ -359,15 +380,29 @@ class QuerySet(Generic[ModelT]):
             return [row[0] for row in rows]
         return [tuple(row) for row in rows]
 
-    async def delete(self) -> int:
-        """Delete all matching records. Returns count deleted."""
+    async def delete(self, *, allow_unfiltered: bool = False) -> int:
+        """Delete all matching records. Returns count deleted.
+
+        Args:
+            allow_unfiltered: If True, allows deletion of all records without filters.
+                            If False (default) and no filters/excludes exist, raises ValueError.
+
+        Raises:
+            ValueError: If attempting to delete unfiltered records without allow_unfiltered=True.
+            ValueError: If QuerySet has limit, offset, or order_by clauses.
+        """
         if self._limit_val is not None or self._offset_val or self._order_by_clauses:
             raise ValueError(
                 "Bulk delete is not supported on limited, offset, or ordered QuerySets."
             )
+        all_conditions = self._filters + self._excludes
+        if not all_conditions and not allow_unfiltered:
+            raise ValueError(
+                "Bulk delete of all records is not allowed. Either add filters to the QuerySet "
+                "or pass allow_unfiltered=True if you are sure you want to delete everything."
+            )
         from sqlalchemy import delete as _delete
         stmt = _delete(self._model)
-        all_conditions = self._filters + self._excludes
         if all_conditions:
             stmt = stmt.where(and_(*all_conditions))
         stmt = stmt.execution_options(synchronize_session="fetch")

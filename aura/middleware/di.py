@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -29,11 +30,14 @@ class DIRequestScopeMiddleware:
         app = scope.get("app")
         global_container = getattr(getattr(app, "state", None), "container", None)
 
-        if global_container is not None:
-            # Create a scoped sub-container
-            scoped_container = global_container.create_scope()
-            # Store in the ASGI request state (maps to request.state.container)
-            scope.setdefault("state", {})["container"] = scoped_container
-            logger.debug("Initialized request-scoped DI container.")
+        scoped_container: Any | None = None
+        try:
+            if global_container is not None:
+                scoped_container = global_container.create_scope()
+                scope.setdefault("state", {})["container"] = scoped_container
+                logger.debug("Initialized request-scoped DI container.")
 
-        await self.app(scope, receive, send)
+            await self.app(scope, receive, send)
+        finally:
+            if scoped_container is not None:
+                scoped_container.clear_scope_cache()

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import AsyncGenerator
 
 import pytest
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from aura import Aura, Module
 from aura.admin import AdminModule, ModelAdmin, register
 from aura.admin.base import _registry
+from aura.admin.security import hash_password
 from aura.orm import AuraModel, db
 from aura.orm.middleware import DatabaseMiddleware
 from aura.testing.client import AuraTestClient
@@ -42,6 +44,10 @@ async def admin_app() -> AsyncGenerator[Aura, None]:
     db.init("sqlite+aiosqlite:///:memory:", echo=False)
     await db.create_all(AuraModel)
 
+    from starlette.middleware import Middleware
+
+    from aura import SessionMiddleware
+
     @Module(
         controllers=[],
         imports=[AdminModule],
@@ -50,7 +56,13 @@ async def admin_app() -> AsyncGenerator[Aura, None]:
     class TestRootModule:
         pass
 
-    app = Aura(modules=[TestRootModule], middleware=[DatabaseMiddleware])
+    app = Aura(
+        modules=[TestRootModule],
+        middleware=[
+            Middleware(SessionMiddleware, secret_key="test-session-secret"),
+            DatabaseMiddleware,
+        ],
+    )
     yield app
 
     await db.drop_all(AuraModel)
@@ -190,8 +202,21 @@ class TestAdminPanel:
             assert item is not None
             record_id = item.id
 
-        # Delete the item
-        delete_res = await admin_client.post(f"/admin/admintestitem/{record_id}/delete")
+        # Get the list page to extract CSRF token
+        list_res = await admin_client.get("/admin/admintestitem")
+        assert list_res.status_code == 200
+        
+        # Extract CSRF token from the page - look for value="..." in hidden input
+        import re
+        match = re.search(r'name="csrf_token"\s+value="([^"]+)"', list_res.text)
+        csrf_token = match.group(1) if match else ""
+        assert csrf_token, "CSRF token not found in page"
+
+        # Delete the item with CSRF token
+        delete_res = await admin_client.post(
+            f"/admin/admintestitem/{record_id}/delete",
+            data={"csrf_token": csrf_token},
+        )
         assert delete_res.status_code == 307
 
         # Verify it's gone
@@ -222,6 +247,13 @@ class TestAdminPanel:
 
 class TestAdminPasswordSecurity:
     """Test suite validating admin panel password-only authentication and session lifecycle."""
+
+    @staticmethod
+    async def _csrf_from_login(client: AuraTestClient) -> str:
+        login_page = await client.get("/admin/login")
+        match = re.search(r'name="csrf_token" value="([^"]+)"', login_page.text)
+        assert match is not None
+        return match.group(1)
 
     @pytest.fixture
     async def secure_app(self, monkeypatch: pytest.MonkeyPatch) -> AsyncGenerator[Aura, None]:
@@ -274,30 +306,60 @@ class TestAdminPasswordSecurity:
 
     async def test_failed_login_shows_error(self, secure_client: AuraTestClient) -> None:
         """Submitting an invalid password re-renders login with error message."""
-        res = await secure_client.post("/admin/login", data={"password": "wrong-password"})
+        csrf = await self._csrf_from_login(secure_client)
+        res = await secure_client.post(
+            "/admin/login",
+            data={"password": "wrong-password", "csrf_token": csrf},
+        )
         assert res.status_code == 200
         assert "Chave de acesso incorreta" in res.text
 
+    async def test_login_rejects_missing_csrf(self, secure_client: AuraTestClient) -> None:
+        res = await secure_client.post("/admin/login", data={"password": "super-secret-key"})
+        assert res.status_code == 400
+
     async def test_successful_login_session_flow(self, secure_client: AuraTestClient) -> None:
         """Submitting correct password authenticates user, redirects to admin, and allows access."""
-        # Login successfully
-        login_res = await secure_client.post("/admin/login", data={"password": "super-secret-key"})
+        csrf = await self._csrf_from_login(secure_client)
+        login_res = await secure_client.post(
+            "/admin/login",
+            data={"password": "super-secret-key", "csrf_token": csrf},
+        )
         assert login_res.status_code == 307
         assert login_res.headers["location"] == "/admin"
 
-        # We should now be authenticated and able to get the dashboard
         dashboard_res = await secure_client.get("/admin")
         assert dashboard_res.status_code == 200
         assert "Dashboard" in dashboard_res.text
         assert "Sair" in dashboard_res.text
 
-        # Logout should clear session and redirect back to login
-        logout_res = await secure_client.get("/admin/logout", follow_redirects=False)
+        csrf_match = re.search(
+            r'name="csrf_token" value="([^"]+)"',
+            dashboard_res.text,
+        )
+        assert csrf_match is not None
+        logout_res = await secure_client.post(
+            "/admin/logout",
+            data={"csrf_token": csrf_match.group(1)},
+            follow_redirects=False,
+        )
         assert logout_res.status_code == 307
         assert logout_res.headers["location"] == "/admin/login"
 
-        # Subsequent access to admin should be blocked again
         blocked_res = await secure_client.get("/admin", follow_redirects=False)
         assert blocked_res.status_code == 307
         assert blocked_res.headers["location"] == "/admin/login"
+
+    async def test_hashed_password_from_env(
+        self, secure_app: Aura, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """PBKDF2-hashed admin password from env is accepted on login."""
+        monkeypatch.setenv("AURA_ADMIN_PASSWORD", hash_password("hashed-admin-pass"))
+        async with AuraTestClient(secure_app) as client:
+            csrf = await self._csrf_from_login(client)
+            res = await client.post(
+                "/admin/login",
+                data={"password": "hashed-admin-pass", "csrf_token": csrf},
+            )
+            assert res.status_code == 307
 

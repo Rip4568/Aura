@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any, cast
 
 import pytest
 
@@ -32,7 +32,7 @@ def test_get_decorator_attaches_metadata() -> None:
         pass
 
     assert hasattr(list_users, "__aura_route__")
-    meta = list_users.__aura_route__
+    meta = cast(Any, list_users).__aura_route__
     assert meta["method"] == "GET"
     assert meta["path"] == "/users"
     assert meta["status"] == 200
@@ -43,7 +43,7 @@ def test_post_decorator_default_status_201() -> None:
     async def create_user() -> None:
         pass
 
-    assert create_user.__aura_route__["status"] == 201
+    assert cast(Any, create_user).__aura_route__["status"] == 201
 
 
 def test_delete_decorator_default_status_204() -> None:
@@ -51,7 +51,7 @@ def test_delete_decorator_default_status_204() -> None:
     async def delete_user() -> None:
         pass
 
-    assert delete_user.__aura_route__["status"] == 204
+    assert cast(Any, delete_user).__aura_route__["status"] == 204
 
 
 def test_decorator_tags_and_summary() -> None:
@@ -59,7 +59,7 @@ def test_decorator_tags_and_summary() -> None:
     async def health() -> None:
         pass
 
-    meta = health.__aura_route__
+    meta = cast(Any, health).__aura_route__
     assert meta["tags"] == ["system"]
     assert meta["summary"] == "Health check"
 
@@ -69,8 +69,8 @@ def test_ws_decorator() -> None:
     async def chat() -> None:
         pass
 
-    assert chat.__aura_route__["method"] == "WS"
-    assert chat.__aura_route__["path"] == "/ws/chat"
+    assert cast(Any, chat).__aura_route__["method"] == "WS"
+    assert cast(Any, chat).__aura_route__["path"] == "/ws/chat"
 
 
 def test_deprecated_flag() -> None:
@@ -78,7 +78,7 @@ def test_deprecated_flag() -> None:
     async def old_endpoint() -> None:
         pass
 
-    assert old_endpoint.__aura_route__["deprecated"] is True
+    assert cast(Any, old_endpoint).__aura_route__["deprecated"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -236,7 +236,7 @@ class UserSchema(Schema):
 # Controller for Body binding tests
 class UserBodyController:
     @post("/users")
-    async def create_user(self, body: Body[UserSchema]) -> UserSchema:
+    async def create_user(self, body: Body[UserSchema]) -> UserSchema:  # type: ignore[valid-type]
         # Echo back the created user
         return body
 
@@ -244,7 +244,7 @@ class UserBodyController:
 # Controller for Query binding tests
 class ListQueryController:
     @get("/items")
-    async def list_items(self, page: Query[int]) -> dict[str, int]:
+    async def list_items(self, page: Query[int]) -> dict[str, int]:  # type: ignore[valid-type]
         return {"page": page}
 
 
@@ -260,7 +260,7 @@ class SearchQueryController:
 # Controller for path param binding tests
 class ItemPathController:
     @get("/items/{item_id}")
-    async def get_item(self, item_id: Param[int]) -> dict[str, int]:
+    async def get_item(self, item_id: Param[int]) -> dict[str, int]:  # type: ignore[valid-type]
         return {"item_id": item_id}
 
 
@@ -422,8 +422,156 @@ async def test_cookie_binding() -> None:
         assert data["session"] == "abc"
 
 
+# ---------------------------------------------------------------------------
+# Security: invalid coercion, empty body, invalid JSON, missing required params
+# ---------------------------------------------------------------------------
+
+
+class CoercionErrorController:
+    @get("/items")
+    async def list_items(self, page: Query[int]) -> dict[str, int]:  # type: ignore[valid-type]
+        return {"page": page}
+
+
 @pytest.mark.asyncio
-async def test_high_performance_serialization() -> None:
+async def test_invalid_query_int_coercion_returns_422() -> None:
+    """Test that invalid query int coercion returns HTTP 422."""
+    from httpx import ASGITransport, AsyncClient
+
+    from aura.core.app import Aura
+    from aura.modules.base import Module
+
+    @Module(controllers=[CoercionErrorController], prefix="")
+    class CoercionModule:
+        pass
+
+    app = Aura(modules=[CoercionModule])
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as c:
+        r = await c.get("/items?page=invalid_int")
+        assert r.status_code == 422
+        data = r.json()
+        assert "error" in data
+
+
+class RequiredBodyController:
+    @post("/data")
+    async def create_data(self, body: Body[UserSchema]) -> UserSchema:  # type: ignore[valid-type]
+        return body
+
+
+@pytest.mark.asyncio
+async def test_empty_required_body_returns_422() -> None:
+    """Test that empty required body returns HTTP 422."""
+    from httpx import ASGITransport, AsyncClient
+
+    from aura.core.app import Aura
+    from aura.modules.base import Module
+
+    @Module(controllers=[RequiredBodyController], prefix="")
+    class RequiredBodyModule:
+        pass
+
+    app = Aura(modules=[RequiredBodyModule])
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as c:
+        r = await c.post("/data", content="")
+        assert r.status_code == 422
+        data = r.json()
+        assert "error" in data
+
+
+@pytest.mark.asyncio
+async def test_invalid_json_body_returns_422() -> None:
+    """Test that invalid JSON body returns HTTP 422."""
+    from httpx import ASGITransport, AsyncClient
+
+    from aura.core.app import Aura
+    from aura.modules.base import Module
+
+    @Module(controllers=[RequiredBodyController], prefix="")
+    class RequiredBodyModule2:
+        pass
+
+    app = Aura(modules=[RequiredBodyModule2])
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as c:
+        r = await c.post(
+            "/data",
+            content="{invalid json",
+            headers={"Content-Type": "application/json"},
+        )
+        assert r.status_code == 422
+        data = r.json()
+        assert "error" in data
+
+
+class RequiredHeaderController:
+    @get("/secure-header")
+    async def secure_endpoint(
+        self, x_token: Annotated[str, HeaderMarker(required=True)]
+    ) -> dict[str, str]:
+        return {"token": x_token}
+
+
+@pytest.mark.asyncio
+async def test_missing_required_header_returns_422() -> None:
+    """Test that missing required header returns HTTP 422."""
+    from httpx import ASGITransport, AsyncClient
+
+    from aura.core.app import Aura
+    from aura.modules.base import Module
+
+    @Module(controllers=[RequiredHeaderController], prefix="")
+    class RequiredHeaderModule:
+        pass
+
+    app = Aura(modules=[RequiredHeaderModule])
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as c:
+        r = await c.get("/secure-header")
+        assert r.status_code == 422
+        data = r.json()
+        assert "error" in data
+
+
+class RequiredCookieController:
+    @get("/profile-secure")
+    async def get_profile(
+        self, session: Annotated[str, CookieMarker(required=True)]
+    ) -> dict[str, str]:
+        return {"session": session}
+
+
+@pytest.mark.asyncio
+async def test_missing_required_cookie_returns_422() -> None:
+    """Test that missing required cookie returns HTTP 422."""
+    from httpx import ASGITransport, AsyncClient
+
+    from aura.core.app import Aura
+    from aura.modules.base import Module
+
+    @Module(controllers=[RequiredCookieController], prefix="")
+    class RequiredCookieModule:
+        pass
+
+    app = Aura(modules=[RequiredCookieModule])
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as c:
+        r = await c.get("/profile-secure")
+        assert r.status_code == 422
+        data = r.json()
+        assert "error" in data
     """Test that response schemas automatically serialize ORM-like objects at C-speed."""
     from httpx import ASGITransport, AsyncClient
 

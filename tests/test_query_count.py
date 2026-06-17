@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from starlette.middleware import Middleware
 
@@ -14,11 +16,11 @@ from aura.testing.client import AuraTestClient
 # Helper controller to simulate queries
 class TestController:
     @get("/no-queries")
-    async def no_queries(self) -> dict:
+    async def no_queries(self) -> dict[str, Any]:
         return {"ok": True}
 
     @get("/simulate-queries")
-    async def simulate_queries(self) -> dict:
+    async def simulate_queries(self) -> dict[str, Any]:
         # Programmatically log SQL queries inside the active query log context
         log = _active_log.get()
         if log is not None:
@@ -27,7 +29,7 @@ class TestController:
         return {"ok": True}
 
     @get("/simulate-n1-risk")
-    async def simulate_n1_risk(self) -> dict:
+    async def simulate_n1_risk(self) -> dict[str, Any]:
         # Log identical queries to trigger N+1 detection
         log = _active_log.get()
         if log is not None:

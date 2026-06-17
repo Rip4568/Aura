@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from collections import defaultdict
 from collections.abc import Callable
@@ -58,6 +59,7 @@ class RateLimitMiddleware:
 
         # { key -> list[timestamp] }
         self._requests: dict[str, list[float]] = defaultdict(list)
+        self._lock = asyncio.Lock()
 
     async def __call__(self, scope: Scope, receive: Any, send: Any) -> None:
         """ASGI callable — check rate limit then delegate or reject."""
@@ -69,18 +71,34 @@ class RateLimitMiddleware:
         now = time.monotonic()
         window_start = now - self.window_seconds
 
-        # Remove timestamps outside the current window
-        history = self._requests[key]
-        self._requests[key] = [ts for ts in history if ts >= window_start]
+        async with self._lock:
+            history = self._requests[key]
+            pruned = [ts for ts in history if ts >= window_start]
 
-        if len(self._requests[key]) >= self.max_requests:
-            await self._send_429(send)
-            return
+            if len(pruned) >= self.max_requests:
+                retry_after = max(1, int(self.window_seconds))
+                await self._send_429(send, retry_after=retry_after)
+                return
 
-        self._requests[key].append(now)
-        await self.app(scope, receive, send)
+            pruned.append(now)
+            self._requests[key] = pruned
+            remaining = max(0, self.max_requests - len(pruned))
 
-    async def _send_429(self, send: Any) -> None:
+        async def send_wrapper(message: dict[str, Any]) -> None:
+            if message.get("type") == "http.response.start":
+                headers = list(message.get("headers", []))
+                headers.extend(
+                    [
+                        (b"x-ratelimit-limit", str(self.max_requests).encode()),
+                        (b"x-ratelimit-remaining", str(remaining).encode()),
+                    ]
+                )
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
+
+    async def _send_429(self, send: Any, *, retry_after: int) -> None:
         """Send an HTTP 429 Too Many Requests response."""
         body = self.message.encode("utf-8")
         await send(
@@ -90,6 +108,9 @@ class RateLimitMiddleware:
                 "headers": [
                     (b"content-type", b"text/plain"),
                     (b"content-length", str(len(body)).encode()),
+                    (b"retry-after", str(retry_after).encode()),
+                    (b"x-ratelimit-limit", str(self.max_requests).encode()),
+                    (b"x-ratelimit-remaining", b"0"),
                 ],
             }
         )

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
-from typing import Any
+from collections.abc import AsyncIterator, Generator
+from typing import Any, cast
 
 import pytest
 
@@ -40,7 +40,7 @@ async def client(simple_app: Aura) -> AsyncIterator[AuraTestClient]:
 
 
 @pytest.fixture(autouse=True)
-def reset_logging() -> None:
+def reset_logging() -> Generator[None, None, None]:
     """Reset logging configuration before each test.
 
     This ensures that tests are isolated and logging configuration
@@ -50,7 +50,7 @@ def reset_logging() -> None:
     from aura.logging.logger import Log
 
     # Reset Log singleton
-    Log._set_instance(None)
+    cast(Any, Log)._set_instance(None)
 
     # Reset root logger
     root_logger = logging.getLogger()
@@ -70,5 +70,5 @@ def reset_logging() -> None:
     for handler in root_logger.handlers[:]:
         if handler not in original_handlers:
             root_logger.removeHandler(handler)
-    Log._set_instance(None)
+    cast(Any, Log)._set_instance(None)
     aura_logger.handlers.clear()

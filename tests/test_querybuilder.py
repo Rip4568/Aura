@@ -379,6 +379,39 @@ class TestTerminal:
         result = await QBPost.objects.using(session).filter(view_count__gt=100).exists()
         assert result is False
 
+    async def test_last_respects_order_by_ascending(self, session: AsyncSession) -> None:
+        """last() should respect ascending order_by and return highest value."""
+        await _create_post(session, "Post A", view_count=10)
+        await _create_post(session, "Post B", view_count=20)
+        post_c = await _create_post(session, "Post C", view_count=30)
+
+        result = await QBPost.objects.using(session).order_by("view_count").last()
+        assert result is not None
+        assert result.id == post_c.id
+        assert result.view_count == 30
+
+    async def test_last_respects_order_by_descending(self, session: AsyncSession) -> None:
+        """last() should respect descending order_by and return lowest value."""
+        post_a = await _create_post(session, "Post A", view_count=10)
+        await _create_post(session, "Post B", view_count=20)
+        await _create_post(session, "Post C", view_count=30)
+
+        result = await QBPost.objects.using(session).order_by("-view_count").last()
+        assert result is not None
+        assert result.id == post_a.id
+        assert result.view_count == 10
+
+    async def test_last_defaults_to_desc_id_when_no_order_by(
+        self, session: AsyncSession
+    ) -> None:
+        """last() should default to desc(id) when no order_by is specified."""
+        await _create_post(session, "Post A")
+        post_b = await _create_post(session, "Post B")
+
+        result = await QBPost.objects.using(session).last()
+        assert result is not None
+        assert result.id == post_b.id
+
 
 # ---------------------------------------------------------------------------
 # TestPaginate
@@ -444,10 +477,20 @@ class TestBulkOps:
     async def test_delete_all(self, session: AsyncSession) -> None:
         await _create_post(session, "P1")
         await _create_post(session, "P2")
-        count = await QBPost.objects.using(session).delete()
+        count = await QBPost.objects.using(session).delete(allow_unfiltered=True)
         assert count == 2
         remaining = await QBPost.objects.using(session).all()
         assert remaining == []
+
+    async def test_delete_all_without_allow_unfiltered_raises(
+        self, session: AsyncSession
+    ) -> None:
+        """delete() without filters and allow_unfiltered=False should raise ValueError."""
+        await _create_post(session, "P1")
+        await _create_post(session, "P2")
+
+        with pytest.raises(ValueError, match="Bulk delete of all records is not allowed"):
+            await QBPost.objects.using(session).delete()
 
     async def test_update_with_filter(self, session: AsyncSession) -> None:
         await _create_post(session, "Old Title", active=True)
@@ -681,7 +724,7 @@ class TestAggregate:
 
     async def test_aggregate_wrong_type_raises(self, session: AsyncSession) -> None:
         with pytest.raises(TypeError, match="Aggregate"):
-            await QBPost.objects.using(session).aggregate(bad="not_an_aggregate")  # type: ignore[arg-type]
+            await QBPost.objects.using(session).aggregate(bad="not_an_aggregate")
 
 
 # ---------------------------------------------------------------------------

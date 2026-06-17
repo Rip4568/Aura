@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from collections.abc import Generator
 from typing import Any
 
 import pytest
@@ -16,14 +17,14 @@ from aura.jobs.scheduler import CronScheduler
 # Mock task backend that acts as an SAQ / memory backend
 class MockBackend:
     def __init__(self) -> None:
-        self.enqueued = []
+        self.enqueued: list[tuple[Any, tuple[Any, ...], dict[str, Any]]] = []
 
-    async def enqueue(self, task: Any, args: tuple, kwargs: dict) -> None:
+    async def enqueue(self, task: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
         self.enqueued.append((task, args, kwargs))
 
 
 @pytest.fixture(autouse=True)
-def clean_registry() -> None:
+def clean_registry() -> Generator[None, None, None]:
     """Ensures a clean TaskRegistry state before and after each test."""
     original_tasks = dict(TaskRegistry.all())
     yield

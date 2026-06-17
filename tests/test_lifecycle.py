@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from starlette.testclient import TestClient
@@ -189,7 +189,7 @@ def test_url_for_in_templates() -> None:
     # url_for should now be a Jinja2 global
     assert "url_for" in engine._env.globals
 
-    url_fn = engine._env.globals["url_for"]
+    url_fn = cast(Any, engine._env.globals["url_for"])
 
     assert url_fn("health") == "/health"
     assert url_fn("swagger_ui") == "/docs"
@@ -208,7 +208,7 @@ def test_url_for_raises_for_unknown_route() -> None:
             self.path = path
 
     engine.register_routes([_FakeRoute("health", "/health")])
-    url_fn = engine._env.globals["url_for"]
+    url_fn = cast(Any, engine._env.globals["url_for"])
 
     with pytest.raises(RuntimeError, match="no route named"):
         url_fn("does_not_exist")
@@ -230,7 +230,7 @@ def test_url_for_registered_after_app_startup() -> None:
             resp = client.get("/health")
             assert resp.status_code == 200
 
-        url_fn = engine._env.globals.get("url_for")
+        url_fn = cast(Any, engine._env.globals.get("url_for"))
         assert url_fn is not None, "url_for global should be registered"
         assert url_fn("health") == "/health"
     finally:

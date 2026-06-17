@@ -21,6 +21,9 @@
         </div>
     </div>
 
+    <!-- CSRF token available for JS/form submissions on this page -->
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
     <!-- Search and Filter Form -->
     <form id="filter-form" 
           hx-get="/admin/{{ model_name_lower }}" 

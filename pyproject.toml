@@ -53,7 +53,7 @@ sqlalchemy = ["sqlalchemy[asyncio]>=2.0", "alembic>=1.13", "faker>=19.0"]
 saq = ["saq>=0.12"]
 taskiq = ["taskiq>=0.11", "taskiq-redis>=0.5"]
 redis = ["redis[asyncio]>=5.0"]
-jwt = ["python-jose[cryptography]>=3.3"]
+jwt = ["PyJWT[crypto]>=2.13.0"]
 session = ["itsdangerous>=2.1"]
 all = [
     "aura-web[granian,uvicorn,sqlalchemy,saq,redis,jwt,session,templates]"
@@ -90,6 +90,10 @@ ignore = ["ANN401"]
 python_version = "3.10"
 strict = true
 plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_decorators = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

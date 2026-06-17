@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, MutableMapping
+from typing import Any, cast
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -433,7 +434,7 @@ class TestDatabaseMiddleware:
             container = DIContainer()
             class MockApp:
                 class State:
-                    pass
+                    container: DIContainer
                 state = State()
             mock_app = MockApp()
             mock_app.state.container = container
@@ -441,7 +442,7 @@ class TestDatabaseMiddleware:
             # 2. Mock handler and middleware chain
             async def mock_endpoint(scope: Scope, receive: Receive, send: Send) -> None:
                 # Inside the request scope, resolve the session from the container
-                scoped_container = scope["state"]["container"]
+                scoped_container = cast(Any, scope)["state"]["container"]
                 session = await scoped_container.resolve(AsyncSession)
                 assert session is not None
                 repo = ItemRepository(session)
@@ -459,8 +460,10 @@ class TestDatabaseMiddleware:
                 "path": "/test",
                 "state": {},
             }
-            async def dummy_receive() -> dict: return {}
-            async def dummy_send(event: dict) -> None: pass
+            async def dummy_receive() -> dict[str, Any]:
+                return {}
+            async def dummy_send(event: MutableMapping[str, Any]) -> None:
+                pass
 
             # Run the request
             await di_mw(scope, dummy_receive, dummy_send)

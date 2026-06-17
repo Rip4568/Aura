@@ -8,6 +8,7 @@ No template engine setup is required.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from typing import Any
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -60,7 +61,7 @@ class RequestInspectController:
         return f"<p>method={request.method}</p>"
 
     @get("/req-json")
-    async def check_request_json(self, request: AuraRequest) -> dict:
+    async def check_request_json(self, request: AuraRequest) -> dict[str, Any]:
         return {"method": request.method}
 
 
@@ -77,7 +78,7 @@ class HtmlTestModule:
 
 
 @pytest.fixture
-async def html_client() -> AsyncClient:
+async def html_client() -> AsyncIterator[AsyncClient]:
     app = Aura(modules=[HtmlTestModule], title="HTML Test")
     async with AsyncClient(
         transport=ASGITransport(app=app),

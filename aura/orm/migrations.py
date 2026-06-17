@@ -115,26 +115,10 @@ def generate_env_py(migrations_dir: Path, model_import: str | None) -> str:
         )
     else:
         import_block = (
-            "# Import AuraModel and attempt to import main to auto-register all models.\n"
-            "from aura.orm import AuraModel\n"
-            "try:\n"
-            "    import main\n"
-            "except ImportError:\n"
-            "    pass\n\n"
-            "# Dynamically import all modules' models to register them on AuraModel.metadata\n"
-            "import os\n"
-            "import importlib\n"
-            "proj_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))\n"
-            "modules_dir = os.path.join(proj_dir, 'modules')\n"
-            "if os.path.exists(modules_dir):\n"
-            "    for root, dirs, files in os.walk(modules_dir):\n"
-            "        if 'models.py' in files:\n"
-            "            rel_path = os.path.relpath(root, proj_dir)\n"
-            "            import_path = f\"{rel_path.replace(os.sep, '.')}.models\"\n"
-            "            try:\n"
-            "                importlib.import_module(import_path)\n"
-            "            except Exception:\n"
-            "                pass\n\n"
+            "# Import your application models explicitly so Alembic can detect schema changes.\n"
+            "# Example:\n"
+            "# from myapp.users.models import User  # noqa: F401\n"
+            "from aura.orm import AuraModel\n\n"
             "target_metadata = AuraModel.metadata"
         )
 

@@ -141,6 +141,7 @@ class ModuleRegistry:
         self,
         openapi_gen: Any | None = None,
         global_guards: list[Any] | None = None,
+        global_prefix: str = "",
     ) -> list[Route | WebSocketRoute]:
         """Collect all routes from all registered modules.
 
@@ -148,6 +149,8 @@ class ModuleRegistry:
             openapi_gen: Optional OpenAPI generator to register route metadata
                 with.
             global_guards: Application-level guards to prepend.
+            global_prefix: URL prefix from :class:`~aura.core.app.Aura` applied
+                to every module route.
 
         Returns:
             Flat list of Starlette route objects.
@@ -155,13 +158,18 @@ class ModuleRegistry:
         from aura.routing.router import Router
 
         all_routes: list[Route | WebSocketRoute] = []
+        app_prefix = global_prefix.rstrip("/")
 
         for module_class in self._modules:
             meta = module_class.__aura_module__  # type: ignore[attr-defined]
-            module_prefix = meta.prefix
+            module_prefix = meta.prefix.rstrip("/")
+            if app_prefix and module_prefix:
+                combined_prefix = f"{app_prefix}/{module_prefix.lstrip('/')}"
+            else:
+                combined_prefix = app_prefix or module_prefix
             module_guards = list(global_guards or []) + list(meta.guards)
 
-            router = Router(prefix=module_prefix, tags=meta.tags)
+            router = Router(prefix=combined_prefix, tags=meta.tags)
 
             for controller in meta.controllers:
                 router.include_controller(controller, prefix="")

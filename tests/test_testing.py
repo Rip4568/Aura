@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from aura import Aura, Module, delete, get, patch, post, put
@@ -14,27 +16,27 @@ class TestController:
     """Controller for testing AuraTestClient capabilities."""
 
     @get("/test")
-    async def handle_get(self) -> dict:
+    async def handle_get(self) -> dict[str, Any]:
         return {"method": "GET"}
 
     @post("/test")
-    async def handle_post(self) -> dict:
+    async def handle_post(self) -> dict[str, Any]:
         return {"method": "POST"}
 
     @put("/test")
-    async def handle_put(self) -> dict:
+    async def handle_put(self) -> dict[str, Any]:
         return {"method": "PUT"}
 
     @patch("/test")
-    async def handle_patch(self) -> dict:
+    async def handle_patch(self) -> dict[str, Any]:
         return {"method": "PATCH"}
 
     @delete("/test")
-    async def handle_delete(self) -> dict:
+    async def handle_delete(self) -> dict[str, Any]:
         return {"method": "DELETE"}
 
     @_route_decorator("OPTIONS", "/test")
-    async def handle_options(self) -> dict:
+    async def handle_options(self) -> dict[str, Any]:
         return {"method": "OPTIONS"}
 
 

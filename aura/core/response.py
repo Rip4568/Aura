@@ -68,8 +68,19 @@ def no_content() -> Response:
     return Response(status_code=204)
 
 
+def _is_safe_redirect_url(url: str) -> bool:
+    """Allow only same-application relative paths (no open redirects)."""
+    if not url.startswith("/"):
+        return False
+    if url.startswith("//"):
+        return False
+    return "\\" not in url
+
+
 def redirect(url: str, permanent: bool = False) -> Response:
     """Shorthand for a redirect response.
+
+    Only relative paths starting with ``/`` are allowed to prevent open redirects.
 
     Args:
         url: The URL to redirect to.
@@ -77,7 +88,16 @@ def redirect(url: str, permanent: bool = False) -> Response:
 
     Returns:
         A :class:`~starlette.responses.Response` with the ``Location`` header set.
+
+    Raises:
+        BadRequestException: If *url* is not a safe relative path.
     """
+    from aura.exceptions.http import BadRequestException
+
+    if not _is_safe_redirect_url(url):
+        raise BadRequestException(
+            "Redirect URL must be a relative path starting with '/'"
+        )
     status_code = 308 if permanent else 307
     return Response(
         status_code=status_code,

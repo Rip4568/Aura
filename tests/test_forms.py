@@ -613,7 +613,7 @@ class TestFormsFixes:
         class SyncCleanForm(AuraForm):
             name = CharField()
 
-            def clean(self) -> None:
+            async def clean(self) -> None:
                 if self.cleaned_data.get("name") == "invalid":
                     raise FieldValidationError("Nome inválido.")
 

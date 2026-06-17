@@ -51,7 +51,7 @@ def test_schema_from_attributes() -> None:
 
 def test_schema_invalid_raises() -> None:
     with pytest.raises(ValidationError):
-        UserSchema(name="Alice")  # missing email
+        UserSchema(name="Alice", email="alice@example.com", age="not_an_int")
 
 
 def test_response_schema_inherits_schema() -> None:

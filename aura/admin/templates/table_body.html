@@ -35,6 +35,7 @@
                             <td class="px-6 py-4 text-sm font-medium text-right space-x-3 shrink-0">
                                 <a href="/admin/{{ model_name_lower }}/{{ item.id }}/edit" class="text-brand-400 hover:text-brand-300 transition-colors">Edit</a>
                                 <button hx-post="/admin/{{ model_name_lower }}/{{ item.id }}/delete"
+                                        hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'
                                         hx-confirm="Are you sure you want to delete this record?"
                                         hx-swap="none"
                                         class="text-rose-400 hover:text-rose-300 transition-colors">

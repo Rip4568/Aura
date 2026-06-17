@@ -221,7 +221,7 @@ class TestAlembicNotInstalled:
     """Tests for behaviour when Alembic is not available."""
 
     def test_alembic_not_installed_shows_error(self) -> None:
-        with patch.dict("sys.modules", {"alembic": None}):  # type: ignore[dict-item]
+        with patch.dict("sys.modules", {"alembic": None}):
             result = runner.invoke(app, ["make", "test"])
             assert result.exit_code == 1
             output_lower = result.output.lower()
@@ -371,6 +371,8 @@ class TestGenerateEnvPy:
         # Should not have a real import statement for an undefined module
         assert "from None" not in content
         assert "import None" not in content
+        assert "os.walk" not in content
+        assert "importlib.import_module" not in content
 
     def test_contains_alembic_context(self) -> None:
         content = generate_env_py(Path("migrations"), "app.models:Base")

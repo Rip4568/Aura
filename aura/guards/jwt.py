@@ -33,6 +33,9 @@ class JWTGuard(Guard):
         algorithm: JWT algorithm. Default: ``"HS256"``.
         auto_error: If ``True`` (default), raises 401 on failure. If ``False``, sets
                     ``request.state.user = None`` and allows the request through.
+        issuer: Optional expected ``iss`` claim.
+        audience: Optional expected ``aud`` claim.
+        require_exp: If ``True``, reject tokens without a valid ``exp`` claim.
     """
 
     def __init__(
@@ -41,10 +44,16 @@ class JWTGuard(Guard):
         secret: str,
         algorithm: str = "HS256",
         auto_error: bool = True,
+        issuer: str | None = None,
+        audience: str | None = None,
+        require_exp: bool = False,
     ) -> None:
         self.secret = secret
         self.algorithm = algorithm
         self.auto_error = auto_error
+        self.issuer = issuer
+        self.audience = audience
+        self.require_exp = require_exp
 
     async def can_activate(self, request: Request) -> bool:
         token = self._extract_token(request)
@@ -78,9 +87,25 @@ class JWTGuard(Guard):
 
     def _decode(self, token: str) -> dict[str, Any] | None:
         try:
-            from jose import JWTError, jwt  # noqa: F401
+            import jwt
 
-            return dict(jwt.decode(token, self.secret, algorithms=[self.algorithm]))
+            options: dict[str, Any] = {
+                "verify_signature": True,
+                "verify_exp": True,
+                "require": ["exp"] if self.require_exp else [],
+                "enforce_minimum_key_length": True,
+            }
+            payload = jwt.decode(
+                token,
+                self.secret,
+                algorithms=[self.algorithm],
+                issuer=self.issuer,
+                audience=self.audience,
+                options=options,  # type: ignore[arg-type]
+            )
+            if not isinstance(payload, dict):
+                return None
+            return dict(payload)
         except Exception:
             return None
 

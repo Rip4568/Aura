@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -44,7 +44,7 @@ class TestTimingInterceptor:
             return response
 
         request = MockRequest()
-        result = await interceptor.intercept(request, None, call_next)
+        result = await interceptor.intercept(request, cast(Any, None), call_next)
 
         assert "X-Process-Time" in result.headers
         assert isinstance(result.headers["X-Process-Time"], str)
@@ -59,7 +59,7 @@ class TestTimingInterceptor:
             return response
 
         request = MockRequest()
-        result = await interceptor.intercept(request, None, call_next)
+        result = await interceptor.intercept(request, cast(Any, None), call_next)
 
         header_value = result.headers["X-Process-Time"]
         elapsed = float(header_value)
@@ -80,7 +80,7 @@ class TestTimingInterceptor:
 
         request = MockRequest()
         # Should not raise
-        result = await interceptor.intercept(request, None, call_next)
+        result = await interceptor.intercept(request, cast(Any, None), call_next)
         assert result.status_code == 200
 
 
@@ -109,7 +109,7 @@ class TestRequestLogInterceptor:
         request = MockRequest(method="GET", path="/users/")
 
         with caplog.at_level(logging.INFO):
-            await interceptor.intercept(request, None, call_next)
+            await interceptor.intercept(request, cast(Any, None), call_next)
 
         assert "GET /users/ 200" in caplog.text
 
@@ -130,7 +130,7 @@ class TestRequestLogInterceptor:
         request = MockRequest(method="POST", path="/users/")
 
         with caplog.at_level(logging.INFO):
-            await interceptor.intercept(request, None, call_next)
+            await interceptor.intercept(request, cast(Any, None), call_next)
 
         # Verify the log message contains the structured fields
         assert "POST /users/ 201" in caplog.text
@@ -149,7 +149,7 @@ class TestRequestLogInterceptor:
         request = MockRequest(headers={"X-Custom": "value"})
 
         with caplog.at_level(logging.DEBUG):
-            await interceptor.intercept(request, None, call_next)
+            await interceptor.intercept(request, cast(Any, None), call_next)
 
         # Headers should not be logged
         assert "X-Custom" not in caplog.text or "Request headers" not in caplog.text
