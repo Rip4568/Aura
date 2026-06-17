@@ -387,6 +387,8 @@ published_posts = await published_factory.create_many(3)
 
 > **Hardening (v1.2.x):** parâmetros inválidos retornam **422**; `redirect()` aceita só paths relativos; logs de startup redactam secrets; extra `[jwt]` usa **PyJWT**. Ver [ADR-001](docs/decisions/ADR-001-security-hardening.md).
 
+> **Estabilidade (v1.3.x — Wave 3):** `DatabaseMiddleware` fail-fast em falha de init; `RateLimitGuard` com headers `X-RateLimit-*`; `aura worker --burst` funcional com SAQ; templates exigem `await component(...)`. Ver [ADR-002](docs/decisions/ADR-002-async-templates-only.md) e [CHANGELOG](CHANGELOG.md).
+
 ### JWTGuard — autenticação Bearer
 
 Requer `pip install "aura-web[jwt]"` (instala **PyJWT[crypto]**, não `python-jose`).
@@ -427,11 +429,23 @@ from aura import post, Module, Body
 from aura.guards import RateLimitGuard
 
 class AuthController:
-    @post("/login", guards=[RateLimitGuard(max_requests=5, window=60)])
+    @post("/login", guards=[RateLimitGuard(max_requests=5, window_seconds=60)])
     async def login(self, body: Body[LoginDTO]) -> TokenResponse:
         # Máximo 5 tentativas por minuto por IP
         ...
 ```
+
+Em **429**, o guard retorna headers alinhados ao `RateLimitMiddleware`:
+
+| Header | Significado |
+|--------|-------------|
+| `X-RateLimit-Limit` | Máximo de requisições na janela |
+| `X-RateLimit-Remaining` | `0` quando bloqueado |
+| `Retry-After` | Segundos até nova tentativa |
+
+Parâmetro `max_tracked_keys` (padrão `10000`) limita chaves em memória com eviction LRU — útil em rotas públicas com muitos IPs distintos.
+
+> **Nota:** o parâmetro é `window_seconds`, não `window`. Mensagens de erro do framework são em **inglês** (corpo JSON e texto plano); a documentação do projeto está em português.
 
 ### SessionMiddleware — sessões em cookie
 
@@ -496,6 +510,42 @@ await Post.objects.delete()  # ValueError
 await Post.objects.filter(archived=True).delete()
 await Post.objects.delete(allow_unfiltered=True)  # intencional
 ```
+
+### DatabaseMiddleware — fail-fast (v1.3.x)
+
+Se o banco não inicializar (URL inválida, driver ausente, lazy-init em TestClient), o middleware retorna **500** com corpo acionável em vez de deixar a requisição falhar depois sem sessão:
+
+```
+Service Unavailable: Database initialization failed.
+Set AURA__DATABASE__URL env var or configure [database] url in aura.toml.
+```
+
+Configure antes de subir o app:
+
+```bash
+export AURA__DATABASE__URL=sqlite+aiosqlite:///./app.db
+# ou em aura.toml: [database] url = "..."
+```
+
+### Templates — `await component(...)` (breaking change v1.3.x)
+
+Componentes Jinja2 são assíncronos. Use `await` em cada chamada:
+
+```jinja2
+{# Correto (v1.3.0+) #}
+{{ await component('user_card', user=user, show_email=True) }}
+
+{% for btn in buttons %}
+  {{ await component('button', label=btn) }}
+{% endfor %}
+```
+
+```diff
+- {{ component('button', label='Click') }}
++ {{ await component('button', label='Click') }}
+```
+
+Sem `await`, o Jinja2 pode renderizar uma coroutine como texto ou lançar `TemplateRuntimeError`. Migração completa: [ADR-002](docs/decisions/ADR-002-async-templates-only.md).
 
 ---
 
@@ -672,10 +722,12 @@ aura migrate stamp head                   # marca revisão sem rodar SQL
 aura migrate reset                        # limpa banco + reaplica tudo (dev)
 
 # Workers (jobs assíncronos)
-aura worker                               # processa todas as filas (MemoryBackend em dev)
-aura worker --queue emails --queue push   # filas específicas
+aura worker                               # fila default, concurrency 4
+aura worker --queue emails --queue push   # múltiplas filas (-q repetível)
+aura worker --burst                       # processa fila e encerra (CI, one-shot)
+aura worker --app main:app                # importa app para registrar @task
 aura worker --broker-url redis://...      # SAQ com Redis em produção
-aura worker --concurrency 8              # workers paralelos
+aura worker --concurrency 8               # workers paralelos
 
 # Shell interativo (Aura Tinker REPL)
 aura tinker                               # inicia o shell interativo assíncrono (IPython)
@@ -710,7 +762,10 @@ await send_welcome_email.dispatch(user_id=42, email="user@example.com")
 # Com AURA__JOBS__BROKER_URL=redis://... → SAQ com Redis
 
 export AURA__JOBS__BROKER_URL=redis://localhost:6379
-aura worker
+aura worker --app main:app -q emails -q default
+
+# One-shot: drena jobs existentes e sai (útil em deploy/CI)
+aura worker --burst --app main:app
 ```
 
 ---
@@ -1013,7 +1068,7 @@ Confira a [Documentação Detalhada do Aura Tinker](docs/tinker.md) para ver exe
 ### Auth & Segurança
 
 - [x] `JWTGuard` — valida `Authorization: Bearer`, popula `request.state.user` (requer `aura-web[jwt]` / PyJWT)
-- [x] `RateLimitGuard` — rate limit por rota (sliding window, só stdlib)
+- [x] `RateLimitGuard` — sliding window, LRU, headers `X-RateLimit-*` em 429
 - [x] `SessionMiddleware` — sessões assinadas em cookie (requer `aura-web[session]`)
 - [x] `RateLimitMiddleware` — rate limit global por IP (atômico, headers `X-RateLimit-*`)
 - [x] `CORSMiddleware`
@@ -1058,7 +1113,7 @@ Confira a [Documentação Detalhada do Aura Tinker](docs/tinker.md) para ver exe
 - [x] `aura generate module --with-db` — descomenta models.py e repository.py com código real
 - [x] `aura run` (uvicorn/granian)
 - [x] `aura migrate init/make/up/down/stamp/status/reset` — Alembic com UX melhorada (spinners, cores)
-- [x] `aura worker` — SAQ nativo em produção, MemoryBackend em dev
+- [x] `aura worker` — SAQ nativo; `--queue`, `--burst`, `--app` funcionais em produção
 - [x] `aura tinker` — shell REPL interativo com auto-discovery assíncrono e top-level await
 
 ### Observabilidade & Logging (AuraLogSystem v1.0)
@@ -1121,7 +1176,10 @@ Confira a [Documentação Detalhada do Aura Tinker](docs/tinker.md) para ver exe
 | ---------------------------------------------------------- | ------------------------------ | ---------------------------------------- |
 | `static()` em templates retorna `/static/{path}` hardcoded | Baixo                          | Usar Starlette `StaticFiles` diretamente |
 | `QuerySet.delete()` sem filtros exige `allow_unfiltered=True` | Médio — breaking v1.2.x | Usar `.filter()` ou opt-in explícito |
+| `component(...)` em templates exige `await` (v1.3.x) | Médio — breaking | `{{ await component(...) }}` — [ADR-002](docs/decisions/ADR-002-async-templates-only.md) |
 | `redirect()` rejeita URLs absolutas | Baixo | Usar `RedirectResponse` para externos |
+| `RateLimitGuard` sem headers em 200 (só em 429) | Baixo | Usar `RateLimitMiddleware` global se precisar de `Remaining` em toda resposta |
+| Mensagens de erro HTTP em inglês; docs em português | Baixo | Customizar `message=` em guards/exceptions |
 | `aura run --reload` reinicia o processo inteiro            | Baixo em dev                   | Comportamento normal do uvicorn          |
 
 
@@ -1152,5 +1210,6 @@ MIT © Jonathas David
 <p align="center">
   <a href="https://pypi.org/project/aura-web/">PyPI</a> ·
   <a href="docs/">Documentação</a> ·
+  <a href="CHANGELOG.md">Changelog</a> ·
   <a href="https://github.com/jonathasdavidd/Aura/issues">Issues</a>
 </p>
