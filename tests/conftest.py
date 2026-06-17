@@ -40,6 +40,20 @@ async def client(simple_app: Aura) -> AsyncIterator[AuraTestClient]:
 
 
 @pytest.fixture(autouse=True)
+def reset_task_registry() -> Generator[None, None, None]:
+    """Reset TaskRegistry before and after each test.
+    
+    This ensures that tasks registered in one test do not leak into other tests,
+    preventing test pollution and isolation issues.
+    """
+    from aura.jobs.base import TaskRegistry
+    
+    TaskRegistry.clear()
+    yield
+    TaskRegistry.clear()
+
+
+@pytest.fixture(autouse=True)
 def reset_logging() -> Generator[None, None, None]:
     """Reset logging configuration before each test.
 

@@ -390,3 +390,126 @@ class TestWorkerCommand:
                 app_path="no_such_module_xyz:app",
                 broker_url=cast(str, None),
             )
+
+
+# ---------------------------------------------------------------------------
+# Task A8: TaskRegistry isolation
+# ---------------------------------------------------------------------------
+
+
+class TestTaskRegistryIsolation:
+    """Tests for TaskRegistry clear() and fixture isolation."""
+
+    def test_task_registry_clear_removes_all_tasks(self) -> None:
+        """TaskRegistry.clear() should remove all registered tasks."""
+        from aura.jobs.base import TaskDefinition, TaskRegistry
+
+        # Register a task
+        def dummy_func() -> None:
+            pass
+
+        task_def = TaskDefinition(func=dummy_func, name="test_task")
+        TaskRegistry.register(task_def)
+
+        # Verify it's registered
+        assert "test_task" in TaskRegistry.all()
+
+        # Clear
+        TaskRegistry.clear()
+
+        # Verify it's gone
+        assert "test_task" not in TaskRegistry.all()
+        assert len(TaskRegistry.all()) == 0
+
+    def test_task_registry_isolates_between_registrations(self) -> None:
+        """TaskRegistry should isolate tasks when clear() is called between calls."""
+        from aura.jobs.base import TaskDefinition, TaskRegistry
+
+        # Register task A
+        def task_a() -> None:
+            pass
+
+        task_def_a = TaskDefinition(func=task_a, name="task_a")
+        TaskRegistry.register(task_def_a)
+        assert "task_a" in TaskRegistry.all()
+
+        # Clear
+        TaskRegistry.clear()
+        assert "task_a" not in TaskRegistry.all()
+
+        # Register task B
+        def task_b() -> None:
+            pass
+
+        task_def_b = TaskDefinition(func=task_b, name="task_b")
+        TaskRegistry.register(task_def_b)
+
+        # Verify only task B is present (task A did not leak)
+        registry = TaskRegistry.all()
+        assert "task_b" in registry
+        assert "task_a" not in registry
+        assert len(registry) == 1
+
+
+# ---------------------------------------------------------------------------
+# Task A7: AuraWorker queues/burst parameters
+# ---------------------------------------------------------------------------
+
+
+class TestAuraWorkerQueuesAndBurst:
+    """Tests for AuraWorker queues and burst parameters."""
+
+    def test_worker_respects_queues_parameter(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AuraWorker.queues should be set from constructor."""
+        monkeypatch.delenv("AURA__JOBS__BROKER_URL", raising=False)
+
+        from aura.jobs.backends.memory import MemoryBackend
+        from aura.jobs.worker import AuraWorker
+
+        worker = AuraWorker(
+            backend=MemoryBackend(),
+            queues=["emails", "backups", "default"],
+        )
+        assert worker.queues == ["emails", "backups", "default"]
+
+    def test_worker_respects_burst_parameter(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AuraWorker.burst should be set from constructor."""
+        monkeypatch.delenv("AURA__JOBS__BROKER_URL", raising=False)
+
+        from aura.jobs.backends.memory import MemoryBackend
+        from aura.jobs.worker import AuraWorker
+
+        worker = AuraWorker(
+            backend=MemoryBackend(),
+            burst=True,
+        )
+        assert worker.burst is True
+
+    def test_worker_default_queues(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AuraWorker should default to ['default'] queue."""
+        monkeypatch.delenv("AURA__JOBS__BROKER_URL", raising=False)
+
+        from aura.jobs.backends.memory import MemoryBackend
+        from aura.jobs.worker import AuraWorker
+
+        worker = AuraWorker(backend=MemoryBackend())
+        assert worker.queues == ["default"]
+
+    def test_worker_default_burst(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """AuraWorker should default to burst=False."""
+        monkeypatch.delenv("AURA__JOBS__BROKER_URL", raising=False)
+
+        from aura.jobs.backends.memory import MemoryBackend
+        from aura.jobs.worker import AuraWorker
+
+        worker = AuraWorker(backend=MemoryBackend())
+        assert worker.burst is False
+

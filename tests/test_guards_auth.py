@@ -394,6 +394,69 @@ class TestRateLimitGuard:
             r2 = await c.get("/limited", headers={"X-Forwarded-For": "192.168.1.100"})
             assert r2.status_code == 429
 
+    @pytest.mark.asyncio
+    async def test_rate_limit_guard_returns_429_with_headers(self) -> None:
+        """Test that RateLimitGuard returns proper rate-limit headers on 429."""
+        limit = RateLimitGuard(max_requests=1, window_seconds=60)
+
+        class TestController:
+            def __init__(self) -> None:
+                pass
+
+            @get("/limited", guards=[limit])
+            async def limited(self) -> dict[str, Any]:
+                return {"ok": True}
+
+        @Module(controllers=[TestController], prefix="")
+        class TestModule:
+            pass
+
+        app = Aura(modules=[TestModule])
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as c:
+            # First request succeeds
+            r1 = await c.get("/limited")
+            assert r1.status_code == 200
+            # Second request is blocked
+            r2 = await c.get("/limited")
+            assert r2.status_code == 429
+            # Check rate-limit headers
+            assert "x-ratelimit-limit" in r2.headers
+            assert r2.headers["x-ratelimit-limit"] == "1"
+            assert "x-ratelimit-remaining" in r2.headers
+            assert r2.headers["x-ratelimit-remaining"] == "0"
+            assert "retry-after" in r2.headers
+            assert r2.headers["retry-after"] == "60"
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_guard_lru_eviction(self) -> None:
+        """Test that RateLimitGuard evicts oldest keys when max_tracked_keys exceeded."""
+        # Create guard with very low max_tracked_keys to test eviction
+        limit = RateLimitGuard(max_requests=100, window_seconds=60, max_tracked_keys=2)
+
+        # Manually simulate requests from 3 different keys
+        # First key
+        limit._requests["key1"] = [1.0, 2.0]
+        limit._key_order.append("key1")
+        # Second key
+        limit._requests["key2"] = [1.5, 2.5]
+        limit._key_order.append("key2")
+
+        # When we add a third key, oldest (key1) should be evicted
+        limit._requests["key3"] = [1.7]
+        limit._key_order.append("key3")
+
+        # Trigger cleanup
+        if len(limit._requests) > limit.max_tracked_keys:
+            limit._cleanup_oldest_key()
+
+        # Verify key1 was evicted
+        assert "key1" not in limit._requests
+        assert "key2" in limit._requests
+        assert "key3" in limit._requests
+
 
 # ---------------------------------------------------------------------------
 # SessionMiddleware tests
