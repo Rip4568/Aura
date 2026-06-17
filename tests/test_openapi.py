@@ -233,3 +233,52 @@ class TestOpenAPIGenerator:
         )
         assert query_param is not None
         assert query_param["in"] == "query"
+
+    def test_jwt_guard_security_schemes(self) -> None:
+        """Routes protected by JWTGuard should expose BearerAuth in OpenAPI."""
+        from aura.guards.jwt import JWTGuard
+
+        guard = JWTGuard(secret="test-secret")
+        generator = OpenAPIGenerator(title="Test API", version="1.0.0")
+        generator.add_route(
+            {
+                "method": "GET",
+                "path": "/me",
+                "status": 200,
+                "tags": ["auth"],
+                "summary": "Current user",
+                "operation_id": "get_me",
+                "deprecated": False,
+                "parameters": [],
+                "guards": [guard],
+            }
+        )
+
+        spec = generator.generate()
+        security_schemes = spec["components"]["securitySchemes"]
+
+        assert "BearerAuth" in security_schemes
+        assert security_schemes["BearerAuth"] == {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+        }
+        assert spec["paths"]["/me"]["get"]["security"] == [{"BearerAuth": []}]
+
+    def test_router_tags_merge(self) -> None:
+        """Router-level tags should merge with route-level tags without duplicates."""
+        from aura import get
+        from aura.routing.router import Router
+
+        @get("/items", tags=["items"])
+        async def list_items() -> dict[str, str]:
+            return {"ok": "true"}
+
+        generator = OpenAPIGenerator(title="Test API", version="1.0.0")
+        router = Router(prefix="/api", tags=["catalog"])
+        router.add_handler(list_items)
+        router.build_routes(openapi_gen=generator)
+
+        spec = generator.generate()
+        operation = spec["paths"]["/api/items"]["get"]
+        assert operation["tags"] == ["catalog", "items"]

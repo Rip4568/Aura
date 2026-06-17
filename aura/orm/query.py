@@ -426,6 +426,24 @@ class QuerySet(Generic[ModelT]):
 
     # ── Debug ─────────────────────────────────────────────────────────────
 
+    def _compile_parameterized(self, stmt: Any) -> tuple[str, dict[str, Any], str]:
+        """Compile *stmt* with bound parameters (never literal interpolation)."""
+        session = self._get_session()
+        bind = session.get_bind()
+        dialect = bind.dialect if hasattr(bind, "dialect") else None
+        dialect_name = dialect.name if dialect is not None else "sqlite"
+        # Compile without a dialect so placeholders stay named (:param) and
+        # bind correctly when wrapped in text() for EXPLAIN execution.
+        compiled = stmt.compile(compile_kwargs={"literal_binds": False})
+        return str(compiled), dict(compiled.params), dialect_name
+
+    @staticmethod
+    def _explain_prefix(dialect_name: str) -> str:
+        """Return the dialect-specific EXPLAIN prefix."""
+        if dialect_name == "postgresql":
+            return "EXPLAIN (ANALYZE, FORMAT TEXT)"
+        return "EXPLAIN QUERY PLAN"
+
     def sql(self) -> str:
         """Return the compiled SQL string without executing.
 
@@ -442,24 +460,14 @@ class QuerySet(Generic[ModelT]):
         """Run EXPLAIN on the query and return formatted output.
 
         Uses EXPLAIN QUERY PLAN for SQLite, EXPLAIN (ANALYZE) for PostgreSQL.
+        The inner query is always compiled with ``literal_binds=False`` so
+        user-supplied values are passed as bound parameters.
         """
         stmt = self._build_stmt()
-        # Compile standard parameterized statement
-        compiled = stmt.compile()
-        sql_str = str(compiled)
-
+        sql_str, params, dialect_name = self._compile_parameterized(stmt)
+        explain_sql = f"{self._explain_prefix(dialect_name)} {sql_str}"
         session = self._get_session()
-        # Detect dialect from the engine URL via the bind
-        bind = session.get_bind()
-        dialect_name: str = bind.dialect.name if hasattr(bind, "dialect") else "sqlite"
-
-        if dialect_name == "postgresql":
-            explain_sql = f"EXPLAIN (ANALYZE, FORMAT TEXT) {sql_str}"
-        else:
-            explain_sql = f"EXPLAIN QUERY PLAN {sql_str}"
-
-        # Execute using parameterized bindings securely
-        result = await session.execute(text(explain_sql), compiled.params)
+        result = await session.execute(text(explain_sql), params)
         rows = result.fetchall()
         return "\n".join(str(row) for row in rows)
 

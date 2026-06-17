@@ -64,6 +64,7 @@ dev = [
     "pytest-cov>=4.1",
     "httpx>=0.26",
     "mypy>=1.8",
+    "types-croniter>=2.0",
     "ruff>=0.2",
     "ipython>=8.0",
     "nest-asyncio>=1.5",

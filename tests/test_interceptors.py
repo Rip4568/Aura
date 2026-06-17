@@ -9,6 +9,7 @@ import pytest
 
 from aura.interceptors.logging import LoggingInterceptor, RequestLogInterceptor
 from aura.interceptors.timing import TimingInterceptor
+from aura.logging.constants import REDACTED_VALUE
 from aura.logging.context import clear_context, set_request_id, set_user_id
 
 
@@ -153,6 +154,35 @@ class TestRequestLogInterceptor:
 
         # Headers should not be logged
         assert "X-Custom" not in caplog.text or "Request headers" not in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_request_log_interceptor_redacts_sensitive_headers(
+        self, caplog: Any
+    ) -> None:
+        """Test that sensitive headers are redacted when log_headers=True."""
+        interceptor = RequestLogInterceptor(log_headers=True)
+        response = MockResponse(200)
+
+        async def call_next(request: Any) -> MockResponse:
+            return response
+
+        request = MockRequest(
+            headers={
+                "Authorization": "Bearer secret-token",
+                "Cookie": "session=abc123",
+                "X-Api-Key": "my-api-key",
+                "Content-Type": "application/json",
+            }
+        )
+
+        with caplog.at_level(logging.DEBUG):
+            await interceptor.intercept(request, cast(Any, None), call_next)
+
+        assert "secret-token" not in caplog.text
+        assert "abc123" not in caplog.text
+        assert "my-api-key" not in caplog.text
+        assert REDACTED_VALUE in caplog.text
+        assert "application/json" in caplog.text
 
     @pytest.mark.asyncio
     async def test_logging_interceptor_is_alias(self) -> None:

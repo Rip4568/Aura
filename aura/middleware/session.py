@@ -106,7 +106,7 @@ class SessionMiddleware:
         async def send_wrapper(message: dict[str, Any]) -> None:
             if message["type"] == "http.response.start":
                 current_session = scope["state"].get("session", {})
-                if current_session != initial_session or current_session:
+                if current_session != initial_session:
                     cookie_value = self._save_session(current_session)
                     cookie_str = (
                         f"{self.session_cookie}={cookie_value}; "

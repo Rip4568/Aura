@@ -114,3 +114,16 @@ class JWTGuard(Guard):
             "Unauthorized",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    def openapi_security_scheme_name(self) -> str:
+        return "BearerAuth"
+
+    def openapi_security_scheme(self) -> dict[str, Any]:
+        return {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+        }
+
+    def openapi_security_requirement(self) -> dict[str, list[str]]:
+        return {self.openapi_security_scheme_name(): []}

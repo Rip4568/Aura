@@ -10,6 +10,7 @@ from starlette.types import ASGIApp
 
 from aura import Aura, Module, get
 from aura.guards.rate_limit import RateLimitGuard
+from aura.middleware.rate_limit_backends.memory import MemoryBackend
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -433,29 +434,30 @@ class TestRateLimitGuard:
     @pytest.mark.asyncio
     async def test_rate_limit_guard_lru_eviction(self) -> None:
         """Test that RateLimitGuard evicts oldest keys when max_tracked_keys exceeded."""
-        # Create guard with very low max_tracked_keys to test eviction
         limit = RateLimitGuard(max_requests=100, window_seconds=60, max_tracked_keys=2)
+        backend = limit._backend
+        assert isinstance(backend, MemoryBackend)
 
-        # Manually simulate requests from 3 different keys
-        # First key
-        limit._requests["key1"] = [1.0, 2.0]
-        limit._key_order.append("key1")
-        # Second key
-        limit._requests["key2"] = [1.5, 2.5]
-        limit._key_order.append("key2")
+        backend._requests["key1"] = [1.0, 2.0]
+        backend._key_order.append("key1")
+        backend._requests["key2"] = [1.5, 2.5]
+        backend._key_order.append("key2")
+        backend._requests["key3"] = [1.7]
+        backend._key_order.append("key3")
 
-        # When we add a third key, oldest (key1) should be evicted
-        limit._requests["key3"] = [1.7]
-        limit._key_order.append("key3")
+        if len(backend._requests) > limit.max_tracked_keys:
+            backend._cleanup_oldest_key()
 
-        # Trigger cleanup
-        if len(limit._requests) > limit.max_tracked_keys:
-            limit._cleanup_oldest_key()
+        assert "key1" not in backend._requests
+        assert "key2" in backend._requests
+        assert "key3" in backend._requests
 
-        # Verify key1 was evicted
-        assert "key1" not in limit._requests
-        assert "key2" in limit._requests
-        assert "key3" in limit._requests
+    @pytest.mark.asyncio
+    async def test_rate_limit_guard_defaults_to_memory_backend(self) -> None:
+        """Test that the default backend is MemoryBackend with LRU."""
+        limit = RateLimitGuard(max_requests=5, window_seconds=60)
+        assert isinstance(limit._backend, MemoryBackend)
+        assert limit._backend._max_tracked_keys == 10000
 
 
 # ---------------------------------------------------------------------------
@@ -540,6 +542,49 @@ async def test_session_middleware_round_trip() -> None:
         r2 = await c.get("/get")
         assert r2.status_code == 200
         assert r2.json()["key"] == "hello"
+
+
+@pytest.mark.asyncio
+async def test_session_middleware_no_cookie_when_unchanged() -> None:
+    """Set-Cookie should not be sent when the session was not modified."""
+    try:
+        import itsdangerous  # noqa: F401
+    except ImportError:
+        pytest.skip("itsdangerous not installed")
+
+    from aura.middleware.session import SessionMiddleware
+
+    class TestController:
+        def __init__(self) -> None:
+            pass
+
+        @get("/set")
+        async def set_session(self, request: Request) -> dict[str, Any]:
+            request.state.session["key"] = "hello"
+            return {"ok": True}
+
+        @get("/read")
+        async def read_session(self, request: Request) -> dict[str, Any]:
+            return {"key": request.state.session.get("key")}
+
+    @Module(controllers=[TestController], prefix="")
+    class TestModule:
+        pass
+
+    raw_app = Aura(modules=[TestModule])
+    app = SessionMiddleware(raw_app, secret_key="test-secret")
+
+    async with AsyncClient(
+        transport=ASGITransport(app=cast(ASGIApp, app)), base_url="http://test"
+    ) as c:
+        r1 = await c.get("/set")
+        assert r1.status_code == 200
+        assert r1.headers.get("set-cookie") is not None
+
+        r2 = await c.get("/read")
+        assert r2.status_code == 200
+        assert r2.json()["key"] == "hello"
+        assert r2.headers.get("set-cookie") is None
 
 
 @pytest.mark.asyncio

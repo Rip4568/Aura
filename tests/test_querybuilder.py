@@ -596,6 +596,16 @@ class TestDebug:
         result = await QBPost.objects.using(session).explain()
         assert isinstance(result, str)
 
+    async def test_explain_uses_parameter_binding(self, session: AsyncSession) -> None:
+        """explain() must compile with literal_binds=False for user values."""
+        payload = "'; DROP TABLE qb_posts; --"
+        qs = QBPost.objects.using(session).filter(title=payload)
+        sql_str, params, dialect_name = qs._compile_parameterized(qs._build_stmt())
+        assert payload not in sql_str
+        assert len(params) > 0
+        assert dialect_name == "sqlite"
+        assert qs._explain_prefix(dialect_name) == "EXPLAIN QUERY PLAN"
+
 
 # ---------------------------------------------------------------------------
 # TestQObject

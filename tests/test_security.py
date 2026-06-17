@@ -97,6 +97,10 @@ async def test_explain_sql_injection_protection() -> None:
             assert isinstance(explain_output, str)
             assert len(explain_output) > 0
 
+            sql_str, params, _ = qs.using(session)._compile_parameterized(qs._build_stmt())
+            assert malicious_payload not in sql_str
+            assert len(params) > 0
+
             # Double check database is completely intact (no DROP TABLE took effect)
             users = await qs.using(session).all()
             assert len(users) == 0

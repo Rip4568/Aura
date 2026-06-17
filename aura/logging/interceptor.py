@@ -6,8 +6,10 @@ import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from aura.logging.constants import DEFAULT_SENSITIVE_FIELDS
 from aura.logging.context import clear_context, set_request_id
 from aura.logging.logger import Log
+from aura.logging.sanitizer import Sanitizer
 
 
 class RequestLogInterceptor:
@@ -46,6 +48,7 @@ class RequestLogInterceptor:
         self.extract_request_id_header = extract_request_id_header.lower()
         self.log_headers = log_headers
         self.generate_request_id = generate_request_id
+        self._sanitizer = Sanitizer(list(DEFAULT_SENSITIVE_FIELDS))
 
     async def __call__(
         self,
@@ -84,7 +87,8 @@ class RequestLogInterceptor:
 
         # Log headers if enabled
         if self.log_headers:
-            Log.debug("Request headers", headers=headers)
+            sanitized = self._sanitizer.sanitize_headers(headers)
+            Log.debug("Request headers", headers=sanitized)
 
         try:
             # Call wrapped app
