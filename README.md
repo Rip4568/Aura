@@ -9,7 +9,7 @@
     <img src="https://img.shields.io/badge/pydantic-v2-orange?style=flat-square" />
     <img src="https://img.shields.io/badge/pypi-aura--web-purple?style=flat-square" />
     <img src="https://img.shields.io/pypi/v/aura-web?style=flat-square&color=blue" />
-    <img src="https://img.shields.io/badge/tests-607%20passing-brightgreen?style=flat-square" />
+    <img src="https://img.shields.io/badge/tests-647%20passing-brightgreen?style=flat-square" />
     <img src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square" />
     <img src="https://img.shields.io/badge/status-alpha-red?style=flat-square" />
   </p>
@@ -389,6 +389,8 @@ published_posts = await published_factory.create_many(3)
 
 > **Estabilidade (v1.3.x — Wave 3):** `DatabaseMiddleware` fail-fast em falha de init; `RateLimitGuard` com headers `X-RateLimit-*`; `aura worker --burst` funcional com SAQ; templates exigem `await component(...)`. Ver [ADR-002](docs/decisions/ADR-002-async-templates-only.md) e [CHANGELOG](CHANGELOG.md).
 
+> **DX & Observabilidade (v1.4.x — Wave 4):** rate limit com backend Redis para multi-worker; `JWTGuard` expõe `BearerAuth` no Swagger; `Router.tags` faz merge com tags de rota; `RequestLogInterceptor` redacta headers sensíveis. Ver [CHANGELOG](CHANGELOG.md).
+
 ### JWTGuard — autenticação Bearer
 
 Requer `pip install "aura-web[jwt]"` (instala **PyJWT[crypto]**, não `python-jose`).
@@ -444,6 +446,68 @@ Em **429**, o guard retorna headers alinhados ao `RateLimitMiddleware`:
 | `Retry-After` | Segundos até nova tentativa |
 
 Parâmetro `max_tracked_keys` (padrão `10000`) limita chaves em memória com eviction LRU — útil em rotas públicas com muitos IPs distintos.
+
+### Rate limit distribuído com Redis (v1.4.x)
+
+Em produção com múltiplos workers (`aura run --workers 4`), use `RedisBackend` para compartilhar contadores entre processos:
+
+```python
+from aura import Aura
+from aura.middleware import RateLimitMiddleware
+from aura.middleware.rate_limit_backends import RedisBackend
+from starlette.middleware import Middleware
+
+redis_backend = RedisBackend(redis_url="redis://localhost:6379")
+
+app = Aura(
+    modules=[...],
+    middleware=[
+        Middleware(
+            RateLimitMiddleware,
+            max_requests=100,
+            window_seconds=60,
+            backend=redis_backend,
+        ),
+    ],
+)
+```
+
+O mesmo backend funciona no `RateLimitGuard` por rota:
+
+```python
+from aura.guards import RateLimitGuard
+from aura.middleware.rate_limit_backends import RedisBackend
+
+login_limit = RateLimitGuard(
+    max_requests=5,
+    window_seconds=60,
+    backend=RedisBackend(redis_url="redis://localhost:6379"),
+)
+```
+
+Requer `pip install "aura-web[redis]"`. Sem Redis, o padrão continua sendo `MemoryBackend` (adequado para dev e single-process).
+
+### OpenAPI — `BearerAuth` no Swagger (v1.4.x)
+
+Rotas protegidas por `JWTGuard` expõem automaticamente o esquema `BearerAuth` em `/docs` e `/redoc`:
+
+```python
+from aura import get, Module
+from aura.guards import JWTGuard
+
+jwt = JWTGuard(secret="sua-chave-secreta")
+
+class UserController:
+    @get("/me", guards=[jwt])
+    async def get_me(self) -> dict:
+        ...
+
+# Tags do Router são mescladas com tags da rota (sem duplicatas):
+# Router(prefix="/api", tags=["catalog"]) + @get("/items", tags=["items"])
+# → operation.tags == ["catalog", "items"]
+```
+
+No Swagger UI, use **Authorize** com `Bearer <token>`.
 
 > **Nota:** o parâmetro é `window_seconds`, não `window`. Mensagens de erro do framework são em **inglês** (corpo JSON e texto plano); a documentação do projeto está em português.
 
@@ -837,20 +901,24 @@ async def handle_request():
 Para que todas as requisições HTTP tenham um `request_id` único e gerem logs automáticos de acesso, basta usar o `RequestLogInterceptor` como middleware ASGI em seu `main.py`:
 
 ```python
+from starlette.middleware import Middleware
 from aura import Aura
 from aura.logging import RequestLogInterceptor
 
 app = Aura(
     modules=[...],
     middleware=[
-        RequestLogInterceptor(
-            log_headers=False,            # Se True, loga os headers das requisições em DEBUG
-            generate_request_id=True,     # Se True, gera UUIDs quando X-Request-ID não for enviado
-            extract_request_id_header="x-request-id"
+        Middleware(
+            RequestLogInterceptor,
+            log_headers=True,             # DEBUG: headers com redação automática (v1.4.x)
+            generate_request_id=True,     # Gera UUID quando X-Request-ID não for enviado
+            extract_request_id_header="x-request-id",
         ),
-    ]
+    ],
 )
 ```
+
+Com `log_headers=True`, campos sensíveis (`authorization`, `cookie`, `x-api-key`, etc.) são substituídos por `***REDACTED***` antes de ir para o log — o mesmo `Sanitizer` usado nos formatadores estruturados.
 
 #### 4. Sanitização Automática
 
@@ -1070,7 +1138,7 @@ Confira a [Documentação Detalhada do Aura Tinker](docs/tinker.md) para ver exe
 - [x] `JWTGuard` — valida `Authorization: Bearer`, popula `request.state.user` (requer `aura-web[jwt]` / PyJWT)
 - [x] `RateLimitGuard` — sliding window, LRU, headers `X-RateLimit-*` em 429
 - [x] `SessionMiddleware` — sessões assinadas em cookie (requer `aura-web[session]`)
-- [x] `RateLimitMiddleware` — rate limit global por IP (atômico, headers `X-RateLimit-*`)
+- [x] `RateLimitMiddleware` — rate limit global por IP (backend memória ou Redis, headers `X-RateLimit-*`)
 - [x] `CORSMiddleware`
 - [x] `CompressionMiddleware`
 
@@ -1101,6 +1169,7 @@ Confira a [Documentação Detalhada do Aura Tinker](docs/tinker.md) para ver exe
 ### OpenAPI / Docs
 
 - [x] OpenAPI 3.1 auto-gerado
+- [x] `securitySchemes` — `JWTGuard` expõe `BearerAuth`; merge de `Router.tags`
 - [x] Swagger UI embutido em `/docs`
 - [x] ReDoc embutido em `/redoc`
 - [x] `/health` automático
@@ -1124,13 +1193,13 @@ Confira a [Documentação Detalhada do Aura Tinker](docs/tinker.md) para ver exe
 - [x] **Sanitização de Dados Sensíveis** — redação automática (ex: senhas, tokens de API, cartões) configurável.
 - [x] **Daily Rotating File Handler** — rotação diária de logs, thread-safe, com aviso de segurança multiprocesso integrado.
 - [x] **Formatadores Plain & JSON** — formato texto legível em dev, JSON estruturado ideal para datadog/loki em produção.
-- [x] **RequestLogInterceptor** — interceptor/middleware ASGI para extrair/gerar `request_id` e registrar o ciclo de vida HTTP.
+- [x] **RequestLogInterceptor** — interceptor/middleware ASGI para extrair/gerar `request_id`; redação de headers sensíveis com `log_headers=True`
 - [x] **Propagador em background** — `run_with_context` para propagar dados de log em background tasks/jobs.
 - [x] **Suíte de Testes Robusta** — cobertura abrangente de toda a infraestrutura de observabilidade com 39 testes dedicados.
 
 ### Qualidade
 
-- [x] 607 testes passando
+- [x] 647 testes passando
 - [x] mypy strict (0 erros em `aura/`)
 - [x] ruff (0 warnings)
 - [x] GitHub Actions CI (Python 3.10 + 3.12)

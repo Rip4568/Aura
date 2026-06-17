@@ -4,7 +4,22 @@ All notable changes to Aura Framework are documented here.
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased] — Wave 3 (1.3.0)
+## [Unreleased] — Wave 4 (1.4.0)
+
+### Added
+
+- **Rate limit backends:** abstração `RateLimitBackend` com `MemoryBackend` (padrão) e `RedisBackend` para rate limit distribuído multi-processo (`pip install "aura-web[redis]"`).
+- **OpenAPI:** `JWTGuard` registra `BearerAuth` em `components.securitySchemes` e `security` nas operações protegidas.
+- **OpenAPI:** `Router(tags=[...])` faz merge com tags de rota, sem duplicatas.
+- **RequestLogInterceptor:** redação de headers sensíveis (`authorization`, `cookie`, etc.) quando `log_headers=True` (middleware ASGI e interceptor de rota).
+
+### Changed
+
+- **RateLimitMiddleware** e **RateLimitGuard:** contadores delegados a `RateLimitBackend` injetável (memória ou Redis).
+
+---
+
+## [1.3.0] — Wave 3
 
 ### Added
 

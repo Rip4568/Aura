@@ -2,9 +2,9 @@
 
 > Fonte da verdade para priorização. Marque `[x]` **somente** após verificar no código (`grep`) e nos testes.
 
-**Branch atual:** `fix/wave3-production-stability`  
-**Baseline de testes (2026-06-17):** 611 passed · 2 skipped · mypy `aura/` + `tests/` 0 erros · ruff clean  
-**Versão:** `1.3.0` (target Wave 3; `pyproject.toml` ainda em `1.2.0` até release)
+**Branch atual:** `fix/wave4-dx-observability`  
+**Baseline de testes (2026-06-17):** 647 passed · 2 skipped · mypy `aura/` + `tests/` 0 erros · ruff clean  
+**Versão:** `1.4.0` (target Wave 4; `pyproject.toml` ainda em `1.2.0` até release)
 
 ---
 
@@ -64,21 +64,31 @@ Concluída na branch `fix/wave3-production-stability`.
 
 ---
 
+## Wave 4 — DX & Observabilidade ✅
+
+Concluída na branch `fix/wave4-dx-observability`.
+
+| ID | Item | Status | Verificação |
+|----|------|--------|-------------|
+| W4-O1 | OpenAPI: `securitySchemes` — `JWTGuard` expõe `BearerAuth` em `/docs` | [x] | `aura/guards/jwt.py`, `aura/schema/openapi.py`, `tests/test_openapi.py` |
+| W4-O2 | OpenAPI: merge de `Router.tags` com tags de rota (sem duplicatas) | [x] | `aura/routing/router.py`, `tests/test_openapi.py` |
+| W4-R1 | Rate limit: backend Redis compartilhado (`RateLimitBackend` + `RedisBackend`) | [x] | `aura/middleware/rate_limit_backends/`, `aura/middleware/rate_limit.py`, `aura/guards/rate_limit.py` |
+| W4-L1 | `RequestLogInterceptor`: redação de headers sensíveis (`log_headers=True`) | [x] | `aura/logging/interceptor.py`, `aura/interceptors/logging.py`, `tests/test_logging.py` |
+
+---
+
 ## Pendentes pós-hardening (análise 2026-06-16)
 
-Itens críticos/altos **não** cobertos pelas waves 1–3.
+Itens críticos/altos **não** cobertos pelas waves 1–4.
 
 ### Crítico / alto
 - [ ] Admin: reutilizar `AuraForm`/`ModelForm` (duplicação de parsing)
-- [ ] OpenAPI: `securitySchemes` e merge de `Router.tags`
-- [ ] Backend Redis compartilhado para rate limit multi-processo
 
 ### Médio / baixo
 
 - [ ] `QuerySet.explain()` — concatenação de SQL
 - [ ] `SessionMiddleware` — reenvio de cookie em toda resposta
 - [ ] `CompressionMiddleware` — `gzip_level` ignorado
-- [ ] `RequestLogInterceptor` — redação de headers/body sensíveis
 - [ ] CI: cobertura mínima e Python 3.11/3.13
 - [ ] Site MkDocs + GitHub Pages
 - [ ] `AdminModule` auto-gerado (roadmap v0.4+)
