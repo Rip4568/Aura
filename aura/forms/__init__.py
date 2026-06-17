@@ -99,11 +99,11 @@ __all__ = [
 # v0.6.1 extras — not yet implemented (imported lazily to avoid hard errors)
 # ---------------------------------------------------------------------------
 try:
-    from aura.forms.modelform import ModelForm  # noqa: F401
+    from aura.forms.modelform import ModelForm  # type: ignore[import-untyped]  # noqa: F401
 except ImportError:
     pass
 
 try:
-    from aura.forms.widgets import Widget  # noqa: F401
+    from aura.forms.widgets import Widget  # type: ignore[import-untyped]  # noqa: F401
 except ImportError:
     pass

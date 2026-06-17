@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 from typing import Any
 
 
@@ -57,9 +58,11 @@ class CompressionMiddleware:
 
         # Prefer brotli if available
         try:
-            import brotli  # type: ignore[import-not-found]  # noqa: F401
-            from starlette_brotli import BrotliMiddleware  # type: ignore[import-not-found]
-            return BrotliMiddleware(app, minimum_size=self.minimum_size)
+            importlib.import_module("brotli")
+            brotli_middleware_cls = importlib.import_module(
+                "starlette_brotli"
+            ).BrotliMiddleware
+            return brotli_middleware_cls(app, minimum_size=self.minimum_size)
         except ImportError:
             pass
 
