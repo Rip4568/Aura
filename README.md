@@ -9,7 +9,7 @@
     <img src="https://img.shields.io/badge/pydantic-v2-orange?style=flat-square" />
     <img src="https://img.shields.io/badge/pypi-aura--web-purple?style=flat-square" />
     <img src="https://img.shields.io/pypi/v/aura-web?style=flat-square&color=blue" />
-    <img src="https://img.shields.io/badge/tests-673%20passing-brightgreen?style=flat-square" />
+    <img src="https://img.shields.io/badge/tests-713%20passing-brightgreen?style=flat-square" />
     <img src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square" />
     <img src="https://img.shields.io/badge/status-alpha-red?style=flat-square" />
   </p>
@@ -394,6 +394,8 @@ published_posts = await published_factory.create_many(3)
 > **Contrato & Admin (v1.4.0 — Waves 5–6):** interceptors globais via `Aura(interceptors=[...])`; `UnprocessableEntityException` com corpo 422 estruturado; `ModelForm` no admin; ver [ADR-003](docs/decisions/ADR-003-contract-cleanup.md) e [ADR-004](docs/decisions/ADR-004-admin-modelform.md).
 
 > **Infra & Release (v1.4.0 — Waves 7–8):** CI com Python 3.11/3.13, pre-commit (ruff + mypy), rate limit Redis atômico (Lua), `trusted_proxies` para IP real atrás de proxy, `JWTGuard(require_exp=True)` por padrão, `SessionMiddleware` só reenvia cookie quando a sessão muda. Ver [CHANGELOG](CHANGELOG.md) e `docs/pending.md`.
+
+> **Messaging & Jobs (v1.5.0 — Waves 9–11):** fila de jobs em SQL sem Redis (`AURA__JOBS__BACKEND=database`); `EventBus` com `@on_event`; backends RabbitMQ/Kafka com `@EventPattern`, `@MessagePattern` e `MessagingClient`. Ver [ADR-006](docs/decisions/ADR-006-event-bus.md), [ADR-007](docs/decisions/ADR-007-message-brokers.md) e [CHANGELOG](CHANGELOG.md).
 
 ### JWTGuard — autenticação Bearer
 
@@ -882,6 +884,115 @@ aura worker --app main:app -q emails -q default
 aura worker --burst --app main:app
 ```
 
+### Database jobs — sem Redis (v1.5.0)
+
+Para apps que já usam SQLAlchemy async, persista a fila de jobs no próprio banco — sem Redis nem SAQ:
+
+```bash
+# Requer pip install "aura-web[sqlalchemy]" e banco configurado
+export AURA__DATABASE__URL=sqlite+aiosqlite:///./app.db
+export AURA__JOBS__BACKEND=database
+
+aura worker --app main:app
+```
+
+O `DatabaseBackend` grava jobs na tabela `aura_jobs`. O `AuraWorker` faz polling com claim atômico, retry e atualização de status. Ideal para deploys single-node ou quando Redis não está disponível.
+
+Alternativa via `aura.toml`:
+
+```toml
+[database]
+url = "postgresql+asyncpg://user:pass@localhost/mydb"
+
+[jobs]
+backend = "database"
+```
+
+---
+
+## 📡 EventBus — pub/sub (v1.5.0)
+
+Desacople domínios com eventos assíncronos. O EventBus é **opt-in** (`events.enabled=False` por padrão).
+
+```python
+from aura import Aura, Module, injectable
+from aura.events import EventEnvelope, on_event
+
+@on_event("user.created")
+async def send_welcome_email(event: EventEnvelope) -> None:
+    email = event.payload["email"]
+    await mailer.send(email, "Bem-vindo!")
+
+# Publicar de qualquer service:
+from aura.events import get_event_bus
+
+bus = get_event_bus()
+await bus.publish("user.created", {"id": 1, "email": "user@example.com"})
+```
+
+Ative via env var ou `aura.toml`:
+
+```bash
+export AURA__EVENTS__ENABLED=true
+export AURA__EVENTS__BACKEND=memory          # dev/test (padrão)
+# export AURA__EVENTS__BACKEND=redis_streams  # produção multi-worker (requer [redis])
+```
+
+```toml
+[events]
+enabled = true
+backend = "memory"           # memory | redis_streams | rabbitmq | kafka
+redis_url = "redis://localhost:6379"
+stream_prefix = "aura:events:"
+```
+
+Handlers em controllers/providers são descobertos automaticamente no startup (mesmo padrão de `@task` / `@get`). Ver [ADR-006](docs/decisions/ADR-006-event-bus.md).
+
+---
+
+## 🐰 Message brokers — RabbitMQ / Kafka (v1.5.0)
+
+Backends enterprise para microserviços, com decorators estilo NestJS:
+
+```python
+from aura.events import EventPattern, MessagePattern, MessagingClient
+
+class OrdersController:
+    @EventPattern("order.placed")
+    async def on_order_placed(self, payload: dict) -> None:
+        await inventory.reserve(payload["items"])
+
+    @MessagePattern("math.sum")
+    async def sum_numbers(self, payload: dict) -> dict:
+        return {"result": payload["a"] + payload["b"]}
+
+# Cliente de mensagens:
+client = MessagingClient(bus)
+await client.emit("order.placed", {"order_id": 42})
+result = await client.send("math.sum", {"a": 1, "b": 2})  # request/response
+```
+
+Configure o backend:
+
+```bash
+pip install "aura-web[rabbitmq]"   # aio-pika
+# ou
+pip install "aura-web[kafka]"      # aiokafka
+
+export AURA__EVENTS__ENABLED=true
+export AURA__EVENTS__BACKEND=rabbitmq
+export AURA__EVENTS__RABBITMQ_URL=amqp://guest:guest@localhost/
+```
+
+| Backend | Uso | Extra |
+|---------|-----|-------|
+| `memory` | Dev, testes, single-process | — |
+| `redis_streams` | Multi-process leve | `[redis]` |
+| `rabbitmq` | AMQP, routing flexível, RPC | `[rabbitmq]` |
+| `kafka` | Log distribuído, alto throughput | `[kafka]` |
+
+`MessagingClient.send()` (request/response) funciona apenas em `rabbitmq` e `kafka`. Entrega **at-least-once** — handlers devem ser idempotentes. Ver [ADR-007](docs/decisions/ADR-007-message-brokers.md).
+
 ---
 
 ## 🔍 Logging & Debug Inteligente (AuraLogSystem v1.0)
@@ -1208,9 +1319,20 @@ Confira a [Documentação Detalhada do Aura Tinker](docs/tinker.md) para ver exe
 
 - [x] `@task` e `@periodic` decorators
 - [x] `MemoryBackend` (dev/test — sem dependências externas)
+- [x] `DatabaseBackend` — fila persistente em SQL, sem Redis (`AURA__JOBS__BACKEND=database`)
 - [x] `SAQBackend` — Redis via SAQ (`Queue.from_url`, timeout/scheduled em segundos)
-- [x] Backend auto-detectado por `AURA__JOBS__BROKER_URL`
-- [x] `aura worker` funcional com SAQ native worker e TaskRegistry
+- [x] Backend auto-detectado por `AURA__JOBS__BACKEND` / `AURA__JOBS__BROKER_URL`
+- [x] `aura worker` funcional com SAQ native worker, database polling e TaskRegistry
+
+### Events & Messaging (v1.5.0)
+
+- [x] `EventBus` + `EventEnvelope` — contrato pub/sub com metadados uniformes
+- [x] `InMemoryEventBus` e `RedisStreamsEventBus` (requer `[redis]`)
+- [x] `@on_event("topic")` + `EventHandlerRegistry` com wiring no startup
+- [x] `EventsConfig` opt-in (`events.enabled=False` por padrão)
+- [x] `RabbitMQEventBus` e `KafkaEventBus` (extras `[rabbitmq]` / `[kafka]`)
+- [x] `@EventPattern` / `@MessagePattern` — handlers estilo NestJS microservices
+- [x] `MessagingClient` — `emit()` fire-and-forget e `send()` request/response
 
 ### Templates (HTML server-rendered)
 
@@ -1261,7 +1383,7 @@ Confira a [Documentação Detalhada do Aura Tinker](docs/tinker.md) para ver exe
 
 ### Qualidade
 
-- [x] 673 testes passando
+- [x] 713 testes passando
 - [x] mypy strict (0 erros em `aura/`)
 - [x] ruff (0 warnings)
 - [x] GitHub Actions CI (Python 3.10 + 3.12)
@@ -1325,6 +1447,8 @@ pip install "aura-web[templates]"    # Jinja2 + HTML rendering
 pip install "aura-web[sqlalchemy]"   # ORM async + migrations (Alembic)
 pip install "aura-web[saq]"          # async job queue (Redis via SAQ)
 pip install "aura-web[redis]"        # Redis client async
+pip install "aura-web[rabbitmq]"     # EventBus RabbitMQ (aio-pika)
+pip install "aura-web[kafka]"        # EventBus Kafka (aiokafka)
 pip install "aura-web[jwt]"          # JWT auth (PyJWT[crypto])
 pip install "aura-web[session]"      # sessões em cookie (itsdangerous)
 pip install "aura-web[all]"          # tudo acima

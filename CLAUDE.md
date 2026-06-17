@@ -12,7 +12,7 @@ Resolve as dores reais do Django (ORM síncrono, sem DI real) e do FastAPI (sem 
 
 **PyPI:** `pip install aura-web`
 **Versão:** Definida em `pyproject.toml` (fonte canônica) · `aura.__version__` lê via `importlib.metadata`
-**Testes:** 673 passando · mypy strict 0 erros em `aura/` + `tests/` · ruff clean · cobertura `aura/` ≥ 75%
+**Testes:** 713 passando · mypy strict 0 erros em `aura/` + `tests/` · ruff clean · cobertura `aura/` ≥ 75%
 
 ---
 
@@ -42,7 +42,8 @@ aura/
 ├── orm/         # AuraModel, Repository[T] (+bulk, +paginate), DatabaseManager
 ├── guards/      # Guard base, JWTGuard, RateLimitGuard
 ├── middleware/  # CORS, RateLimit, Compression, SessionMiddleware
-├── jobs/        # @task @periodic, MemoryBackend, SAQBackend, AuraWorker
+├── jobs/        # @task @periodic, MemoryBackend, DatabaseBackend, SAQBackend, AuraWorker
+├── events/      # EventBus, @on_event, @EventPattern, MessagingClient, backends memory/redis/rabbit/kafka
 ├── templates/   # AuraTemplateEngine (Jinja2), AuraTemplateModule, url_for global
 ├── cli/         # aura new/run/generate/migrate/worker
 └── exceptions/  # HTTPException hierarchy (400-504)
@@ -200,6 +201,16 @@ Detalhes: `docs/decisions/ADR-001-security-hardening.md` · roadmap: `docs/pendi
 | 8 | Segurança | `trusted_proxies`; Redis Lua atômico; `require_exp` padrão; cookie sessão |
 
 Breaking em 1.4.0: formato 422, `JWTGuard(require_exp=True)`, cookie de sessão condicional. Ver `CHANGELOG.md` e `README.md`.
+
+### Waves 9–11 (2026-06) — v1.5.0
+
+| Wave | Tema | Destaques |
+|------|------|-----------|
+| 9 | Database jobs | `DatabaseBackend` (SQL, sem Redis); `AURA__JOBS__BACKEND=database`; worker polling |
+| 10 | EventBus | `EventBus` + `EventEnvelope`; `@on_event`; `memory` / `redis_streams`; ADR-006 |
+| 11 | Message brokers | RabbitMQ/Kafka backends; `@EventPattern` / `@MessagePattern`; `MessagingClient`; ADR-007 |
+
+Sem breaking changes em 1.5.0. Ver `CHANGELOG.md` e `README.md`.
 
 ---
 
