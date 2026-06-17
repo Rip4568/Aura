@@ -164,3 +164,58 @@ def test_registry_handles_module_imports() -> None:
     # SharedModule should be registered transitively
     assert SharedModule in registry._registered
     assert container.is_registered(SharedService)
+
+
+def test_registry_exports_filters_imported_providers() -> None:
+    """Only exported providers from imported modules are registered."""
+    @injectable()
+    class SharedService:
+        pass
+
+    @injectable()
+    class InternalService:
+        pass
+
+    @Module(
+        providers=[SharedService, InternalService],
+        exports=[SharedService],
+    )
+    class SharedModule:
+        pass
+
+    @Module(imports=[SharedModule])
+    class AppModule:
+        pass
+
+    container = DIContainer()
+    registry = ModuleRegistry(container)
+    registry.register(AppModule)
+
+    assert container.is_registered(SharedService)
+    assert not container.is_registered(InternalService)
+
+
+def test_registry_empty_exports_registers_all_providers() -> None:
+    """Backward compat: empty exports registers all providers on import."""
+    @injectable()
+    class ServiceA:
+        pass
+
+    @injectable()
+    class ServiceB:
+        pass
+
+    @Module(providers=[ServiceA, ServiceB], exports=[])
+    class SharedModule:
+        pass
+
+    @Module(imports=[SharedModule])
+    class AppModule:
+        pass
+
+    container = DIContainer()
+    registry = ModuleRegistry(container)
+    registry.register(AppModule)
+
+    assert container.is_registered(ServiceA)
+    assert container.is_registered(ServiceB)

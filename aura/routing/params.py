@@ -22,8 +22,8 @@ class BodyMarker:
         async def create_user(body: Annotated[UserSchema, BodyMarker()]) -> ...:
             ...
 
-    The :class:`~aura.core.pipeline.RequestPipeline` reads the JSON body
-    and validates it against the annotated type using Pydantic.
+    The router reads the JSON body and validates it against the annotated
+    type using Pydantic.
     """
 
     alias: str | None = field(default=None)

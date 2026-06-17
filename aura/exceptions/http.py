@@ -159,6 +159,30 @@ class UnprocessableEntityException(HTTPException):
     ) -> None:
         super().__init__(422, message, code=code, detail=detail, headers=headers)
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to FastAPI-compatible ``{detail: [{loc, msg, type}]}`` format."""
+        if isinstance(self.detail, list):
+            return {"detail": self.detail}
+        if self.detail is not None:
+            return {
+                "detail": [
+                    {
+                        "loc": ["body"],
+                        "msg": str(self.detail),
+                        "type": "value_error",
+                    }
+                ]
+            }
+        return {
+            "detail": [
+                {
+                    "loc": [],
+                    "msg": self.message,
+                    "type": "value_error",
+                }
+            ]
+        }
+
 
 class TooManyRequestsException(HTTPException):
     """429 Too Many Requests — the client has sent too many requests in a given time window."""

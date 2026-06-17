@@ -238,3 +238,74 @@ class TestCORSMiddleware:
         ) as c:
             r = await c.get("/test", headers={"Origin": "https://example.com"})
             assert r.status_code == 200
+
+
+class TestAuraMiddlewareIntegration:
+    """Tests for factory-style middleware passed to Aura(middleware=[...])."""
+
+    @pytest.mark.asyncio
+    async def test_cors_middleware_via_aura(self) -> None:
+        """CORSMiddleware works when passed to Aura(middleware=[...])."""
+        from aura.middleware.cors import CORSMiddleware
+
+        class TestController:
+            def __init__(self) -> None:
+                pass
+
+            @get("/test")
+            async def test_route(self) -> dict[str, Any]:
+                return {"ok": True}
+
+        @Module(controllers=[TestController], prefix="")
+        class TestModule:
+            pass
+
+        app = Aura(
+            modules=[TestModule],
+            middleware=[CORSMiddleware(allow_origins=["*"])],
+        )
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as c:
+            r = await c.get("/test", headers={"Origin": "http://example.com"})
+            assert r.status_code == 200
+            assert (
+                "access-control-allow-origin" in r.headers
+                or "Access-Control-Allow-Origin" in r.headers
+            )
+
+    @pytest.mark.asyncio
+    async def test_compression_middleware_via_aura(self) -> None:
+        """CompressionMiddleware works when passed to Aura(middleware=[...])."""
+        from aura.middleware.compression import CompressionMiddleware
+
+        class TestController:
+            def __init__(self) -> None:
+                pass
+
+            @get("/large")
+            async def large_response(self) -> dict[str, str]:
+                return {"data": "x" * 1024}
+
+        @Module(controllers=[TestController], prefix="")
+        class TestModule:
+            pass
+
+        app = Aura(
+            modules=[TestModule],
+            middleware=[CompressionMiddleware(minimum_size=128)],
+        )
+
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as c:
+            r = await c.get(
+                "/large",
+                headers={"Accept-Encoding": "gzip"},
+            )
+            assert r.status_code == 200
+            assert (
+                r.headers.get("content-encoding") == "gzip"
+                or "gzip" in r.headers.get("content-encoding", "")
+            )

@@ -50,9 +50,15 @@ def _compute_binding_plan(
             markers = ()
         marker = next(
             (m for m in markers if isinstance(m, (
-                BodyMarker, QueryMarker, ParamMarker, HeaderMarker, CookieMarker))),
-            None
-        )  # FormDataMarker handled separately
+                BodyMarker,
+                QueryMarker,
+                ParamMarker,
+                HeaderMarker,
+                CookieMarker,
+                FormDataMarker,
+            ))),
+            None,
+        )
 
         # Implicit Path Parameter Inference:
         # If no marker is explicitly specified, and the parameter name matches
@@ -201,6 +207,7 @@ class Router:
         self,
         openapi_gen: Any | None = None,
         global_guards: list[Any] | None = None,
+        global_interceptors: list[Any] | None = None,
     ) -> list[Route | WebSocketRoute]:
         """Convert all registered handlers into Starlette route objects.
 
@@ -215,6 +222,7 @@ class Router:
         """
         routes: list[Route | WebSocketRoute] = []
         all_global_guards = list(global_guards or []) + self.guards
+        all_global_interceptors = list(global_interceptors or [])
 
         for handler, ctrl_prefix in self._handlers:
             meta: dict[str, Any] = handler.__aura_route__
@@ -222,6 +230,7 @@ class Router:
             path = self.prefix + ctrl_prefix + meta["path"]
 
             all_guards = all_global_guards + meta.get("guards", [])
+            route_middleware = meta.get("middleware", [])
 
             response_type = meta.get("response_type", "json")
 
@@ -268,6 +277,8 @@ class Router:
                 endpoint = _wrap_html_handler(
                     handler,
                     all_guards,
+                    interceptors=all_global_interceptors,
+                    route_middleware=route_middleware,
                     template=meta.get("template"),
                     status=meta.get("status", 200),
                 )
@@ -279,7 +290,12 @@ class Router:
                 )
                 routes.append(route)
             elif response_type == "sse":
-                endpoint = _wrap_sse_handler(handler, all_guards)
+                endpoint = _wrap_sse_handler(
+                    handler,
+                    all_guards,
+                    interceptors=all_global_interceptors,
+                    route_middleware=route_middleware,
+                )
                 route = Route(
                     path,
                     endpoint=endpoint,
@@ -288,7 +304,12 @@ class Router:
                 )
                 routes.append(route)
             else:
-                endpoint = _wrap_http_handler(handler, all_guards)
+                endpoint = _wrap_http_handler(
+                    handler,
+                    all_guards,
+                    interceptors=all_global_interceptors,
+                    route_middleware=route_middleware,
+                )
                 route = Route(
                     path,
                     endpoint=endpoint,
@@ -327,8 +348,70 @@ class Router:
 
 
 # ---------------------------------------------------------------------------
-# Shared helpers for guards and DI (F-07)
+# Shared helpers for guards, interceptors, and DI (F-07)
 # ---------------------------------------------------------------------------
+
+
+def _validation_detail(
+    loc: list[str],
+    msg: str,
+    *,
+    type_: str = "value_error",
+) -> list[dict[str, Any]]:
+    """Build a FastAPI-compatible validation error detail list."""
+    return [{"loc": loc, "msg": msg, "type": type_}]
+
+
+async def _run_interceptor_chain(
+    request: Any,
+    handler: Callable[..., Any],
+    interceptors: list[Any],
+    inner: Callable[[Any], Any],
+) -> Any:
+    """Execute interceptors around the route handler."""
+    if not interceptors:
+        return await inner(request)
+
+    async def dispatch(index: int, req: Any) -> Any:
+        if index >= len(interceptors):
+            return await inner(req)
+        interceptor = interceptors[index]
+
+        async def call_next(r: Any) -> Any:
+            return await dispatch(index + 1, r)
+
+        return await interceptor.intercept(req, handler, call_next)
+
+    return await dispatch(0, request)
+
+
+def _wrap_with_route_middleware(
+    endpoint: Callable[..., Any],
+    middleware: list[Any],
+) -> Callable[..., Any]:
+    """Wrap an endpoint with per-route middleware (dispatch/call_next style)."""
+    if not middleware:
+        return endpoint
+
+    async def wrapped(request: Any) -> Any:
+        async def dispatch(index: int, req: Any) -> Any:
+            if index >= len(middleware):
+                return await endpoint(req)
+            mw = middleware[index]
+
+            async def call_next(r: Any) -> Any:
+                return await dispatch(index + 1, r)
+
+            if hasattr(mw, "dispatch"):
+                return await mw.dispatch(req, call_next)
+            result = mw(req, call_next)
+            if inspect.iscoroutine(result):
+                return await result
+            return result
+
+        return await dispatch(0, request)
+
+    return wrapped
 
 
 async def _run_guards(guards: list[Any], request: Any) -> None:
@@ -394,53 +477,72 @@ async def _resolve_handler_instance(
 def _wrap_http_handler(
     handler: Callable[..., Any],
     guards: list[Any],
+    *,
+    interceptors: list[Any] | None = None,
+    route_middleware: list[Any] | None = None,
 ) -> Callable[..., Any]:
     """Wrap a route handler to add guard evaluation and parameter injection.
 
     Args:
         handler: The original async route handler.
         guards: Guards to evaluate before calling the handler.
+        interceptors: Application-level interceptors applied around the handler.
+        route_middleware: Per-route middleware applied before the handler.
 
     Returns:
         An async ASGI-compatible endpoint callable.
     """
     from starlette.requests import Request
 
+    async def _execute(request: Request) -> Response:
+        # Evaluate guards (F-07)
+        await _run_guards(guards, request)
+
+        # Resolve handler instance via DI (F-07)
+        actual_handler = await _resolve_handler_instance(handler, request)
+
+        # Resolve handler parameters
+        kwargs = await _resolve_params(actual_handler, request)
+
+        # Call the handler
+        result = actual_handler(**kwargs)
+        if inspect.iscoroutine(result):
+            result = await result
+
+        # Convert result to response
+        route_meta = getattr(actual_handler, "__aura_route__", {})
+        adapter = getattr(actual_handler, "__aura_response_adapter__", None)
+        if adapter is None:
+            func = getattr(actual_handler, "__func__", actual_handler)
+            adapter = getattr(func, "__aura_response_adapter__", None)
+
+        return _to_response(result, route_meta.get("status", 200), adapter=adapter)
+
     async def endpoint(request: Request) -> Response:
         try:
-            # Evaluate guards (F-07)
-            await _run_guards(guards, request)
+            async def inner(req: Request) -> Response:
+                return await _execute(req)
 
-            # Resolve handler instance via DI (F-07)
-            actual_handler = await _resolve_handler_instance(handler, request)
-
-            # Resolve handler parameters
-            kwargs = await _resolve_params(actual_handler, request)
-
-            # Call the handler
-            result = actual_handler(**kwargs)
-            if inspect.iscoroutine(result):
-                result = await result
-
-            # Convert result to response
-            route_meta = getattr(actual_handler, "__aura_route__", {})
-            adapter = getattr(actual_handler, "__aura_response_adapter__", None)
-            if adapter is None:
-                func = getattr(actual_handler, "__func__", actual_handler)
-                adapter = getattr(func, "__aura_response_adapter__", None)
-
-            return _to_response(result, route_meta.get("status", 200), adapter=adapter)
+            response = await _run_interceptor_chain(
+                request,
+                handler,
+                list(interceptors or []),
+                inner,
+            )
+            return cast(Response, response)
 
         except Exception as exc:  # noqa: BLE001
             return _handle_exception(exc)
 
-    return endpoint
+    return _wrap_with_route_middleware(endpoint, list(route_middleware or []))
 
 
 def _wrap_html_handler(
     handler: Callable[..., Any],
     guards: list[Any],
     *,
+    interceptors: list[Any] | None = None,
+    route_middleware: list[Any] | None = None,
     template: str | None = None,
     status: int = 200,
 ) -> Callable[..., Any]:
@@ -466,31 +568,44 @@ def _wrap_html_handler(
     """
     from starlette.requests import Request
 
+    async def _execute(request: Request) -> Response:
+        await _run_guards(guards, request)
+        actual_handler = await _resolve_handler_instance(handler, request)
+        kwargs = await _resolve_params(actual_handler, request)
+
+        result = actual_handler(**kwargs)
+        if inspect.iscoroutine(result):
+            result = await result
+
+        return await _to_html_response(result, template=template, status=status)
+
     async def endpoint(request: Request) -> Response:
         try:
-            # Evaluate guards (F-07)
-            await _run_guards(guards, request)
+            async def inner(req: Request) -> Response:
+                return await _execute(req)
 
-            # Resolve handler instance via DI (F-07)
-            actual_handler = await _resolve_handler_instance(handler, request)
-
-            kwargs = await _resolve_params(actual_handler, request)
-
-            result = actual_handler(**kwargs)
-            if inspect.iscoroutine(result):
-                result = await result
-
-            return await _to_html_response(result, template=template, status=status)
+            return cast(
+                Response,
+                await _run_interceptor_chain(
+                    request,
+                    handler,
+                    list(interceptors or []),
+                    inner,
+                ),
+            )
 
         except Exception as exc:  # noqa: BLE001
             return _handle_html_exception(exc)
 
-    return endpoint
+    return _wrap_with_route_middleware(endpoint, list(route_middleware or []))
 
 
 def _wrap_sse_handler(
     handler: Callable[..., Any],
     guards: list[Any],
+    *,
+    interceptors: list[Any] | None = None,
+    route_middleware: list[Any] | None = None,
 ) -> Callable[..., Any]:
     """Wrap an async-generator handler as a Server-Sent Events endpoint.
 
@@ -506,65 +621,73 @@ def _wrap_sse_handler(
     """
     from starlette.requests import Request
 
+    async def _execute(request: Request) -> Response:
+        await _run_guards(guards, request)
+        actual_handler = await _resolve_handler_instance(handler, request)
+        kwargs = await _resolve_params(actual_handler, request)
+
+        async def event_stream() -> AsyncGenerator[bytes, None]:
+            import json as _json
+
+            gen = actual_handler(**kwargs)
+            if inspect.isasyncgen(gen):
+                async for item in gen:
+                    if isinstance(item, dict):
+                        data = _json.dumps(item, default=str)
+                        yield f"data: {data}\n\n".encode()
+                    elif isinstance(item, str):
+                        if item.startswith("data:") or item.startswith("event:"):
+                            yield f"{item}\n\n".encode()
+                        else:
+                            yield f"data: {item}\n\n".encode()
+                    elif hasattr(item, "model_dump"):
+                        data = _json.dumps(item.model_dump(mode="json"), default=str)
+                        yield f"data: {data}\n\n".encode()
+                    else:
+                        yield f"data: {item!s}\n\n".encode()
+            else:
+                result = gen
+                if inspect.iscoroutine(result):
+                    result = await result
+                if hasattr(result, "__aiter__"):
+                    async for item in result:
+                        data = (
+                            _json.dumps(item, default=str)
+                            if isinstance(item, dict)
+                            else str(item)
+                        )
+                        yield f"data: {data}\n\n".encode()
+
+        from starlette.responses import StreamingResponse
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
     async def endpoint(request: Request) -> Response:
         try:
-            # Evaluate guards (F-07)
-            await _run_guards(guards, request)
+            async def inner(req: Request) -> Response:
+                return await _execute(req)
 
-            # Resolve handler instance via DI (F-07)
-            actual_handler = await _resolve_handler_instance(handler, request)
-
-            kwargs = await _resolve_params(actual_handler, request)
-
-            async def event_stream() -> AsyncGenerator[bytes, None]:
-                import json as _json
-
-                gen = actual_handler(**kwargs)
-                if inspect.isasyncgen(gen):
-                    async for item in gen:
-                        if isinstance(item, dict):
-                            data = _json.dumps(item, default=str)
-                            yield f"data: {data}\n\n".encode()
-                        elif isinstance(item, str):
-                            # Already-formatted SSE line (may include "event:", "id:", etc.)
-                            if item.startswith("data:") or item.startswith("event:"):
-                                yield f"{item}\n\n".encode()
-                            else:
-                                yield f"data: {item}\n\n".encode()
-                        elif hasattr(item, "model_dump"):
-                            data = _json.dumps(item.model_dump(mode="json"), default=str)
-                            yield f"data: {data}\n\n".encode()
-                        else:
-                            yield f"data: {item!s}\n\n".encode()
-                else:
-                    # Regular async function that returns an iterable
-                    result = gen
-                    if inspect.iscoroutine(result):
-                        result = await result
-                    if hasattr(result, "__aiter__"):
-                        async for item in result:
-                            data = (
-                                _json.dumps(item, default=str)
-                                if isinstance(item, dict)
-                                else str(item)
-                            )
-                            yield f"data: {data}\n\n".encode()
-
-            from starlette.responses import StreamingResponse
-            return StreamingResponse(
-                event_stream(),
-                media_type="text/event-stream",
-                headers={
-                    "Cache-Control": "no-cache",
-                    "Connection": "keep-alive",
-                    "X-Accel-Buffering": "no",
-                },
+            return cast(
+                Response,
+                await _run_interceptor_chain(
+                    request,
+                    handler,
+                    list(interceptors or []),
+                    inner,
+                ),
             )
 
         except Exception as exc:  # noqa: BLE001
             return _handle_exception(exc)
 
-    return endpoint
+    return _wrap_with_route_middleware(endpoint, list(route_middleware or []))
 
 
 async def _to_html_response(
@@ -840,13 +963,21 @@ async def _resolve_params(
                 content_type = request.headers.get("content-type", "")
                 if "application/json" not in content_type:
                     raise UnprocessableEntityException(
-                        "Content-Type must contain application/json"
+                        detail=_validation_detail(
+                            ["body"],
+                            "Content-Type must contain application/json",
+                            type_="content_type",
+                        )
                     )
                 try:
                     body_data = _json_module.loads(body_bytes)
                 except _json_module.JSONDecodeError as e:
                     raise UnprocessableEntityException(
-                        "Invalid JSON in request body"
+                        detail=_validation_detail(
+                            ["body"],
+                            "Invalid JSON in request body",
+                            type_="json_invalid",
+                        )
                     ) from e
                 if inspect.isclass(inner_type) and hasattr(inner_type, "model_validate"):
                     kwargs[param_name] = inner_type.model_validate(body_data)
@@ -855,16 +986,29 @@ async def _resolve_params(
             elif has_default:
                 kwargs[param_name] = param_default
             else:
-                raise UnprocessableEntityException("Request body is required")
+                raise UnprocessableEntityException(
+                    detail=_validation_detail(
+                        ["body"],
+                        "Request body is required",
+                        type_="missing",
+                    )
+                )
 
         elif isinstance(marker, QueryMarker):
             alias = marker.alias or param_name
             value = request.query_params.get(alias)
             if value is not None:
-                kwargs[param_name] = _coerce(value, inner_type)
+                kwargs[param_name] = _coerce(
+                    value, inner_type, loc=["query", alias]
+                )
             elif required:
-                # F-09: Enforce QueryMarker.required
-                raise UnprocessableEntityException(f"Query parameter '{alias}' is required")
+                raise UnprocessableEntityException(
+                    detail=_validation_detail(
+                        ["query", alias],
+                        f"Query parameter '{alias}' is required",
+                        type_="missing",
+                    )
+                )
             elif has_default:
                 kwargs[param_name] = param_default
             elif marker.default is not None:
@@ -874,9 +1018,17 @@ async def _resolve_params(
             alias = marker.alias or param_name
             value = request.path_params.get(alias)
             if value is not None:
-                kwargs[param_name] = _coerce(value, inner_type)
+                kwargs[param_name] = _coerce(
+                    value, inner_type, loc=["path", alias]
+                )
             elif required:
-                raise UnprocessableEntityException(f"Path parameter '{alias}' is required")
+                raise UnprocessableEntityException(
+                    detail=_validation_detail(
+                        ["path", alias],
+                        f"Path parameter '{alias}' is required",
+                        type_="missing",
+                    )
+                )
 
         elif isinstance(marker, HeaderMarker):
             alias = marker.alias or param_name
@@ -884,9 +1036,17 @@ async def _resolve_params(
                 alias = alias.replace("_", "-")
             value = request.headers.get(alias)
             if value is not None:
-                kwargs[param_name] = _coerce(value, inner_type)
+                kwargs[param_name] = _coerce(
+                    value, inner_type, loc=["header", alias]
+                )
             elif required:
-                raise UnprocessableEntityException(f"Header '{alias}' is required")
+                raise UnprocessableEntityException(
+                    detail=_validation_detail(
+                        ["header", alias],
+                        f"Header '{alias}' is required",
+                        type_="missing",
+                    )
+                )
             elif has_default:
                 kwargs[param_name] = param_default
 
@@ -894,9 +1054,17 @@ async def _resolve_params(
             alias = marker.alias or param_name
             value = request.cookies.get(alias)
             if value is not None:
-                kwargs[param_name] = _coerce(value, inner_type)
+                kwargs[param_name] = _coerce(
+                    value, inner_type, loc=["cookie", alias]
+                )
             elif required:
-                raise UnprocessableEntityException(f"Cookie '{alias}' is required")
+                raise UnprocessableEntityException(
+                    detail=_validation_detail(
+                        ["cookie", alias],
+                        f"Cookie '{alias}' is required",
+                        type_="missing",
+                    )
+                )
             elif has_default:
                 kwargs[param_name] = param_default
 
@@ -939,12 +1107,13 @@ async def _resolve_params(
     return kwargs
 
 
-def _coerce(value: str, target_type: Any) -> Any:
+def _coerce(value: str, target_type: Any, *, loc: list[str]) -> Any:
     """Best-effort type coercion from a string value.
 
     Args:
         value: The raw string from query/path/header/cookie.
         target_type: The target Python type.
+        loc: Location path for validation error reporting.
 
     Returns:
         The coerced value.
@@ -964,7 +1133,11 @@ def _coerce(value: str, target_type: Any) -> Any:
         return value
     except (ValueError, TypeError) as e:
         raise UnprocessableEntityException(
-            f"Failed to coerce '{value}' to {target_type.__name__}"
+            detail=_validation_detail(
+                loc,
+                f"Failed to coerce '{value}' to {target_type.__name__}",
+                type_="type_error",
+            )
         ) from e
 
 

@@ -79,6 +79,16 @@ def test_unprocessable_entity_exception() -> None:
     assert exc.status_code == 422
 
 
+def test_unprocessable_entity_exception_to_dict_detail_format() -> None:
+    exc = UnprocessableEntityException(
+        detail=[{"loc": ["query", "page"], "msg": "invalid", "type": "int_parsing"}]
+    )
+    payload = exc.to_dict()
+    assert payload == {
+        "detail": [{"loc": ["query", "page"], "msg": "invalid", "type": "int_parsing"}]
+    }
+
+
 def test_internal_server_exception() -> None:
     exc = InternalServerException()
     assert exc.status_code == 500

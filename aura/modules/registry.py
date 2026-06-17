@@ -51,11 +51,13 @@ class ModuleRegistry:
             )
         self._register_module(module_class)
 
-    def _register_module(self, module_class: type) -> None:
+    def _register_module(self, module_class: type, *, as_imported: bool = False) -> None:
         """Recursively register a module and its imports.
 
         Args:
             module_class: Module class to register.
+            as_imported: When ``True``, only providers listed in ``exports``
+                are registered (if ``exports`` is non-empty).
         """
         if module_class in self._registered:
             return
@@ -65,10 +67,17 @@ class ModuleRegistry:
 
         # Register imported modules first
         for imported in meta.imports:
-            self._register_module(imported)
+            self._register_module(imported, as_imported=True)
 
         # Register providers into the DI container
-        for provider_class in meta.providers:
+        if as_imported and meta.exports:
+            providers_to_register = [
+                provider for provider in meta.providers if provider in meta.exports
+            ]
+        else:
+            providers_to_register = meta.providers
+
+        for provider_class in providers_to_register:
             self._register_provider(provider_class)
 
         # Register controllers into the DI container so they can be resolved with dependencies
@@ -142,6 +151,7 @@ class ModuleRegistry:
         openapi_gen: Any | None = None,
         global_guards: list[Any] | None = None,
         global_prefix: str = "",
+        global_interceptors: list[Any] | None = None,
     ) -> list[Route | WebSocketRoute]:
         """Collect all routes from all registered modules.
 
@@ -177,6 +187,7 @@ class ModuleRegistry:
             module_routes = router.build_routes(
                 openapi_gen=openapi_gen,
                 global_guards=module_guards,
+                global_interceptors=global_interceptors,
             )
             all_routes.extend(module_routes)
 
