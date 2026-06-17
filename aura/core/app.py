@@ -498,12 +498,12 @@ class Aura:
             ) from exc
 
         Granian(
-            target=self,
+            target=self,  # type: ignore[arg-type]  # Granian stubs expect str ASGI path
             address=host,
             port=port,
             workers=workers,
             reload=reload,
-            interface="asgi",
+            interface="asgi",  # type: ignore[arg-type]  # Granian stubs expect Interfaces enum
         ).serve()
 
 
