@@ -14,6 +14,7 @@ DEFAULT_SENSITIVE_FIELDS = [
     "authorization",
     "auth",
     "bearer",
+    "cookie",
     "x-api-key",
     "x-auth-token",
     "credit_card",

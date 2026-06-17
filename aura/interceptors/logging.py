@@ -8,7 +8,9 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from aura.interceptors.base import Interceptor
+from aura.logging.constants import DEFAULT_SENSITIVE_FIELDS
 from aura.logging.context import get_current_context
+from aura.logging.sanitizer import Sanitizer
 
 logger = logging.getLogger("aura.access")
 
@@ -67,6 +69,7 @@ class RequestLogInterceptor(Interceptor):
     def __init__(self, log_headers: bool = False, log_body: bool = False) -> None:
         self.log_headers = log_headers
         self.log_body = log_body
+        self._sanitizer = Sanitizer(list(DEFAULT_SENSITIVE_FIELDS))
 
     async def intercept(
         self,
@@ -91,7 +94,8 @@ class RequestLogInterceptor(Interceptor):
 
         if self.log_headers:
             headers = dict(getattr(request, "headers", {}))
-            logger.debug("Request headers: %s", headers)
+            sanitized = self._sanitizer.sanitize_headers(headers)
+            logger.debug("Request headers: %s", sanitized)
 
         response = await call_next(request)
 

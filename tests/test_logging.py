@@ -12,6 +12,7 @@ import pytest
 
 from aura.logging import setup_logging
 from aura.logging.config import LogConfig
+from aura.logging.constants import REDACTED_VALUE
 from aura.logging.context import (
     clear_context,
     get_current_context,
@@ -83,6 +84,24 @@ class TestSanitizer:
 
         assert sanitized["PASSWORD"] == "***REDACTED***"
         assert sanitized["Password"] == "***REDACTED***"
+
+    def test_sanitize_default_sensitive_headers(self) -> None:
+        """Test that DEFAULT_SENSITIVE_FIELDS redacts auth headers."""
+        from aura.logging.constants import DEFAULT_SENSITIVE_FIELDS
+
+        sanitizer = Sanitizer(list(DEFAULT_SENSITIVE_FIELDS))
+        headers = {
+            "authorization": "Bearer secret",
+            "cookie": "session=abc",
+            "x-api-key": "key123",
+            "content-type": "application/json",
+        }
+        sanitized = sanitizer.sanitize_headers(headers)
+
+        assert sanitized["authorization"] == REDACTED_VALUE
+        assert sanitized["cookie"] == REDACTED_VALUE
+        assert sanitized["x-api-key"] == REDACTED_VALUE
+        assert sanitized["content-type"] == "application/json"
 
     def test_sanitize_body_dict(self) -> None:
         """Test body sanitization with dictionary."""
@@ -721,3 +740,41 @@ class TestRequestLogInterceptor:
         # After request, context should be cleared
         from aura.logging.context import get_current_context
         assert get_current_context() == {}
+
+    @pytest.mark.asyncio
+    async def test_interceptor_redacts_sensitive_headers(self, caplog: Any) -> None:
+        """Test that ASGI interceptor redacts sensitive headers when log_headers=True."""
+        from aura.logging.interceptor import RequestLogInterceptor
+
+        clear_context()
+
+        async def dummy_app(scope: Any, receive: Any, send: Any) -> None:
+            pass
+
+        interceptor = RequestLogInterceptor(dummy_app, log_headers=True)
+
+        scope = {
+            "type": "http",
+            "headers": [
+                (b"authorization", b"Bearer secret-token"),
+                (b"cookie", b"session=abc123"),
+                (b"x-api-key", b"my-api-key"),
+                (b"content-type", b"application/json"),
+            ],
+        }
+
+        async def mock_receive() -> Any:
+            return {}
+
+        async def mock_send(message: Any) -> None:
+            pass
+
+        with caplog.at_level(logging.DEBUG, logger="aura.app"):
+            await interceptor(scope, mock_receive, mock_send)
+
+        record_text = str([r.__dict__ for r in caplog.records])
+        assert "secret-token" not in record_text
+        assert "abc123" not in record_text
+        assert "my-api-key" not in record_text
+        assert REDACTED_VALUE in record_text
+        assert "application/json" in record_text

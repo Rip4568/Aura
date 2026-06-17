@@ -31,6 +31,8 @@ class CompressionMiddleware:
         minimum_size: int = 500,
         gzip_level: int = 6,
     ) -> None:
+        if not 1 <= gzip_level <= 9:
+            raise ValueError("gzip_level must be between 1 and 9")
         self.minimum_size = minimum_size
         self.gzip_level = gzip_level
 
@@ -55,13 +57,17 @@ class CompressionMiddleware:
 
         # Prefer brotli if available
         try:
-            import brotli  # noqa: F401 — check availability
-            from starlette_brotli import BrotliMiddleware
+            import brotli  # type: ignore[import-not-found]  # noqa: F401
+            from starlette_brotli import BrotliMiddleware  # type: ignore[import-not-found]
             return BrotliMiddleware(app, minimum_size=self.minimum_size)
         except ImportError:
             pass
 
-        return GZipMiddleware(app, minimum_size=self.minimum_size)
+        return GZipMiddleware(
+            app,
+            minimum_size=self.minimum_size,
+            compresslevel=self.gzip_level,
+        )
 
     def __call__(self, app: Any) -> Any:
         """Alias for :meth:`build`."""
