@@ -3,7 +3,7 @@
 > Fonte da verdade para priorização. Marque `[x]` **somente** após verificar no código (`grep`) e nos testes.
 
 **Branch atual:** `fix/wave7-infra-release`  
-**Baseline de testes (2026-06-17):** 658 passed · 2 skipped · mypy `aura/` + `tests/` 0 erros · ruff clean · cobertura `aura/` ≥ 75%  
+**Baseline de testes (2026-06-17):** 673 passed · 2 skipped · mypy `aura/` + `tests/` 0 erros · ruff clean · cobertura `aura/` ≥ 75%  
 **Versão:** `1.4.0` (`pyproject.toml`)
 
 ---
@@ -123,14 +123,29 @@ Concluída na branch `fix/wave7-infra-release`.
 
 ---
 
+## Wave 8 — Security & Proxy Hardening ✅
+
+Concluída na branch `fix/wave7-infra-release`.
+
+| ID | Item | Status | Verificação |
+|----|------|--------|-------------|
+| W8-1 | `trusted_proxies` em RateLimitMiddleware, RateLimitGuard e `AuraConfig` | [x] | `aura/middleware/rate_limit.py`, `aura/guards/rate_limit.py`, `aura/config/base.py`, `tests/test_client_ip.py` |
+| W8-2 | Redis backend: script Lua atômico (sliding window sem race) | [x] | `aura/middleware/rate_limit_backends/redis.py`, `tests/test_rate_limit_redis.py` |
+| W8-3 | `JWTGuard(require_exp=True)` por padrão — **breaking** | [x] | `aura/guards/jwt.py`, `tests/test_guards_auth.py` |
+| W8-4 | `SessionMiddleware`: `Set-Cookie` só quando sessão mutada + `HttpOnly` | [x] | `aura/middleware/session.py`, `tests/test_guards_auth.py` |
+| W8-5 | `UnprocessableEntityException.to_dict()` — formato 422 FastAPI | [x] | `aura/exceptions/http.py`, `tests/test_exceptions.py` |
+| W8-6 | `Aura(interceptors=[...])` — API global de interceptors | [x] | `aura/core/app.py`, `aura/interceptors/`, `tests/test_interceptors.py` |
+| W8-7 | Middleware factory via `Aura(middleware=[CORSMiddleware(...)])` | [x] | `aura/core/app.py`, `tests/test_middleware.py` |
+
+---
+
 ## Pendentes pós-hardening
 
-Itens **não** cobertos pelas waves 1–7.
+Itens **não** cobertos pelas waves 1–8.
 
 ### Médio / baixo
 
 - [ ] `QuerySet.explain()` — concatenação de SQL (preferir binding parametrizado)
-- [ ] `SessionMiddleware` — reenvio de cookie em toda resposta
 - [ ] `CompressionMiddleware` — `gzip_level` ignorado
 - [ ] Site MkDocs publicado no GitHub Pages (skeleton pronto; deploy pendente)
 - [ ] `AdminModule` auto-gerado (roadmap v0.4+)
@@ -145,6 +160,9 @@ Itens **não** cobertos pelas waves 1–7.
 | Extra `[jwt]` | `pip install "aura-web[jwt]"` instala **PyJWT**, não `python-jose` |
 | `redirect(url)` | Apenas URLs relativas (`/path`); URLs absolutas lançam `BadRequestException` |
 | `component(...)` em templates Jinja2 (v1.3.0) | Usar `{{ await component(...) }}` — ver ADR-002 |
+| Erros **422** (v1.4.0) | Corpo `{detail: [{loc, msg, type}]}` — ajustar parsers de cliente |
+| `JWTGuard` sem `exp` (v1.4.0) | Tokens sem claim `exp` rejeitados; use `require_exp=False` se necessário |
+| `SessionMiddleware` cookie (v1.4.0) | Cookie só reenviado quando sessão mutada; inclui `HttpOnly` |
 
 Ver `docs/decisions/ADR-001-security-hardening.md` e `docs/decisions/ADR-002-async-templates-only.md`.  
 Release notes: `CHANGELOG.md`.

@@ -12,7 +12,7 @@ Resolve as dores reais do Django (ORM síncrono, sem DI real) e do FastAPI (sem 
 
 **PyPI:** `pip install aura-web`
 **Versão:** Definida em `pyproject.toml` (fonte canônica) · `aura.__version__` lê via `importlib.metadata`
-**Testes:** 658 passando · mypy strict 0 erros em `aura/` + `tests/` · ruff clean · cobertura `aura/` ≥ 75%
+**Testes:** 673 passando · mypy strict 0 erros em `aura/` + `tests/` · ruff clean · cobertura `aura/` ≥ 75%
 
 ---
 
@@ -114,7 +114,7 @@ Mudanças breaking → revisão obrigatória do Arquiteto + nota no changelog.
 # Esses comandos DEVEM passar antes de qualquer commit:
 python3 -m pytest tests/ -q --tb=short
 python3 -m mypy aura/ --ignore-missing-imports
-python3 -m mypy tests/ --ignore-missing-imports   # wave 2 — meta: 0 erros
+python3 -m mypy tests/ --ignore-missing-imports   # wave 2 — 0 erros (concluído wave 7)
 python3 -m ruff check aura/ tests/
 ```
 
@@ -187,6 +187,19 @@ Ao final de cada sessão produtiva, atualize:
 | Admin | PBKDF2, CSRF, logout POST | Não (wave 2) |
 
 Detalhes: `docs/decisions/ADR-001-security-hardening.md` · roadmap: `docs/pending.md`
+
+### Waves 3–8 (2026-06) — v1.4.0
+
+| Wave | Tema | Destaques |
+|------|------|-----------|
+| 3 | Produção | `DatabaseMiddleware` fail-fast; `await component(...)`; SAQ `--burst` |
+| 4 | DX | Redis rate limit; OpenAPI `BearerAuth`; header redaction em logs |
+| 5 | Contrato | Interceptors globais; 422 estruturado; `FormDataMarker`; ADR-003 |
+| 6 | Admin | `ModelForm`; CSRF em forms; ADR-004 |
+| 7 | Infra | CI 3.11/3.13; pre-commit; MkDocs skeleton; fixtures autouse |
+| 8 | Segurança | `trusted_proxies`; Redis Lua atômico; `require_exp` padrão; cookie sessão |
+
+Breaking em 1.4.0: formato 422, `JWTGuard(require_exp=True)`, cookie de sessão condicional. Ver `CHANGELOG.md` e `README.md`.
 
 ---
 

@@ -10,9 +10,9 @@ _Nothing yet._
 
 ---
 
-## [1.4.0] — Waves 4–6
+## [1.4.0] — Waves 4–8
 
-> **Nota de release:** A versão **1.3.0** foi publicada no PyPI a partir do commit órfão `8989544` (branch divergente). Esta release **1.4.0** consolida as waves 4–6 em `main` e substitui o histórico de pacote.
+> **Nota de release:** A versão **1.3.0** foi publicada no PyPI a partir do commit órfão `8989544` (branch divergente). Esta release **1.4.0** consolida as waves 4–8 em `main` e substitui o histórico de pacote.
 
 ### Wave 4 — DX & Observabilidade
 
@@ -55,6 +55,40 @@ _Nothing yet._
 #### Changed
 
 - **Admin views:** parsing duplicado de formulário removido; delegação a `ModelForm.save()`.
+
+### Wave 7 — Infra & Release
+
+#### Added
+
+- **CI:** matriz Python 3.11 e 3.13; gate de cobertura `aura/` ≥ 75%; mypy em `tests/`.
+- **Pre-commit:** `.pre-commit-config.yaml` com ruff (fix) e mypy (`aura/` + `tests/`).
+- **Docs:** `docs/tinker.md`, ADR-003/004, skeleton MkDocs (`mkdocs.yml`, `docs/index.md`).
+
+#### Changed
+
+- **Fixtures:** `tests/conftest.py` — reset autouse de `db` e `container`; `db_manager` centralizado.
+- **Makefile:** targets Windows-friendly (`python` em vez de `python3`).
+
+### Wave 8 — Security & Proxy Hardening
+
+#### Added
+
+- **`trusted_proxies`:** `RateLimitMiddleware`, `RateLimitGuard` e `AuraConfig.security.trusted_proxies` resolvem IP real via `X-Forwarded-For` apenas de proxies confiáveis.
+- **Redis atomic rate limit:** `RedisBackend` usa script Lua atômico (sorted set) — sem race conditions entre workers.
+
+#### Changed
+
+- **`JWTGuard`:** `require_exp=True` por padrão — tokens sem claim `exp` válido são rejeitados.
+- **`SessionMiddleware`:** `Set-Cookie` enviado somente quando a sessão é modificada; cookie inclui flag `HttpOnly`.
+- **422 responses:** `UnprocessableEntityException.to_dict()` retorna `{detail: [{loc, msg, type}]}` compatível com FastAPI.
+- **`Aura(interceptors=[...])`:** interceptors globais registrados no pipeline de rotas (JSON, HTML, SSE, WebSocket).
+- **Middleware factory:** `Aura(middleware=[CORSMiddleware(...), CompressionMiddleware(...)])` suportado nativamente.
+
+#### Breaking changes (Wave 8)
+
+- **`JWTGuard`:** tokens sem `exp` → 401 por padrão; use `require_exp=False` para compatibilidade legada.
+- **`SessionMiddleware`:** cookie não reenviado em respostas read-only; clientes que dependiam de refresh implícito devem mutar a sessão explicitamente.
+- **422 format:** clientes que parseavam corpo plano devem migrar para o array `detail`.
 
 ---
 

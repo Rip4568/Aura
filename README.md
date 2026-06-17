@@ -9,7 +9,7 @@
     <img src="https://img.shields.io/badge/pydantic-v2-orange?style=flat-square" />
     <img src="https://img.shields.io/badge/pypi-aura--web-purple?style=flat-square" />
     <img src="https://img.shields.io/pypi/v/aura-web?style=flat-square&color=blue" />
-    <img src="https://img.shields.io/badge/tests-647%20passing-brightgreen?style=flat-square" />
+    <img src="https://img.shields.io/badge/tests-673%20passing-brightgreen?style=flat-square" />
     <img src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square" />
     <img src="https://img.shields.io/badge/status-alpha-red?style=flat-square" />
   </p>
@@ -391,6 +391,10 @@ published_posts = await published_factory.create_many(3)
 
 > **DX & Observabilidade (v1.4.x — Wave 4):** rate limit com backend Redis para multi-worker; `JWTGuard` expõe `BearerAuth` no Swagger; `Router.tags` faz merge com tags de rota; `RequestLogInterceptor` redacta headers sensíveis. Ver [CHANGELOG](CHANGELOG.md).
 
+> **Contrato & Admin (v1.4.0 — Waves 5–6):** interceptors globais via `Aura(interceptors=[...])`; `UnprocessableEntityException` com corpo 422 estruturado; `ModelForm` no admin; ver [ADR-003](docs/decisions/ADR-003-contract-cleanup.md) e [ADR-004](docs/decisions/ADR-004-admin-modelform.md).
+
+> **Infra & Release (v1.4.0 — Waves 7–8):** CI com Python 3.11/3.13, pre-commit (ruff + mypy), rate limit Redis atômico (Lua), `trusted_proxies` para IP real atrás de proxy, `JWTGuard(require_exp=True)` por padrão, `SessionMiddleware` só reenvia cookie quando a sessão muda. Ver [CHANGELOG](CHANGELOG.md) e `docs/pending.md`.
+
 ### JWTGuard — autenticação Bearer
 
 Requer `pip install "aura-web[jwt]"` (instala **PyJWT[crypto]**, não `python-jose`).
@@ -421,7 +425,11 @@ jwt = JWTGuard(
     secret="sua-chave-secreta",
     algorithm="HS256",     # padrão
     auto_error=True,       # 401 automático (padrão)
+    require_exp=True,      # padrão — rejeita tokens sem claim exp
 )
+
+# Tokens de longa duração sem expiração: opt-out explícito
+legacy_jwt = JWTGuard(secret="...", require_exp=False)
 ```
 
 ### RateLimitGuard — proteção por rota
@@ -449,7 +457,7 @@ Parâmetro `max_tracked_keys` (padrão `10000`) limita chaves em memória com ev
 
 ### Rate limit distribuído com Redis (v1.4.x)
 
-Em produção com múltiplos workers (`aura run --workers 4`), use `RedisBackend` para compartilhar contadores entre processos:
+Em produção com múltiplos workers (`aura run --workers 4`), use `RedisBackend` — contadores distribuídos com script Lua atômico (sem race conditions entre processos):
 
 ```python
 from aura import Aura
@@ -487,6 +495,30 @@ login_limit = RateLimitGuard(
 
 Requer `pip install "aura-web[redis]"`. Sem Redis, o padrão continua sendo `MemoryBackend` (adequado para dev e single-process).
 
+### IP real atrás de reverse proxy — `trusted_proxies` (v1.4.0)
+
+Por padrão, `X-Forwarded-For` é **ignorado** (evita spoofing). Informe os IPs dos seus proxies confiáveis:
+
+```python
+from aura import Aura
+from aura.middleware import RateLimitMiddleware
+from starlette.middleware import Middleware
+
+app = Aura(
+    modules=[...],
+    middleware=[
+        Middleware(
+            RateLimitMiddleware,
+            max_requests=100,
+            window_seconds=60,
+            trusted_proxies=["10.0.0.1", "127.0.0.1"],  # nginx, traefik, etc.
+        ),
+    ],
+)
+```
+
+O mesmo parâmetro existe em `RateLimitGuard` e em `AuraConfig.security.trusted_proxies` (via `aura.toml` ou `AURA__SECURITY__TRUSTED_PROXIES`).
+
 ### OpenAPI — `BearerAuth` no Swagger (v1.4.x)
 
 Rotas protegidas por `JWTGuard` expõem automaticamente o esquema `BearerAuth` em `/docs` e `/redoc`:
@@ -513,14 +545,17 @@ No Swagger UI, use **Authorize** com `Bearer <token>`.
 
 ### SessionMiddleware — sessões em cookie
 
+O cookie é assinado, `HttpOnly`, e **só é reenviado quando a sessão é modificada** (não em toda resposta).
+
 ```python
 from aura import Aura
 from aura.middleware import SessionMiddleware  # pip install "aura-web[session]"
+from starlette.middleware import Middleware
 
 app = Aura(
     modules=[...],
     middleware=[
-        SessionMiddleware(secret_key="chave-secreta-longa"),
+        Middleware(SessionMiddleware, secret_key="chave-secreta-longa"),
     ],
 )
 
@@ -552,13 +587,14 @@ class AdminGuard(Guard):
         raise ForbiddenException("Acesso restrito a administradores")
 ```
 
-### Admin panel — PBKDF2, CSRF e logout seguro
+### Admin panel — PBKDF2, CSRF, ModelForm e logout seguro
 
-O painel admin (`aura/admin/`) aplica hardening da wave 2:
+O painel admin (`aura/admin/`) aplica hardening da wave 2 e consolidação da wave 6:
 
 - Senhas verificadas com **PBKDF2-HMAC-SHA256** (`aura/admin/security.py`); hashes legados em texto puro ainda aceitos na migração
 - Mutações (create/update/delete via htmx) exigem header `X-CSRF-Token` da sessão
 - Logout via **POST** `/admin/logout` (não GET)
+- **`ModelForm`:** mapeamento automático de colunas SQLAlchemy → campos `AuraForm` no CRUD admin ([ADR-004](docs/decisions/ADR-004-admin-modelform.md))
 
 Configure credenciais via variáveis de ambiente (`AURA__ADMIN__*`); nunca commite senhas no repositório.
 
@@ -610,6 +646,17 @@ Componentes Jinja2 são assíncronos. Use `await` em cada chamada:
 ```
 
 Sem `await`, o Jinja2 pode renderizar uma coroutine como texto ou lançar `TemplateRuntimeError`. Migração completa: [ADR-002](docs/decisions/ADR-002-async-templates-only.md).
+
+### Breaking changes — v1.4.0 (Waves 5–8)
+
+| Área | Mudança | Migração |
+|------|---------|----------|
+| **422** | Erros de validação retornam `{detail: [{loc, msg, type}]}` (formato FastAPI) | Ajuste parsers de cliente; use `UnprocessableEntityException(detail=[...])` para erros customizados |
+| **JWT** | `JWTGuard` rejeita tokens **sem** claim `exp` por padrão | Passe `require_exp=False` para tokens legados sem expiração |
+| **Session** | Cookie `Set-Cookie` só quando a sessão muda; inclui `HttpOnly` | Se dependia de reenvio em toda resposta, leia sessão sem mutar ou force escrita explícita |
+| **ORM** | `delete()` sem filtros exige `allow_unfiltered=True` | Ver seção ORM abaixo — [ADR-001](docs/decisions/ADR-001-security-hardening.md) |
+| **JWT dep** | Extra `[jwt]` instala **PyJWT**, não `python-jose` | `pip install "aura-web[jwt]"` |
+| **Templates** | `component(...)` exige `await` | `{{ await component(...) }}` — [ADR-002](docs/decisions/ADR-002-async-templates-only.md) |
 
 ---
 
@@ -732,18 +779,21 @@ class UserController:
 
 ## ⚙️ Middleware global
 
+Middlewares factory-style (`CORSMiddleware(...)`, `CompressionMiddleware(...)`) e instâncias Starlette `Middleware(...)` funcionam em `Aura(middleware=[...])`:
+
 ```python
 from aura import Aura
 from aura.middleware import CORSMiddleware, RateLimitMiddleware, CompressionMiddleware
 from aura.middleware import SessionMiddleware  # requer aura-web[session]
+from starlette.middleware import Middleware
 
 app = Aura(
     modules=[...],
     middleware=[
-        CORSMiddleware,
-        RateLimitMiddleware,       # rate limit global (por IP)
-        CompressionMiddleware,
-        SessionMiddleware(secret_key="..."),
+        CORSMiddleware(allow_origins=["https://app.example.com"], allow_methods=["*"]),
+        CompressionMiddleware(minimum_size=512),
+        Middleware(RateLimitMiddleware, max_requests=100, window_seconds=60),
+        Middleware(SessionMiddleware, secret_key="..."),
     ],
 )
 ```
@@ -1004,6 +1054,18 @@ async def list_users(self):
 
 Diferente dos middlewares tradicionais do ASGI (que rodam no nível da requisição bruta HTTP), os interceptadores rodam no ciclo de vida de resolução de rotas do framework, fornecendo acesso direto a contextos de execução assíncronos.
 
+Registre interceptors globais via `Aura(interceptors=[...])` — aplicados a JSON, HTML, SSE e WebSocket:
+
+```python
+from aura import Aura
+from aura.interceptors import TimingInterceptor, RequestLogInterceptor
+
+app = Aura(
+    modules=[PostsModule],
+    interceptors=[TimingInterceptor(), RequestLogInterceptor()],
+)
+```
+
 ### 🌟 O que eles podem fazer?
 
 - ⏱️ **Métricas de Performance**: Medir tempo exato de processamento de controladores.
@@ -1199,7 +1261,7 @@ Confira a [Documentação Detalhada do Aura Tinker](docs/tinker.md) para ver exe
 
 ### Qualidade
 
-- [x] 647 testes passando
+- [x] 673 testes passando
 - [x] mypy strict (0 erros em `aura/`)
 - [x] ruff (0 warnings)
 - [x] GitHub Actions CI (Python 3.10 + 3.12)
@@ -1221,7 +1283,7 @@ Confira a [Documentação Detalhada do Aura Tinker](docs/tinker.md) para ver exe
 
 ### Interceptors (v0.3.0)
 
-- [ ] **Interface `Interceptor`** — `before(context) / after(context, response)` pipeline
+- [x] **Interface `Interceptor`** — pipeline `intercept(request, handler, call_next)` + `Aura(interceptors=[...])` (v1.4.0)
 - [x] **`LoggingInterceptor`** — log de método, path, status e duração em cada request (implementado como `RequestLogInterceptor` em v0.3.1)
 
 ### Roadmap futuro (v0.4.0+)
