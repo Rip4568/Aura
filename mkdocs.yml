@@ -1,0 +1,36 @@
+site_name: Aura Framework
+site_description: Async-first, type-safe Python web framework
+repo_url: https://github.com/jonathasdavidd/Aura
+repo_name: jonathasdavidd/Aura
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Dark mode
+    - scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Light mode
+
+nav:
+  - Home: index.md
+  - Roadmap: pending.md
+  - Decisions:
+      - ADR-001 Security Hardening: decisions/ADR-001-security-hardening.md
+      - ADR-002 Async Templates: decisions/ADR-002-async-templates-only.md
+      - ADR-003 Contract Cleanup: decisions/ADR-003-contract-cleanup.md
+      - ADR-004 Admin ModelForm: decisions/ADR-004-admin-modelform.md
+  - CLI:
+      - Aura Tinker: tinker.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - toc:
+      permalink: true

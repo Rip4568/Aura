@@ -107,6 +107,7 @@ class Aura:
         modules: Sequence[type] = (),
         middleware: Sequence[Any] = (),
         guards: Sequence[Any] = (),
+        interceptors: Sequence[Any] = (),
         config: type[AuraConfig] | None = None,
         title: str = "Aura App",
         version: str = "0.1.0",
@@ -140,9 +141,10 @@ class Aura:
         # Config
         self._config_class = config or AuraConfig
 
-        # Middleware and guards
+        # Middleware, guards, and interceptors
         self._global_middleware = list(middleware)
         self._global_guards = list(guards)
+        self._interceptors = list(interceptors)
 
         # Register all modules
         for module in modules:
@@ -181,6 +183,7 @@ class Aura:
             openapi_gen=self.openapi,
             global_guards=self._global_guards,
             global_prefix=self.prefix,
+            global_interceptors=self._interceptors,
         )
 
         # Meta routes: OpenAPI, docs
@@ -256,9 +259,27 @@ class Aura:
                 result.append(mw)
             elif isinstance(mw, type):
                 result.append(Middleware(mw))  # type: ignore[arg-type]
+            elif hasattr(mw, "build") or (
+                callable(mw) and not isinstance(mw, Middleware)
+            ):
+                result.append(Middleware(self._factory_middleware_class(mw)))  # type: ignore[arg-type]
             else:
                 logger.warning("Skipping unrecognised middleware: %r", mw)
         return result
+
+    @staticmethod
+    def _factory_middleware_class(factory: Any) -> type:
+        """Wrap factory-style middleware (``build(app)``) for Starlette."""
+        build_fn = factory.build if hasattr(factory, "build") else factory
+
+        class _FactoryMiddleware:
+            def __init__(self, app: ASGIApp) -> None:
+                self.app = build_fn(app)
+
+            async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+                await self.app(scope, receive, send)
+
+        return _FactoryMiddleware
 
     # ------------------------------------------------------------------
     # Lifecycle hooks

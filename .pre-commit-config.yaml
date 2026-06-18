@@ -1,0 +1,22 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.10
+    hooks:
+      - id: ruff
+        args: [--fix, aura/, tests/]
+
+  - repo: local
+    hooks:
+      - id: mypy-aura
+        name: mypy aura/
+        entry: python -m mypy aura/ --ignore-missing-imports
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: mypy-tests
+        name: mypy tests/
+        entry: python -m mypy tests/ --ignore-missing-imports
+        language: system
+        pass_filenames: false
+        always_run: true

@@ -37,16 +37,6 @@ class ItemRepository(Repository[Item]):
 # Fixtures
 # ---------------------------------------------------------------------------
 
-@pytest.fixture
-async def db_manager() -> AsyncIterator[DatabaseManager]:
-    """Provide a fresh in-memory SQLite DatabaseManager for each test."""
-    manager = DatabaseManager()
-    manager.init("sqlite+aiosqlite:///:memory:", echo=False)
-    await manager.create_all(AuraModel)
-    yield manager
-    await manager.drop_all(AuraModel)
-    await manager.close()
-
 
 @pytest.fixture
 async def session(db_manager: DatabaseManager) -> AsyncIterator[AsyncSession]:

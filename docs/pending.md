@@ -2,9 +2,9 @@
 
 > Fonte da verdade para priorização. Marque `[x]` **somente** após verificar no código (`grep`) e nos testes.
 
-**Branch atual:** `fix/wave4-dx-observability`  
-**Baseline de testes (2026-06-17):** 647 passed · 2 skipped · mypy `aura/` + `tests/` 0 erros · ruff clean  
-**Versão:** `1.4.0` (target Wave 4; `pyproject.toml` ainda em `1.2.0` até release)
+**Branch atual:** `fix/wave7-infra-release`  
+**Baseline de testes (2026-06-17):** 673 passed · 2 skipped · mypy `aura/` + `tests/` 0 erros · ruff clean · cobertura `aura/` ≥ 75%  
+**Versão:** `1.4.0` (`pyproject.toml`)
 
 ---
 
@@ -35,12 +35,12 @@ Concluída na branch `fix/wave2-inject-saq-admin-mypy`.
 
 | ID | Item | Status | Notas |
 |----|------|--------|-------|
-| W2-A2 | `@inject` / `Annotated[T, inject()]` no DI | [x] | `aura/di/decorators.py`, `aura/di/container.py` (`_parse_dependency_type`); override por `param_name` ainda não consumido |
+| W2-A2 | `@inject` / `Annotated[T, inject()]` no DI | [x] | `aura/di/decorators.py`, `aura/di/container.py` |
 | W2-C7 | SAQ: `Queue.from_url` em vez de instanciar classe abstrata | [x] | `aura/jobs/backends/saq_backend.py` |
 | W2-C7b | SAQ: `timeout` e `scheduled` em **segundos** (epoch) | [x] | `aura/jobs/backends/saq_backend.py` |
-| W2-C11 | `generate_env_py` sem `os.walk` / auto-discovery inseguro | [x] | `aura/orm/migrations.py` — exige import explícito ou placeholder comentado |
+| W2-C11 | `generate_env_py` sem `os.walk` / auto-discovery inseguro | [x] | `aura/orm/migrations.py` |
 | W2-C13 | Admin: senhas com **PBKDF2-HMAC-SHA256** | [x] | `aura/admin/security.py` |
-| W2-C14 | Admin: tokens **CSRF** em mutações (htmx `X-CSRF-Token`) | [x] | `aura/admin/security.py`, `aura/admin/views.py`, templates |
+| W2-C14 | Admin: tokens **CSRF** em mutações (htmx `X-CSRF-Token`) | [x] | `aura/admin/security.py`, `aura/admin/views.py` |
 | W2-C14b | Admin: logout via **POST** `/admin/logout` | [x] | `aura/admin/views.py`, `layout.html` |
 | W2-A20 | mypy em `tests/` | [x] | `pyproject.toml` overrides; 0 erros em `mypy tests/` |
 
@@ -70,27 +70,84 @@ Concluída na branch `fix/wave4-dx-observability`.
 
 | ID | Item | Status | Verificação |
 |----|------|--------|-------------|
-| W4-O1 | OpenAPI: `securitySchemes` — `JWTGuard` expõe `BearerAuth` em `/docs` | [x] | `aura/guards/jwt.py`, `aura/schema/openapi.py`, `tests/test_openapi.py` |
+| W4-O1 | OpenAPI: `securitySchemes` — `JWTGuard` expõe `BearerAuth` em `/docs` | [x] | `aura/guards/jwt.py`, `aura/schema/openapi.py` |
 | W4-O2 | OpenAPI: merge de `Router.tags` com tags de rota (sem duplicatas) | [x] | `aura/routing/router.py`, `tests/test_openapi.py` |
-| W4-R1 | Rate limit: backend Redis compartilhado (`RateLimitBackend` + `RedisBackend`) | [x] | `aura/middleware/rate_limit_backends/`, `aura/middleware/rate_limit.py`, `aura/guards/rate_limit.py` |
-| W4-L1 | `RequestLogInterceptor`: redação de headers sensíveis (`log_headers=True`) | [x] | `aura/logging/interceptor.py`, `aura/interceptors/logging.py`, `tests/test_logging.py` |
+| W4-R1 | Rate limit: backend Redis compartilhado (`RateLimitBackend` + `RedisBackend`) | [x] | `aura/middleware/rate_limit_backends/` |
+| W4-L1 | `RequestLogInterceptor`: redação de headers sensíveis (`log_headers=True`) | [x] | `aura/logging/interceptor.py`, `tests/test_logging.py` |
 
 ---
 
-## Pendentes pós-hardening (análise 2026-06-16)
+## Wave 5 — Contract Cleanup ✅
 
-Itens críticos/altos **não** cobertos pelas waves 1–4.
+Concluída na branch `fix/wave5-contract-cleanup`.
 
-### Crítico / alto
-- [ ] Admin: reutilizar `AuraForm`/`ModelForm` (duplicação de parsing)
+| ID | Item | Status | Verificação |
+|----|------|--------|-------------|
+| W5-R1 | `FormDataMarker` no plano de binding de parâmetros | [x] | `aura/routing/router.py`, `tests/test_routing.py` |
+| W5-R2 | Interceptors + middleware por rota em todos os `response_type` | [x] | `aura/routing/router.py`, `tests/test_middleware.py` |
+| W5-C1 | Remover `RequestPipeline` morto (`aura/core/pipeline.py`) | [x] | ADR-003 |
+| W5-E1 | `UnprocessableEntityException` (422) estruturada | [x] | `aura/exceptions/http.py`, `tests/test_exceptions.py` |
+| W5-M1 | Exports e `ModuleRegistry` alinhados ao contrato público | [x] | `aura/modules/registry.py`, `tests/test_modules.py` |
+
+Ver [ADR-003](decisions/ADR-003-contract-cleanup.md).
+
+---
+
+## Wave 6 — Admin Consolidation ✅
+
+Concluída na branch `fix/wave6-admin-consolidation`.
+
+| ID | Item | Status | Verificação |
+|----|------|--------|-------------|
+| W6-A1 | `ModelForm` — mapeamento SQLAlchemy → `AuraForm` | [x] | `aura/forms/modelform.py` |
+| W6-A2 | Admin views delegam a `ModelForm` (sem parsing duplicado) | [x] | `aura/admin/views.py`, `tests/test_admin.py` |
+| W6-A3 | CSRF token em template de formulário admin | [x] | `aura/admin/templates/form.html` |
+
+Ver [ADR-004](decisions/ADR-004-admin-modelform.md).
+
+---
+
+## Wave 7 — Infra & Release ✅
+
+Concluída na branch `fix/wave7-infra-release`.
+
+| ID | Item | Status | Verificação |
+|----|------|--------|-------------|
+| W7-1 | Versão `1.4.0` + `CHANGELOG.md` consolidado | [x] | `pyproject.toml`, `CHANGELOG.md` |
+| W7-2 | CI: Python 3.11/3.13, mypy tests, cobertura ≥ 75% | [x] | `.github/workflows/ci.yml` |
+| W7-3 | Fixtures autouse: reset `db` + `container`; `db_manager` centralizado | [x] | `tests/conftest.py` |
+| W7-4 | `.pre-commit-config.yaml` (ruff + mypy) | [x] | `.pre-commit-config.yaml` |
+| W7-5 | Makefile Windows-friendly (`python` em vez de `python3`) | [x] | `Makefile` |
+| W7-6 | Docs: `tinker.md`, ADR-003/004, `pending.md`, `CLAUDE.md` | [x] | `docs/` |
+| W7-7 | MkDocs skeleton (`mkdocs.yml` + `docs/index.md`) | [x] | `mkdocs.yml` |
+
+---
+
+## Wave 8 — Security & Proxy Hardening ✅
+
+Concluída na branch `fix/wave7-infra-release`.
+
+| ID | Item | Status | Verificação |
+|----|------|--------|-------------|
+| W8-1 | `trusted_proxies` em RateLimitMiddleware, RateLimitGuard e `AuraConfig` | [x] | `aura/middleware/rate_limit.py`, `aura/guards/rate_limit.py`, `aura/config/base.py`, `tests/test_client_ip.py` |
+| W8-2 | Redis backend: script Lua atômico (sliding window sem race) | [x] | `aura/middleware/rate_limit_backends/redis.py`, `tests/test_rate_limit_redis.py` |
+| W8-3 | `JWTGuard(require_exp=True)` por padrão — **breaking** | [x] | `aura/guards/jwt.py`, `tests/test_guards_auth.py` |
+| W8-4 | `SessionMiddleware`: `Set-Cookie` só quando sessão mutada + `HttpOnly` | [x] | `aura/middleware/session.py`, `tests/test_guards_auth.py` |
+| W8-5 | `UnprocessableEntityException.to_dict()` — formato 422 FastAPI | [x] | `aura/exceptions/http.py`, `tests/test_exceptions.py` |
+| W8-6 | `Aura(interceptors=[...])` — API global de interceptors | [x] | `aura/core/app.py`, `aura/interceptors/`, `tests/test_interceptors.py` |
+| W8-7 | Middleware factory via `Aura(middleware=[CORSMiddleware(...)])` | [x] | `aura/core/app.py`, `tests/test_middleware.py` |
+
+---
+
+## Pendentes pós-hardening
+
+Itens **não** cobertos pelas waves 1–8.
 
 ### Médio / baixo
 
-- [ ] `QuerySet.explain()` — concatenação de SQL
-- [ ] `SessionMiddleware` — reenvio de cookie em toda resposta
+- [ ] `QuerySet.explain()` — concatenação de SQL (preferir binding parametrizado)
 - [ ] `CompressionMiddleware` — `gzip_level` ignorado
-- [ ] CI: cobertura mínima e Python 3.11/3.13
-- [ ] Site MkDocs + GitHub Pages
+- [ ] Site MkDocs publicado no GitHub Pages (skeleton pronto; deploy pendente)
 - [ ] `AdminModule` auto-gerado (roadmap v0.4+)
 
 ---
@@ -103,6 +160,9 @@ Itens críticos/altos **não** cobertos pelas waves 1–4.
 | Extra `[jwt]` | `pip install "aura-web[jwt]"` instala **PyJWT**, não `python-jose` |
 | `redirect(url)` | Apenas URLs relativas (`/path`); URLs absolutas lançam `BadRequestException` |
 | `component(...)` em templates Jinja2 (v1.3.0) | Usar `{{ await component(...) }}` — ver ADR-002 |
+| Erros **422** (v1.4.0) | Corpo `{detail: [{loc, msg, type}]}` — ajustar parsers de cliente |
+| `JWTGuard` sem `exp` (v1.4.0) | Tokens sem claim `exp` rejeitados; use `require_exp=False` se necessário |
+| `SessionMiddleware` cookie (v1.4.0) | Cookie só reenviado quando sessão mutada; inclui `HttpOnly` |
 
 Ver `docs/decisions/ADR-001-security-hardening.md` e `docs/decisions/ADR-002-async-templates-only.md`.  
 Release notes: `CHANGELOG.md`.
@@ -114,6 +174,6 @@ Release notes: `CHANGELOG.md`.
 ```bash
 python -m pytest tests/ -q --tb=no
 python -m mypy aura/ --ignore-missing-imports
-python -m mypy tests/ --ignore-missing-imports   # wave 2 — em progresso
+python -m mypy tests/ --ignore-missing-imports
 python -m ruff check aura/ tests/
 ```

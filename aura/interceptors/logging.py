@@ -15,7 +15,7 @@ from aura.logging.sanitizer import Sanitizer
 logger = logging.getLogger("aura.access")
 
 
-class RequestLogInterceptor(Interceptor):
+class ChainRequestLogInterceptor(Interceptor):
     """Logs every request with method, path, status code, elapsed time, and context.
 
     Automatically includes structured fields in JSON logs: method, path, status_code,
@@ -49,8 +49,8 @@ class RequestLogInterceptor(Interceptor):
 
     Note:
         This interceptor uses the :class:`Interceptor` chain protocol and is
-        **not** wired via ``Aura(middleware=...)``.  For an ASGI middleware that
-        integrates directly with ``Aura``, use
+        wired via ``Aura(interceptors=[...])``.  For an ASGI middleware that
+        integrates directly with ``Aura(middleware=...)``, use
         :class:`aura.logging.interceptor.RequestLogInterceptor` instead::
 
             from starlette.middleware import Middleware
@@ -59,11 +59,9 @@ class RequestLogInterceptor(Interceptor):
 
             app = Aura(middleware=[Middleware(RequestLogInterceptor)])
 
-        To use this interceptor in a custom chain, call ``intercept()``
-        directly::
+        To use this interceptor in a custom chain, pass it to ``Aura``::
 
-            interceptor = RequestLogInterceptor()
-            response = await interceptor.intercept(request, handler, call_next)
+            app = Aura(interceptors=[ChainRequestLogInterceptor()])
     """
 
     def __init__(self, log_headers: bool = False, log_body: bool = False) -> None:
@@ -124,5 +122,6 @@ class RequestLogInterceptor(Interceptor):
         return response
 
 
-# Backward compatibility alias
-LoggingInterceptor = RequestLogInterceptor
+# Backward compatibility aliases
+RequestLogInterceptor = ChainRequestLogInterceptor
+LoggingInterceptor = ChainRequestLogInterceptor

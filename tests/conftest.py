@@ -9,6 +9,8 @@ from typing import Any, cast
 import pytest
 
 from aura import Aura
+from aura.orm.base import AuraModel
+from aura.orm.session import DatabaseManager
 from aura.testing.client import AuraTestClient
 
 
@@ -37,6 +39,55 @@ async def client(simple_app: Aura) -> AsyncIterator[AuraTestClient]:
     """An AuraTestClient targeting the ``simple_app`` fixture."""
     async with AuraTestClient(simple_app) as ac:
         yield ac
+
+
+@pytest.fixture
+async def db_manager() -> AsyncIterator[DatabaseManager]:
+    """Provide a fresh in-memory SQLite DatabaseManager for each test."""
+    manager = DatabaseManager()
+    manager.init("sqlite+aiosqlite:///:memory:", echo=False)
+    await manager.create_all(AuraModel)
+    yield manager
+    await manager.drop_all(AuraModel)
+    await manager.close()
+
+
+@pytest.fixture(autouse=True)
+def reset_global_state() -> Generator[None, None, None]:
+    """Reset global ``db`` and ``container`` singletons between tests."""
+    import asyncio
+
+    from aura.di.container import container as global_container
+    from aura.orm.session import db as global_db
+
+    orig_engine = global_db._engine
+    orig_factory = global_db._session_factory
+    orig_providers = dict(global_container._providers)
+    orig_scoped = dict(global_container._scoped_cache)
+
+    global_db._engine = None
+    global_db._session_factory = None
+    global_container._providers.clear()
+    global_container._scoped_cache.clear()
+
+    yield
+
+    if global_db._engine is not None and global_db._engine is not orig_engine:
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(global_db.close())
+        else:
+            new_loop = asyncio.new_event_loop()
+            try:
+                new_loop.run_until_complete(global_db.close())
+            finally:
+                new_loop.close()
+
+    global_db._engine = orig_engine
+    global_db._session_factory = orig_factory
+    global_container._providers = orig_providers
+    global_container._scoped_cache = orig_scoped
 
 
 @pytest.fixture(autouse=True)

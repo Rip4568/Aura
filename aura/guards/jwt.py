@@ -46,7 +46,7 @@ class JWTGuard(Guard):
         auto_error: bool = True,
         issuer: str | None = None,
         audience: str | None = None,
-        require_exp: bool = False,
+        require_exp: bool = True,
     ) -> None:
         self.secret = secret
         self.algorithm = algorithm

@@ -2,13 +2,30 @@
 
 from __future__ import annotations
 
+import functools
 import time
 import uuid
+from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 
 from aura.jobs.backends.base import TaskBackend
 from aura.jobs.base import TaskDefinition, TaskResult, TaskStatus
+
+AURA_ARGS_KEY = "__aura_args__"
+
+
+def wrap_saq_task(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Wrap a task so SAQ jobs unpack positional args from ``__aura_args__``."""
+
+    @functools.wraps(func)
+    async def wrapper(**kwargs: Any) -> Any:
+        aura_args = kwargs.pop(AURA_ARGS_KEY, None)
+        if aura_args is not None:
+            return await func(*aura_args, **kwargs)
+        return await func(**kwargs)
+
+    return wrapper
 
 
 class SAQBackend(TaskBackend):
@@ -81,7 +98,7 @@ class SAQBackend(TaskBackend):
         task_id = str(uuid.uuid4())
         job_kwargs: dict[str, Any] = dict(kwargs or {})
         if args:
-            job_kwargs["__aura_args__"] = list(args)
+            job_kwargs[AURA_ARGS_KEY] = list(args)
 
         enqueue_opts: dict[str, Any] = {
             "key": task_id,

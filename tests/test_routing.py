@@ -7,11 +7,13 @@ from typing import Annotated, Any, cast
 import pytest
 
 from aura.di.decorators import injectable
+from aura.forms import AuraForm, CharField
 from aura.routing.decorators import delete, get, post, ws
 from aura.routing.params import (
     Body,
     BodyMarker,
     CookieMarker,
+    FormData,
     HeaderMarker,
     Param,
     ParamMarker,
@@ -453,7 +455,8 @@ async def test_invalid_query_int_coercion_returns_422() -> None:
         r = await c.get("/items?page=invalid_int")
         assert r.status_code == 422
         data = r.json()
-        assert "error" in data
+        assert "detail" in data
+        assert isinstance(data["detail"], list)
 
 
 class RequiredBodyController:
@@ -482,7 +485,7 @@ async def test_empty_required_body_returns_422() -> None:
         r = await c.post("/data", content="")
         assert r.status_code == 422
         data = r.json()
-        assert "error" in data
+        assert "detail" in data
 
 
 @pytest.mark.asyncio
@@ -509,7 +512,7 @@ async def test_invalid_json_body_returns_422() -> None:
         )
         assert r.status_code == 422
         data = r.json()
-        assert "error" in data
+        assert "detail" in data
 
 
 class RequiredHeaderController:
@@ -540,7 +543,7 @@ async def test_missing_required_header_returns_422() -> None:
         r = await c.get("/secure-header")
         assert r.status_code == 422
         data = r.json()
-        assert "error" in data
+        assert "detail" in data
 
 
 class RequiredCookieController:
@@ -571,8 +574,12 @@ async def test_missing_required_cookie_returns_422() -> None:
         r = await c.get("/profile-secure")
         assert r.status_code == 422
         data = r.json()
-        assert "error" in data
-    """Test that response schemas automatically serialize ORM-like objects at C-speed."""
+        assert "detail" in data
+
+
+@pytest.mark.asyncio
+async def test_response_schema_serialization() -> None:
+    """Test that response schemas automatically serialize ORM-like objects."""
     from httpx import ASGITransport, AsyncClient
 
     from aura.core.app import Aura
@@ -629,3 +636,113 @@ async def test_missing_required_cookie_returns_422() -> None:
         assert data2["total"] == 2
         assert len(data2["items"]) == 2
         assert data2["items"][0]["name"] == "Alice"
+
+
+# ---------------------------------------------------------------------------
+# FormData binding
+# ---------------------------------------------------------------------------
+
+
+class _SignupForm(AuraForm):
+    username = CharField()
+
+
+class FormDataController:
+    @post("/signup")
+    async def signup(
+        self, form: FormData[_SignupForm]  # type: ignore[valid-type]
+    ) -> dict[str, str]:
+        return {"username": str(cast(Any, form)._raw_data.get("username", ""))}
+
+
+@pytest.mark.asyncio
+async def test_form_data_binding_from_json() -> None:
+    """Test that FormData[T] params resolve via FormDataMarker in binding plan."""
+    from httpx import ASGITransport, AsyncClient
+
+    from aura.core.app import Aura
+    from aura.modules.base import Module
+
+    @Module(controllers=[FormDataController], prefix="")
+    class FormModule:
+        pass
+
+    app = Aura(modules=[FormModule])
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as c:
+        r = await c.post("/signup", json={"username": "alice"})
+        assert r.status_code == 201
+        assert r.json()["username"] == "alice"
+
+
+# ---------------------------------------------------------------------------
+# Interceptors and per-route middleware
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_aura_interceptors_wired() -> None:
+    """Test that Aura(interceptors=[...]) applies the interceptor chain."""
+    from httpx import ASGITransport, AsyncClient
+
+    from aura.core.app import Aura
+    from aura.interceptors.timing import TimingInterceptor
+    from aura.modules.base import Module
+
+    class PingController:
+        @get("/ping")
+        async def ping(self) -> dict[str, str]:
+            return {"ok": "true"}
+
+    @Module(controllers=[PingController], prefix="")
+    class PingModule:
+        pass
+
+    app = Aura(modules=[PingModule], interceptors=[TimingInterceptor()])
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as c:
+        r = await c.get("/ping")
+        assert r.status_code == 200
+        assert (
+            "x-process-time" in r.headers
+            or "X-Process-Time" in r.headers
+        )
+
+
+@pytest.mark.asyncio
+async def test_per_route_middleware() -> None:
+    """Test that route-level middleware from __aura_route__ is applied."""
+    from httpx import ASGITransport, AsyncClient
+
+    from aura.core.app import Aura
+    from aura.modules.base import Module
+    from aura.routing.decorators import _route_decorator
+
+    class HeaderMiddleware:
+        async def __call__(self, request: Any, call_next: Any) -> Any:
+            response = await call_next(request)
+            if hasattr(response, "headers"):
+                response.headers["X-Route-Mw"] = "yes"
+            return response
+
+    class RouteMwController:
+        @_route_decorator("GET", "/mw", middleware=[HeaderMiddleware()])
+        async def endpoint(self) -> dict[str, str]:
+            return {"ok": "true"}
+
+    @Module(controllers=[RouteMwController], prefix="")
+    class RouteMwModule:
+        pass
+
+    app = Aura(modules=[RouteMwModule])
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as c:
+        r = await c.get("/mw")
+        assert r.status_code == 200
+        assert r.headers.get("x-route-mw") == "yes"

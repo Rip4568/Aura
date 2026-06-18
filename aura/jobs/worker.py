@@ -130,9 +130,13 @@ class AuraWorker:
                 "Install with: pip install aura-framework[saq,redis]"
             ) from exc
 
+        from aura.jobs.backends.saq_backend import wrap_saq_task
         from aura.jobs.base import TaskRegistry
 
-        functions = [task_def.func for task_def in TaskRegistry.all().values()]
+        functions = [
+            wrap_saq_task(task_def.func)
+            for task_def in TaskRegistry.all().values()
+        ]
         if not functions:
             console.print("[yellow]Warning:[/] No tasks registered in TaskRegistry.")
 

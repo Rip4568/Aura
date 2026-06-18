@@ -40,6 +40,7 @@ from aura.forms.fields import (
     URLField,
     UUIDField,
 )
+from aura.forms.modelform import ModelForm
 from aura.forms.validators import (
     validate_email,
     validate_max_length,
@@ -54,6 +55,7 @@ from aura.forms.validators import (
 __all__ = [
     # Base form
     "AuraForm",
+    "ModelForm",
     # Exceptions
     "FieldValidationError",
     "FormValidationError",
@@ -96,13 +98,8 @@ __all__ = [
 ]
 
 # ---------------------------------------------------------------------------
-# v0.6.1 extras — not yet implemented (imported lazily to avoid hard errors)
+# v0.6.1 extras — imported lazily when optional
 # ---------------------------------------------------------------------------
-try:
-    from aura.forms.modelform import ModelForm  # noqa: F401
-except ImportError:
-    pass
-
 try:
     from aura.forms.widgets import Widget  # noqa: F401
 except ImportError:

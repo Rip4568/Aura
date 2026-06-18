@@ -48,7 +48,7 @@ class JobsConfig(BaseSettings):
     """Background jobs / task queue configuration.
 
     Attributes:
-        backend: Queue backend identifier (``memory``, ``saq``, ``taskiq``).
+        backend: Queue backend identifier (``memory`` or ``saq``).
         broker_url: Broker connection URL (used when backend is not ``memory``).
         default_queue: Name of the default queue.
         max_workers: Maximum concurrent job workers.
@@ -84,6 +84,8 @@ class AuraConfig(BaseSettings):
         server: :class:`ServerConfig` nested config.
         database: :class:`DatabaseConfig` nested config.
         jobs: :class:`JobsConfig` nested config.
+        trusted_proxies: Reverse-proxy IPs allowed to set ``X-Forwarded-For``
+                         for rate limiting (``AURA__TRUSTED_PROXIES``).
     """
 
     model_config = SettingsConfigDict(
@@ -97,6 +99,7 @@ class AuraConfig(BaseSettings):
     app_name: str = "Aura App"
     debug: bool = False
     secret_key: str = Field(default="change-me-in-production-32chars!!")
+    trusted_proxies: list[str] = Field(default_factory=list)
 
     server: ServerConfig = ServerConfig()
     database: DatabaseConfig = DatabaseConfig()
