@@ -48,8 +48,8 @@ class JobsConfig(BaseSettings):
     """Background jobs / task queue configuration.
 
     Attributes:
-        backend: Queue backend identifier (``memory`` or ``saq``).
-        broker_url: Broker connection URL (used when backend is not ``memory``).
+        backend: Queue backend identifier (``memory``, ``database``, or ``saq``).
+        broker_url: Broker connection URL (used when backend is ``saq``).
         default_queue: Name of the default queue.
         max_workers: Maximum concurrent job workers.
     """
