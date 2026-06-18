@@ -223,6 +223,9 @@ class TestEventsConfig:
         assert events.enabled is False
         assert events.backend == "memory"
         assert events.stream_prefix == "aura:events:"
+        assert events.rabbitmq_url == "amqp://guest:guest@localhost/"
+        assert events.kafka_bootstrap_servers == "localhost:9092"
+        assert events.kafka_consumer_group == "aura"
 
         cfg = AuraConfig()
         assert cfg.events.enabled is False

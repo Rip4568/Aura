@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aura-web"
-version = "1.4.0"
+version = "1.5.0"
 description = "A modern, async-first, type-safe Python web framework with Spec-Driven Development (SDD)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -53,10 +53,12 @@ sqlalchemy = ["sqlalchemy[asyncio]>=2.0", "alembic>=1.13", "faker>=19.0"]
 saq = ["saq>=0.12"]
 # taskiq backend is not implemented yet — use SAQ for production queues
 redis = ["redis[asyncio]>=5.0"]
+rabbitmq = ["aio-pika>=9.0"]
+kafka = ["aiokafka>=0.10"]
 jwt = ["PyJWT[crypto]>=2.13.0"]
 session = ["itsdangerous>=2.1"]
 all = [
-    "aura-web[granian,uvicorn,sqlalchemy,saq,redis,jwt,session,templates]"
+    "aura-web[granian,uvicorn,sqlalchemy,saq,redis,rabbitmq,kafka,jwt,session,templates]"
 ]
 dev = [
     "pytest>=7.4",

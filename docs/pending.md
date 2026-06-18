@@ -2,9 +2,9 @@
 
 > Fonte da verdade para priorização. Marque `[x]` **somente** após verificar no código (`grep`) e nos testes.
 
-**Branch atual:** `fix/wave7-infra-release`  
-**Baseline de testes (2026-06-17):** 673 passed · 2 skipped · mypy `aura/` + `tests/` 0 erros · ruff clean · cobertura `aura/` ≥ 75%  
-**Versão:** `1.4.0` (`pyproject.toml`)
+**Branch atual:** `fix/wave11-message-brokers`  
+**Baseline de testes (2026-06-17):** 713 passed · 4 skipped · mypy `aura/` + `tests/` 0 erros · ruff clean · cobertura `aura/` ≥ 75%  
+**Versão:** `1.5.0` (`pyproject.toml`)
 
 ---
 
@@ -139,9 +139,55 @@ Concluída na branch `fix/wave7-infra-release`.
 
 ---
 
+## Wave 9 — Database Jobs (sem Redis) ✅
+
+Concluída na branch `fix/wave9-database-jobs`.
+
+| ID | Item | Status | Verificação |
+|----|------|--------|-------------|
+| W9-1 | `DatabaseBackend` — fila persistente em SQL (`aura_jobs`) | [x] | `aura/jobs/backends/database.py`, `tests/test_database_backend.py` |
+| W9-2 | Modelo `AuraJob` com status, retry, scheduled_at | [x] | `aura/jobs/models.py`, `tests/test_database_backend.py` |
+| W9-3 | `AURA__JOBS__BACKEND=database` auto-seleciona backend | [x] | `aura/jobs/decorators.py`, `aura/config/base.py` (`JobsConfig.backend`) |
+| W9-4 | `AuraWorker` — polling DB com claim, retry e mark success/failed | [x] | `aura/jobs/worker.py`, `tests/test_database_backend.py` |
+| W9-5 | Requer `[sqlalchemy]` — lazy import com hint de instalação | [x] | `aura/jobs/backends/database.py`, `pyproject.toml` |
+
+---
+
+## Wave 10 — EventBus ✅
+
+Concluída na branch `fix/wave10-event-bus`.
+
+| ID | Item | Status | Verificação |
+|----|------|--------|-------------|
+| W10-1 | Contrato `EventBus` + `EventEnvelope` (topic, payload, event_id, timestamp) | [x] | `aura/events/base.py` |
+| W10-2 | `InMemoryEventBus` — fan-out in-process (dev/test) | [x] | `aura/events/backends/memory.py`, `tests/test_events.py` |
+| W10-3 | `RedisStreamsEventBus` — `XADD` / `XREADGROUP` com prefixo configurável | [x] | `aura/events/backends/redis_streams.py`, `tests/test_events.py` |
+| W10-4 | `@on_event("topic")` + `EventHandlerRegistry` + wiring no startup | [x] | `aura/events/decorators.py`, `aura/events/wiring.py`, `tests/test_events.py` |
+| W10-5 | `EventsConfig` opt-in (`events.enabled=False` por padrão) | [x] | `aura/config/base.py`, `tests/test_events.py::TestEventsConfig` |
+| W10-6 | `AuraEventsModule.for_root()` + auto-wiring em `Aura._on_startup` | [x] | `aura/events/module.py`, `aura/events/lifecycle.py`, `aura/core/app.py` |
+| W10-7 | ADR-006 — decisões de arquitetura EventBus | [x] | `docs/decisions/ADR-006-event-bus.md` |
+
+---
+
+## Wave 11 — Message Brokers (RabbitMQ / Kafka) ✅
+
+Concluída na branch `fix/wave11-message-brokers`.
+
+| ID | Item | Status | Verificação |
+|----|------|--------|-------------|
+| W11-1 | `RabbitMQEventBus` — exchange `topic`, routing key = tópico | [x] | `aura/events/backends/rabbitmq.py`, `tests/test_rabbitmq_events.py` |
+| W11-2 | `KafkaEventBus` — producer/consumer `aiokafka`, commit manual | [x] | `aura/events/backends/kafka.py`, `tests/test_kafka_events.py` |
+| W11-3 | `@EventPattern` (fire-and-forget) e `@MessagePattern` (request/response) | [x] | `aura/events/microservice.py`, `tests/test_message_patterns.py` |
+| W11-4 | `MessagingClient` — `emit()` e `send()` com timeout | [x] | `aura/events/client.py`, `tests/test_message_patterns.py` |
+| W11-5 | Extras `[rabbitmq]` (`aio-pika`) e `[kafka]` (`aiokafka`) | [x] | `pyproject.toml`, `tests/test_rabbitmq_events.py`, `tests/test_kafka_events.py` |
+| W11-6 | `EventsConfig` estendida (`rabbitmq_url`, `kafka_bootstrap_servers`, etc.) | [x] | `aura/config/base.py`, `aura/events/wiring.py` |
+| W11-7 | ADR-007 — decisões de arquitetura message brokers | [x] | `docs/decisions/ADR-007-message-brokers.md` |
+
+---
+
 ## Pendentes pós-hardening
 
-Itens **não** cobertos pelas waves 1–8.
+Itens **não** cobertos pelas waves 1–11.
 
 ### Médio / baixo
 

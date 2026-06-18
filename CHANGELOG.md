@@ -10,6 +10,51 @@ _Nothing yet._
 
 ---
 
+## [1.5.0] — Waves 9–11 (Messaging & Database Jobs)
+
+### Wave 9 — Database Jobs (sem Redis)
+
+#### Added
+
+- **`DatabaseBackend`:** fila de jobs persistente em SQL (`aura_jobs`) — alternativa a Redis/SAQ para apps que já usam banco async.
+- **`AuraJob`:** modelo SQLAlchemy com status, retry, `scheduled_at` e serialização JSON de args/kwargs.
+- **`AURA__JOBS__BACKEND=database`:** auto-seleção do backend via env var ou `JobsConfig.backend` em `aura.toml`.
+- **`AuraWorker`:** loop de polling com claim atômico, retry e mark success/failed para `DatabaseBackend`.
+
+#### Changed
+
+- **`JobsConfig`:** campo `backend` (`memory` | `database` | implícito SAQ via `broker_url`).
+
+### Wave 10 — EventBus
+
+#### Added
+
+- **`EventBus` + `EventEnvelope`:** contrato pub/sub com `topic`, `payload`, `event_id` (UUID) e `timestamp` UTC ([ADR-006](docs/decisions/ADR-006-event-bus.md)).
+- **`InMemoryEventBus`:** fan-out in-process para dev/test (sem dependências externas).
+- **`RedisStreamsEventBus`:** backend distribuído via `XADD` / `XREADGROUP` (requer `[redis]`).
+- **`@on_event("topic")`:** decorator + `EventHandlerRegistry` com descoberta automática no startup.
+- **`EventsConfig`:** configuração opt-in (`events.enabled=False` por padrão); backends `memory` e `redis_streams`.
+- **`AuraEventsModule.for_root()`:** módulo opcional para wiring explícito; auto-wiring via `Aura._on_startup` quando `events.enabled=True`.
+
+### Wave 11 — Message Brokers (RabbitMQ / Kafka)
+
+#### Added
+
+- **`RabbitMQEventBus`:** backend AMQP com exchange `topic` e routing key = nome do tópico (requer `[rabbitmq]` / `aio-pika`).
+- **`KafkaEventBus`:** backend Kafka com commit manual após handler (requer `[kafka]` / `aiokafka`).
+- **`@EventPattern("topic")`:** handler fire-and-forget estilo NestJS microservices.
+- **`@MessagePattern("topic")`:** handler request/response para RPC via bus.
+- **`MessagingClient`:** `emit(topic, payload)` e `send(topic, payload, timeout=30)` sobre o bus ativo.
+- **Extras `[rabbitmq]` e `[kafka]`:** dependências opcionais incluídas em `[all]`.
+- **`EventsConfig` estendida:** `rabbitmq_url`, `kafka_bootstrap_servers`, `kafka_consumer_group`.
+
+#### Notes
+
+- Request/response (`MessagingClient.send()`) funciona apenas em backends `rabbitmq` e `kafka`.
+- Entrega at-least-once; handlers devem ser idempotentes.
+
+---
+
 ## [1.4.0] — Waves 4–8
 
 > **Nota de release:** A versão **1.3.0** foi publicada no PyPI a partir do commit órfão `8989544` (branch divergente). Esta release **1.4.0** consolida as waves 4–8 em `main` e substitui o histórico de pacote.
