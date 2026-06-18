@@ -423,13 +423,17 @@ def migrate_init(
 
         # Write alembic.ini next to the migrations dir
         ini_path = Path("alembic.ini")
-        ini_path.write_text(_generate_alembic_ini(migrations_dir, db_url))
+        ini_path.write_text(
+            _generate_alembic_ini(migrations_dir, db_url), encoding="utf-8"
+        )
 
         # Generate env.py
         from aura.orm.migrations import generate_env_py
 
         env_path = migrations_path / "env.py"
-        env_path.write_text(generate_env_py(migrations_path, model_import))
+        env_path.write_text(
+            generate_env_py(migrations_path, model_import), encoding="utf-8"
+        )
 
         # Write a minimal script.py.mako if it doesn't exist
         mako_path = migrations_path / "script.py.mako"
@@ -454,13 +458,14 @@ def migrate_init(
                 "def upgrade() -> None:\n"
                 "    ${upgrades if upgrades else 'pass'}\n\n\n"
                 "def downgrade() -> None:\n"
-                "    ${downgrades if downgrades else 'pass'}\n"
+                "    ${downgrades if downgrades else 'pass'}\n",
+                encoding="utf-8",
             )
 
     models_note = (
         f"[dim]Models: [cyan]{model_import}[/][/]"
         if model_import
-        else "[dim]Edit [cyan]migrations/env.py[/] to add your models[/]"
+        else "[dim]Models: [cyan]auto-discovered[/] from [cyan]modules/**/models.py[/][/]"
     )
     console.print(
         Panel(

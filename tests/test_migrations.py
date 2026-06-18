@@ -12,6 +12,7 @@ import pytest
 from sqlalchemy import MetaData
 
 from aura.orm.migrations import (
+    autoload_project_models,
     generate_env_py,
     get_alembic_config,
     run_migrations_offline,
@@ -30,12 +31,49 @@ def test_generate_env_py_scaffold() -> None:
     """Verifies the content generated for env.py is correct and imports helpers."""
     content_no_model = generate_env_py(Path("migrations"), None)
     assert "from aura.orm.migrations import" in content_no_model
+    assert "autoload_project_models" in content_no_model
     assert "aura_offline" in content_no_model
     assert "aura_online" in content_no_model
     assert "target_metadata = AuraModel.metadata" in content_no_model
 
     content_with_model = generate_env_py(Path("migrations"), "app.models:Base")
     assert "from app.models import Base as target_metadata_base" in content_with_model
+
+
+def test_autoload_project_models_registers_scaffold_models(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: migrate autogenerate must see modules/*/models.py without manual imports."""
+    import sys
+
+    from aura.orm import AuraModel
+
+    modules_items = tmp_path / "modules" / "items"
+    modules_items.mkdir(parents=True)
+    (tmp_path / "modules" / "__init__.py").write_text("", encoding="utf-8")
+    (modules_items / "__init__.py").write_text("", encoding="utf-8")
+    (modules_items / "models.py").write_text(
+        "from aura.orm import AuraModel, CharField\n"
+        "from sqlalchemy.orm import Mapped\n\n"
+        "class Item(AuraModel):\n"
+        "    __tablename__ = 'items'\n"
+        "    name: Mapped[str] = CharField(max_length=100)\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.syspath_prepend(str(tmp_path))
+    for key in list(sys.modules):
+        if key == "modules.items.models" or key.startswith("modules.items."):
+            del sys.modules[key]
+
+    tables_before = set(AuraModel.metadata.tables.keys())
+    loaded = autoload_project_models(tmp_path)
+    assert "modules.items.models" in loaded
+    assert "items" in AuraModel.metadata.tables
+
+    # Cleanup table registered during test (shared metadata singleton)
+    if "items" in AuraModel.metadata.tables and "items" not in tables_before:
+        AuraModel.metadata.remove(AuraModel.metadata.tables["items"])
 
 
 @patch("alembic.context")
