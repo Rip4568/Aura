@@ -25,7 +25,7 @@ from aura.schema.openapi import OpenAPIGenerator
 logger = logging.getLogger("aura")
 
 _SENSITIVE_CONFIG_KEYS = frozenset(
-    {"secret_key", "password", "token", "url", "broker_url", "dsn"}
+    {"secret_key", "password", "token", "url", "broker_url", "redis_url", "dsn"}
 )
 
 
@@ -117,6 +117,7 @@ class Aura:
         docs_url: str | None = "/docs",
         openapi_url: str | None = "/openapi.json",
         redoc_url: str | None = "/redoc",
+        events_bus: Any | None = None,
     ) -> None:
         _load_dotenv()
         self.title = title
@@ -140,6 +141,11 @@ class Aura:
 
         # Config
         self._config_class = config or AuraConfig
+        self._events_bus = events_bus
+        self._active_events_bus: Any | None = None
+
+        # Expose registry on container for optional subsystems (events module)
+        self.container._app_registry = self.registry  # type: ignore[attr-defined]
 
         # Middleware, guards, and interceptors
         self._global_middleware = list(middleware)
@@ -333,6 +339,23 @@ class Aura:
         # Run per-module startup hooks (e.g. AuraTemplateModule.on_startup)
         await self.registry.run_module_startups(self.container, self.debug)
 
+        # Event bus (after modules so handlers are importable)
+        try:
+            from aura.events.lifecycle import ensure_events_started
+
+            events_cfg = getattr(cfg, "events", None)
+            if self._events_bus is not None or (
+                events_cfg is not None and events_cfg.enabled
+            ):
+                self._active_events_bus = await ensure_events_started(
+                    container=self.container,
+                    registry=self.registry,
+                    bus=self._events_bus,
+                    events_config=events_cfg,
+                )
+        except ImportError:
+            pass
+
         # After module startups the template engine may have just been set;
         # register the route list with it now if available.
         try:
@@ -351,6 +374,11 @@ class Aura:
         Releases DI container resources and performs graceful cleanup.
         """
         logger.info("Shutting down %s", self.title)
+        if self._active_events_bus is not None:
+            try:
+                await self._active_events_bus.shutdown()
+            except Exception:
+                logger.exception("Error shutting down event bus")
         await self.container.shutdown()
         logger.info("%s shut down", self.title)
 

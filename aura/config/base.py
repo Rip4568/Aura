@@ -62,6 +62,24 @@ class JobsConfig(BaseSettings):
     max_workers: int = 4
 
 
+class EventsConfig(BaseSettings):
+    """Event bus / pub-sub configuration.
+
+    Attributes:
+        enabled: Whether the event bus is active.
+        backend: Bus backend identifier (``memory`` or ``redis_streams``).
+        redis_url: Redis connection URL (used when backend is ``redis_streams``).
+        stream_prefix: Key prefix for Redis stream names.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="EVENTS_", extra="ignore")
+
+    enabled: bool = False
+    backend: str = "memory"
+    redis_url: str = "redis://localhost:6379"
+    stream_prefix: str = "aura:events:"
+
+
 class AuraConfig(BaseSettings):
     """
     Top-level application configuration.
@@ -84,6 +102,7 @@ class AuraConfig(BaseSettings):
         server: :class:`ServerConfig` nested config.
         database: :class:`DatabaseConfig` nested config.
         jobs: :class:`JobsConfig` nested config.
+        events: :class:`EventsConfig` nested config.
         trusted_proxies: Reverse-proxy IPs allowed to set ``X-Forwarded-For``
                          for rate limiting (``AURA__TRUSTED_PROXIES``).
     """
@@ -104,6 +123,7 @@ class AuraConfig(BaseSettings):
     server: ServerConfig = ServerConfig()
     database: DatabaseConfig = DatabaseConfig()
     jobs: JobsConfig = JobsConfig()
+    events: EventsConfig = EventsConfig()
     logging: LogConfig = Field(default_factory=LogConfig)
 
     @model_validator(mode="after")
